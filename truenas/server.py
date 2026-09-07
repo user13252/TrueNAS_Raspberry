@@ -37,6 +37,63 @@ from .shell.terminal import ShellManager
 
 log = logging.getLogger("truenas")
 
+ROOT_HTML = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>TrueNAS Scale RPi</title></head>
+<body style="font-family:sans-serif;margin:2rem">
+<h1>TrueNAS Scale RPi</h1>
+<p>O backend esta ativo (WebSocket API em <code>/api/current</code>).</p>
+<p><strong>UI nao encontrada.</strong> Compile o frontend Angular para servir a interface:</p>
+<pre>cd /opt/truenas-rpi/webui-master
+yarn install
+yarn ui reset
+yarn ui remote -i (ip_do_host)
+yarn build:prod</pre>
+<p>Depois recarregue <code>http://(ip_do_host)/</code></p>
+</body>
+</html>
+"""
+
+
+class WSAdapter:
+    """Adapta um aiohttp WebSocketResponse a API usada pelos handlers
+    (send / recv / iteracao) herdada da biblioteca `websockets`."""
+
+    def __init__(self, ws):
+        self._ws = ws
+
+    async def send(self, data):
+        if isinstance(data, (bytes, bytearray, memoryview)):
+            await self._ws.send_bytes(bytes(data))
+        else:
+            await self._ws.send_str(str(data))
+
+    async def recv(self):
+        from aiohttp import WSMsgType
+        while True:
+            msg = await self._ws.receive()
+            if msg.type == WSMsgType.TEXT:
+                return msg.data
+            if msg.type == WSMsgType.BINARY:
+                return msg.data
+            if msg.type in (WSMsgType.CLOSE, WSMsgType.ERROR):
+                break
+        import websockets
+        raise websockets.exceptions.ConnectionClosedError(None, None)
+
+    def __aiter__(self):
+        return self._iterate()
+
+    async def _iterate(self):
+        from aiohttp import WSMsgType
+        async for msg in self._ws:
+            if msg.type == WSMsgType.TEXT:
+                yield msg.data
+            elif msg.type == WSMsgType.BINARY:
+                yield msg.data
+            elif msg.type in (WSMsgType.CLOSE, WSMsgType.ERROR):
+                return
+
 
 class TrueNasApp:
     def __init__(self):
@@ -464,10 +521,12 @@ class TrueNasApp:
 
         app = web.Application()
 
-        app.router.add_get("/api/current", self._handle_http_upgrade)
-        app.router.add_get("/websocket/shell", self._handle_shell_http_upgrade)
+        app.router.add_get("/api/current", self._handle_api_ws)
+        app.router.add_get("/websocket/shell", self._handle_shell_ws)
+        app.router.add_get("/websocket/shell/", self._handle_shell_ws)
         app.router.add_get("/api/boot_id", self._handle_boot_id_http)
         app.router.add_get("/api/docs", self._handle_api_docs)
+        app.router.add_get("/", self._handle_root)
 
         web_ui_path = self.config.get("web_ui_path", "")
         if web_ui_path and os.path.isdir(web_ui_path):
@@ -487,21 +546,26 @@ class TrueNasApp:
             self.config.get("port"),
         )
 
-    async def _handle_http_upgrade(self, request):
+    async def _handle_api_ws(self, request):
         from aiohttp import web
-        return web.Response(
-            status=426,
-            text="Upgrade Required",
-            headers={"Upgrade": "websocket"},
-        )
+        ws = web.WebSocketResponse(max_msg_size=2**20)
+        await ws.prepare(request)
+        await self.handle_api_websocket(WSAdapter(ws))
+        return ws
 
-    async def _handle_shell_http_upgrade(self, request):
+    async def _handle_shell_ws(self, request):
         from aiohttp import web
-        return web.Response(
-            status=426,
-            text="Upgrade Required",
-            headers={"Upgrade": "websocket"},
-        )
+        ws = web.WebSocketResponse(max_msg_size=2**20)
+        await ws.prepare(request)
+        await self.shell_manager.handle_shell_websocket(WSAdapter(ws))
+        return ws
+
+    async def _handle_root(self, request):
+        from aiohttp import web
+        web_ui_path = self.config.get("web_ui_path", "")
+        if web_ui_path and os.path.isdir(web_ui_path):
+            raise web.HTTPFound("/ui/")
+        return web.Response(text=ROOT_HTML, content_type="text/html")
 
     async def _handle_boot_id_http(self, request):
         from aiohttp import web
@@ -528,19 +592,7 @@ class TrueNasApp:
     async def run(self):
         log.info("Starting TrueNAS Scale RPi Backend v0.1.0")
 
-        ws_server = await websockets.serve(
-            self.handle_api_websocket,
-            self.config.get("host", "0.0.0.0"),
-            self.config.get("port", 80),
-            max_size=2**20,
-            ping_interval=20,
-            ping_timeout=20,
-        )
-        log.info(
-            "WebSocket server started on ws://%s:%s/api/current",
-            self.config.get("host"),
-            self.config.get("port"),
-        )
+        await self.start_http_server()
 
         shell_port = self.config.get("shell_port", 8080)
         shell_server = await websockets.serve(
@@ -550,7 +602,7 @@ class TrueNasApp:
             max_size=2**20,
         )
         log.info(
-            "Shell WebSocket server started on ws://%s:%s",
+            "Shell WebSocket server started on ws://%s:%s (porta 80 via /websocket/shell/ tambem)",
             self.config.get("host"),
             shell_port,
         )
@@ -566,7 +618,6 @@ class TrueNasApp:
                 pass
 
         await stop.wait()
-        ws_server.close()
         shell_server.close()
         log.info("TrueNAS Scale RPi Backend stopped")
 
