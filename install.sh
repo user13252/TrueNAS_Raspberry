@@ -145,8 +145,21 @@ cp -r "$SCRIPT_DIR"/truenas "$SCRIPT_DIR"/run.py "$SCRIPT_DIR"/setup.py \
       "$SCRIPT_DIR"/truenas-rpi.service "$INSTALL_DIR"/
 
 if [[ -d "$SCRIPT_DIR/webui-master" ]]; then
-    cp -r "$SCRIPT_DIR/webui-master" "$INSTALL_DIR/webui-master"
-    yellow "webui-master copiado (frontend Angular)."
+    # copia sem node_modules/.git/.angular (node_modules pesa >1GB e, com o dist
+    # pré-compilado, nem é necessário no RPi; se for recompilar, yarn install recria)
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --exclude='webui-master/node_modules' \
+                 --exclude='webui-master/.git' \
+                 --exclude='webui-master/.angular' \
+                 "$SCRIPT_DIR/webui-master/" "$INSTALL_DIR/webui-master/"
+    else
+        mkdir -p "$INSTALL_DIR/webui-master"
+        tar -C "$SCRIPT_DIR" --exclude='webui-master/node_modules' \
+                 --exclude='webui-master/.git' \
+                 --exclude='webui-master/.angular' \
+                 -cf - webui-master | tar -C "$INSTALL_DIR" -xf -
+    fi
+    yellow "webui-master copiado (sem node_modules/.git; frontend Angular)."
 fi
 
 # ----------------------------------------------------------- 3.5 cython
@@ -160,7 +173,24 @@ fi
 # --------------------------------------------------------- 4. Node + UI build
 UI_BUILD_OK=0
 if [[ "$WITH_UI" -eq 1 ]] && [[ -d "$INSTALL_DIR/webui-master" ]]; then
-    info "==> [5/7] Instalando Node.js 24 + Yarn 4 (para a UI Angular)..."
+
+    # Se já veio um dist pronto do projeto, não recompila (ganha 30-60 min).
+    PREBUILT_DIST=""
+    for d in \
+        "$INSTALL_DIR/webui-master/dist" \
+        "$INSTALL_DIR/webui-master/dist/browser" \
+        "$INSTALL_DIR/webui-master/dist/webui" \
+        "$INSTALL_DIR/webui-master/dist/webui/browser"; do
+        if [[ -f "$d/index.html" ]]; then
+            PREBUILT_DIST="$d"
+            break
+        fi
+    done
+    if [[ -n "$PREBUILT_DIST" ]]; then
+        green "UI já compilada em $PREBUILT_DIST - pulando build (yarn install/ng build)."
+        UI_BUILD_OK=1
+    else
+        info "==> [5/7] Sem dist pronto; instalando Node.js 24 + Yarn 4 (para a UI Angular)..."
 
     NODE_MAJOR=0
     if command -v node >/dev/null 2>&1; then
@@ -231,6 +261,7 @@ if [[ "$WITH_UI" -eq 1 ]] && [[ -d "$INSTALL_DIR/webui-master" ]]; then
             yellow "  cd $INSTALL_DIR/webui-master && sudo yarn build:prod"
         fi
     fi
+fi
 fi
 
 # ------------------------------------------------------- config.json

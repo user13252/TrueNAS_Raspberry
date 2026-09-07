@@ -368,7 +368,7 @@ class TrueNasApp:
 
     async def _handle_login_ex(self, mechanisms: list = None, context: dict = None):
         if not mechanisms:
-            return {"auth_result": "DENIED"}
+            return {"auth_result": "DENIED", "response_type": "DENIED"}
 
         for mech in mechanisms:
             mech_type = mech.get("mechanism", "")
@@ -379,14 +379,19 @@ class TrueNasApp:
                 if session:
                     return {
                         "auth_result": "SUCCESS",
+                        "response_type": "SUCCESS",
                         "user_info": {
                             "username": session.user,
-                            "privilege": {"web_shell": True},
+                            "privilege": {
+                                "web_shell": True,
+                                "webui_access": True,
+                                "roles": session.roles,
+                            },
                             "roles": session.roles,
                         },
                         "reconnect_token": session.reconnect_token,
                     }
-                return {"auth_result": "DENIED"}
+                return {"auth_result": "DENIED", "response_type": "DENIED"}
 
             elif mech_type == "TOKEN_PLAIN":
                 token = mech.get("token", "")
@@ -394,16 +399,21 @@ class TrueNasApp:
                 if session:
                     return {
                         "auth_result": "SUCCESS",
+                        "response_type": "SUCCESS",
                         "user_info": {
                             "username": session.user,
-                            "privilege": {"web_shell": True},
+                            "privilege": {
+                                "web_shell": True,
+                                "webui_access": True,
+                                "roles": session.roles,
+                            },
                             "roles": session.roles,
                         },
                         "reconnect_token": session.reconnect_token,
                     }
-                return {"auth_result": "DENIED"}
+                return {"auth_result": "DENIED", "response_type": "DENIED"}
 
-        return {"auth_result": "DENIED"}
+        return {"auth_result": "DENIED", "response_type": "DENIED"}
 
     async def _handle_login_ex_continue(self, **kwargs):
         return {"auth_result": "SUCCESS"}
