@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=root
 WorkingDirectory=/opt/truenas-rpi
-ExecStart=/usr/bin/python3 /opt/truenas-rpi/run.py
+ExecStart=/opt/truenas-rpi/.venv/bin/python3 /opt/truenas-rpi/run.py
 Restart=always
 RestartSec=5
 Environment=TRUENAS_CONFIG=/opt/truenas-rpi/config.json

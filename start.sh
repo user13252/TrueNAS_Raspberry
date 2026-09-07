@@ -15,14 +15,25 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
+# Prefer project virtualenv if present
+PYTHON="$SCRIPT_DIR/.venv/bin/python3"
+if [[ ! -x "$PYTHON" ]]; then
+    PYTHON=python3
+fi
+
 # Check/install dependencies
 echo "Checking dependencies..."
-pip3 install -q websockets aiohttp orjson psutil bcrypt 2>/dev/null || true
+if [[ "$PYTHON" != "python3" ]]; then
+    "$PYTHON" -c "import websockets, aiohttp, orjson, psutil, bcrypt" 2>/dev/null \
+        || "$PYTHON" -m pip install -q websockets aiohttp orjson psutil bcrypt || true
+else
+    pip3 install -q websockets aiohttp orjson psutil bcrypt 2>/dev/null || true
+fi
 
 # Build Cython extensions if available
 if command -v cython &> /dev/null && [ "$BUILD_CYTHON" = "1" ]; then
     echo "Building Cython extensions..."
-    python3 setup.py build_ext --inplace
+    "$PYTHON" setup.py build_ext --inplace
 fi
 
 # Create data directory
@@ -43,4 +54,4 @@ echo "Default login: admin / admin"
 echo "(Change password immediately!)"
 echo ""
 
-python3 run.py "$@"
+"$PYTHON" run.py "$@"

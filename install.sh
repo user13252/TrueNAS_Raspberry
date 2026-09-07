@@ -45,6 +45,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="/opt/truenas-rpi"
+VENV_DIR="$INSTALL_DIR/.venv"
 DATA_DIR="/var/lib/truenas-rpi"
 SERVICE_NAME="truenas-rpi"
 
@@ -105,15 +106,17 @@ else
     yellow "OpenZFS pulado (--no-zfs)."
 fi
 
-# ---------------------------------------------------------------- 2. pip
-info "==> [3/6] Instalando dependências Python (core)..."
-python3 -m pip install --upgrade pip setuptools wheel
-python3 -m pip install websockets aiohttp orjson psutil bcrypt
+# ----------------------------------------------------------- 2. venv + pip
+info "==> [3/6] Criando virtualenv e instalando dependências Python (core)..."
+mkdir -p "$INSTALL_DIR"
+python3 -m venv "$VENV_DIR"
+"$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
+"$VENV_DIR/bin/python" -m pip install websockets aiohttp orjson psutil bcrypt
 
 info "==> [3/6] Dependências opcionais (falhas não bloqueiam)..."
 OPTIONAL_DEPS=(pyudev netifaces pycryptodome)
 for dep in "${OPTIONAL_DEPS[@]}"; do
-    if python3 -m pip install "$dep"; then
+    if "$VENV_DIR/bin/python" -m pip install "$dep"; then
         green "  OK: $dep"
     else
         yellow "  ignorado: $dep (opcional)"
@@ -157,8 +160,8 @@ fi
 # ---------------------------------------------------------------- 4. cython
 if [[ "$WITH_CYTHON" -eq 1 ]]; then
     info "==> [4.5] Compilando extensões Cython (pode demorar no RPi)..."
-    python3 -m pip install cython
-    (cd "$INSTALL_DIR" && python3 setup.py build_ext --inplace)
+    "$VENV_DIR/bin/python" -m pip install cython
+    (cd "$INSTALL_DIR" && "$VENV_DIR/bin/python" setup.py build_ext --inplace)
     green "Cython build concluído."
 fi
 
@@ -175,12 +178,12 @@ if [[ "$WITH_SERVICE" -eq 1 ]]; then
     green "Serviço ativo: $(systemctl is-active $SERVICE_NAME)"
 else
     yellow "Serviço systemd pulado (--no-service). Rode manualmente com:"
-    yellow "  cd $INSTALL_DIR && sudo python3 run.py"
+    yellow "  cd $INSTALL_DIR && sudo $VENV_DIR/bin/python run.py"
 fi
 
 # ---------------------------------------------------------------- 6. verificação
 info "==> [6/6] Verificação do registro de métodos..."
-python3 -c "
+"$VENV_DIR/bin/python" -c "
 import sys; sys.path.insert(0, '$INSTALL_DIR')
 import truenas.config as cfg
 cfg._DEFAULTS['data_dir'] = '$DATA_DIR'
