@@ -3,11 +3,15 @@
 #  install.sh - Instalador do TrueNAS Scale RPi para Debian 13 (Trixie)
 #
 #  Uso:
-#    sudo ./install.sh                    # instala SO deps + Python + serviço
+#    sudo ./install.sh                    # instala tudo, incluindo a UI Angular
+#    sudo ./install.sh --no-ui            # não instala Node/Yarn nem compila a UI
 #    sudo ./install.sh --with-cython      # compila extensões Cython
 #    sudo ./install.sh --no-zfs           # pula instalação do OpenZFS
 #    sudo ./install.sh --no-service       # não cria/ativa o systemd service
 #    sudo ./install.sh --force            # ignora a checagem da versão Debian
+#
+#  Requisitos de rede: acesso a apt, NodeSource e registry npm (para a UI).
+#  O build da UI pode levar 30-60 min em um Raspberry Pi.
 #
 #  O script deve ser executado a partir da pasta raiz do projeto (onde ele
 #  está, junto com truenas/, run.py, config.json etc).
@@ -27,12 +31,14 @@ die()   { red "ERRO: $*"; exit 1; }
 WITH_CYTHON=0
 WITH_ZFS=1
 WITH_SERVICE=1
+WITH_UI=1
 FORCE=0
 for arg in "$@"; do
     case "$arg" in
         --with-cython) WITH_CYTHON=1 ;;
         --no-zfs)      WITH_ZFS=0 ;;
         --no-service)  WITH_SERVICE=0 ;;
+        --no-ui)       WITH_UI=0 ;;
         --force)       FORCE=1 ;;
         *) die "argumento desconhecido: $arg" ;;
     esac
@@ -77,13 +83,13 @@ fi
 info "Python encontrado: $PY_MAJOR.$PY_MINOR"
 
 # ---------------------------------------------------------------- 1. apt
-info "==> [1/6] Instalando dependências de sistema (apt)..."
+info "==> [1/7] Instalando dependências de sistema (apt)..."
 export DEBIAN_FRONTEND=noninteractive
 
 APT_BASE=(
     python3 python3-pip python3-dev python3-venv
     build-essential libffi-dev libssl-dev
-    curl ca-certificates
+    curl ca-certificates git
     pkg-config
 )
 
@@ -94,7 +100,7 @@ apt-get update -y
 apt-get install -y "${APT_BASE[@]}"
 
 if [[ "$WITH_ZFS" -eq 1 ]]; then
-    info "==> [2/6] Instalando OpenZFS (zfsutils-linux + zfs-dkms)..."
+    info "==> [2/7] Instalando OpenZFS (zfsutils-linux + zfs-dkms)..."
     if apt-get install -y zfsutils-linux zfs-dkms; then
         modprobe zfs 2>/dev/null && green "Módulo ZFS carregado." \
             || yellow "ZFS instalado; o módulo carrega após o reboot."
@@ -107,13 +113,16 @@ else
 fi
 
 # ----------------------------------------------------------- 2. venv + pip
-info "==> [3/6] Criando virtualenv e instalando dependências Python (core)..."
+info "==> [3/7] Criando virtualenv e instalando dependências Python (core)..."
 mkdir -p "$INSTALL_DIR"
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
-"$VENV_DIR/bin/python" -m pip install websockets aiohttp orjson psutil bcrypt
+if ! "$VENV_DIR/bin/python" -m pip install websockets aiohttp orjson psutil bcrypt; then
+    red "Falha ao instalar dependências Python do backend."
+    exit 1
+fi
 
-info "==> [3/6] Dependências opcionais (falhas não bloqueiam)..."
+info "     Dependências opcionais (falhas não bloqueiam)..."
 OPTIONAL_DEPS=(pyudev netifaces pycryptodome)
 for dep in "${OPTIONAL_DEPS[@]}"; do
     if "$VENV_DIR/bin/python" -m pip install "$dep"; then
@@ -124,18 +133,116 @@ for dep in "${OPTIONAL_DEPS[@]}"; do
 done
 
 # ---------------------------------------------------------------- 3. copia
-info "==> [4/6] Copiando projeto para $INSTALL_DIR ..."
+info "==> [4/7] Copiando projeto para $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
+# remove cópias antigas do frontend (evita node_modules/dist velhos e gigantes)
+rm -rf "$INSTALL_DIR/webui-master"
 cp -r "$SCRIPT_DIR"/truenas "$SCRIPT_DIR"/run.py "$SCRIPT_DIR"/setup.py \
       "$SCRIPT_DIR"/requirements.txt "$SCRIPT_DIR"/start.sh "$SCRIPT_DIR"/scripts \
       "$SCRIPT_DIR"/truenas-rpi.service "$INSTALL_DIR"/
 
 if [[ -d "$SCRIPT_DIR/webui-master" ]]; then
     cp -r "$SCRIPT_DIR/webui-master" "$INSTALL_DIR/webui-master"
-    yellow "webui-master copiado (frontend Angular - compilação necessária p/ servir UI)."
+    yellow "webui-master copiado (frontend Angular)."
 fi
 
-# config.json - só se não existir (não sobrescreve ajustes feitos antes)
+# ----------------------------------------------------------- 3.5 cython
+if [[ "$WITH_CYTHON" -eq 1 ]]; then
+    info "==> [4.5] Compilando extensões Cython (pode demorar no RPi)..."
+    "$VENV_DIR/bin/python" -m pip install cython
+    (cd "$INSTALL_DIR" && "$VENV_DIR/bin/python" setup.py build_ext --inplace)
+    green "Cython build concluído."
+fi
+
+# --------------------------------------------------------- 4. Node + UI build
+UI_BUILD_OK=0
+if [[ "$WITH_UI" -eq 1 ]] && [[ -d "$INSTALL_DIR/webui-master" ]]; then
+    info "==> [5/7] Instalando Node.js 24 + Yarn 4 (para a UI Angular)..."
+
+    NODE_MAJOR=0
+    if command -v node >/dev/null 2>&1; then
+        NODE_MAJOR=$(node -e 'process.stdout.write(String(process.versions.node.split(".")[0]))' 2>/dev/null || echo 0)
+        info "Node detectado: $(node --version 2>/dev/null || echo '?')"
+    fi
+    if [[ "$NODE_MAJOR" -lt 24 ]]; then
+        yellow "Instalando Node.js 24 via NodeSource..."
+        if curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/truenas-nodesource.sh &&
+           bash /tmp/truenas-nodesource.sh && apt-get install -y nodejs; then
+            green "Node instalado: $(node --version)"
+        else
+            yellow "Falha ao instalar Node.js (verifique rede/repositório NodeSource)."
+            yellow "A UI não será compilada neste momento. Reexecute o install.sh mais tarde"
+            yellow "ou compile manualmente com: cd $INSTALL_DIR/webui-master && yarn build:prod"
+            WITH_UI=0
+        fi
+    fi
+
+    if [[ "$WITH_UI" -eq 1 ]]; then
+        if command -v yarn >/dev/null 2>&1 && [[ "$(yarn -v 2>/dev/null | cut -c1)" == "4" ]]; then
+            green "Yarn $(yarn -v) já instalado."
+        elif command -v corepack >/dev/null 2>&1; then
+            corepack enable
+            corepack prepare yarn@4.9.2 --activate
+            green "Yarn instalado via corepack: $(yarn -v 2>/dev/null)"
+        else
+            yellow "corepack não encontrado; instalando yarn via npm..."
+            if ! npm install -g yarn@4.9.2; then
+                yellow "Falha ao instalar Yarn. Pulando compilação da UI."
+                WITH_UI=0
+            fi
+        fi
+    fi
+
+    if [[ "$WITH_UI" -eq 1 ]]; then
+        info "==> [5/7] Instalando dependências e compilando a UI Angular..."
+        info "     (pode levar 30-60 minutos em um Raspberry Pi)"
+        if ( set -e
+             cd "$INSTALL_DIR/webui-master"
+             # alguns scripts usam `git rev-parse --show-toplevel`; garanta um repo git
+             [[ -d .git ]] || git init -q
+             yarn install
+
+             RAM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 4096)
+             NODE_MAX=$(( RAM_MB * 700 / 1024 ))
+             (( NODE_MAX < 2048 )) && NODE_MAX=2048
+             (( NODE_MAX > 8192 )) && NODE_MAX=8192
+             if [[ "$RAM_MB" -lt 4096 ]]; then
+                 yellow "     Aviso: RAM ${RAM_MB}MB foi detectada. O build pode ser lento;"
+                 yellow "     considere aumentar a swap (dphys-swapfile set 4096 && dphys-swapfile swapon)."
+             fi
+             green "     Memória total: ${RAM_MB}MB -> heap do Node: ${NODE_MAX}MB"
+
+             yarn tn-icons
+             node ./setup-production-env.js
+             NODE_OPTIONS="--max-old-space-size=${NODE_MAX}" \
+                 yarn ng build --configuration production --base-href /ui/
+             yarn tsx scripts/update-sw-version.ts
+        ); then
+            UI_BUILD_OK=1
+            green "UI Angular compilada com sucesso."
+        else
+            UI_BUILD_OK=0
+            yellow "AVISO: falha ao compilar a UI (veja os logs acima)."
+            yellow "O backend/API segue funcionando. Para recompilar depois:"
+            yellow "  cd $INSTALL_DIR/webui-master && sudo yarn build:prod"
+        fi
+    fi
+fi
+
+# ------------------------------------------------------- config.json
+# web_ui_path deve apontar para o dist real do Angular (dist/ ou dist/webui)
+WEBUI_DIST=""
+for d in "$INSTALL_DIR/webui-master/dist" "$INSTALL_DIR/webui-master/dist/webui"; do
+    if [[ -f "$d/index.html" ]]; then
+        WEBUI_DIST="$d"
+        break
+    fi
+done
+if [[ -z "$WEBUI_DIST" ]]; then
+    WEBUI_DIST="$INSTALL_DIR/webui-master/dist"
+    yellow "dist da UI ainda não existe; usando caminho padrão ($WEBUI_DIST)."
+fi
+
 mkdir -p "$DATA_DIR"
 if [[ ! -f "$INSTALL_DIR/config.json" ]]; then
     cat > "$INSTALL_DIR/config.json" <<EOF
@@ -143,7 +250,7 @@ if [[ ! -f "$INSTALL_DIR/config.json" ]]; then
     "host": "0.0.0.0",
     "port": 80,
     "shell_port": 8080,
-    "web_ui_path": "$INSTALL_DIR/webui-master/dist/webui",
+    "web_ui_path": "$WEBUI_DIST",
     "data_dir": "$DATA_DIR",
     "log_level": "INFO",
     "max_shell_sessions": 5,
@@ -153,21 +260,28 @@ if [[ ! -f "$INSTALL_DIR/config.json" ]]; then
     "short_token_ttl": 300
 }
 EOF
-else
-    yellow "config.json já existe em $INSTALL_DIR - mantendo o atual."
 fi
 
-# ---------------------------------------------------------------- 4. cython
-if [[ "$WITH_CYTHON" -eq 1 ]]; then
-    info "==> [4.5] Compilando extensões Cython (pode demorar no RPi)..."
-    "$VENV_DIR/bin/python" -m pip install cython
-    (cd "$INSTALL_DIR" && "$VENV_DIR/bin/python" setup.py build_ext --inplace)
-    green "Cython build concluído."
-fi
+# garante/atualiza o web_ui_path (idempotente, preserva demais ajustes)
+"$VENV_DIR/bin/python" - "$INSTALL_DIR/config.json" "$WEBUI_DIST" <<'PY'
+import json
+import sys
+
+path, dist = sys.argv[1], sys.argv[2]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    data = {}
+data["web_ui_path"] = dist
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=4)
+PY
+green "web_ui_path definido para: $WEBUI_DIST"
 
 # ---------------------------------------------------------------- 5. service
 if [[ "$WITH_SERVICE" -eq 1 ]]; then
-    info "==> [5/6] Instalando serviço systemd ($SERVICE_NAME)..."
+    info "==> [6/7] Instalando serviço systemd ($SERVICE_NAME)..."
     cp "$INSTALL_DIR/truenas-rpi.service" /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable "$SERVICE_NAME"
@@ -182,7 +296,7 @@ else
 fi
 
 # ---------------------------------------------------------------- 6. verificação
-info "==> [6/6] Verificação do registro de métodos..."
+info "==> [7/7] Verificação do registro de métodos..."
 "$VENV_DIR/bin/python" -c "
 import sys; sys.path.insert(0, '$INSTALL_DIR')
 import truenas.config as cfg
@@ -202,7 +316,11 @@ echo "  Pasta do projeto : $INSTALL_DIR"
 echo "  Dados/config     : $DATA_DIR"
 echo "  API (WebSocket)  : ws://${HOST_IP:-<ip>}/api/current"
 echo "  Shell WebSocket  : ws://${HOST_IP:-<ip>}:8080"
-echo "  UI local         : http://${HOST_IP:-<ip>}/ui/  (após build do Angular)"
+if [[ "$UI_BUILD_OK" -eq 1 ]]; then
+    green "  UI local         : http://${HOST_IP:-<ip>}/ui/  (compilada e servida)"
+else
+    yellow "  UI local         : NÃO compilada (backend/API OK). Reexecute install.sh para tentar."
+fi
 echo ""
 echo "  Login padrão     : admin / admin   ⚠️  TROQUE JÁ A SENHA!"
 echo "---------------------------------------------------------------"

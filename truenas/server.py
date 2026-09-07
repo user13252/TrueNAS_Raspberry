@@ -43,12 +43,13 @@ ROOT_HTML = """<!DOCTYPE html>
 <body style="font-family:sans-serif;margin:2rem">
 <h1>TrueNAS Scale RPi</h1>
 <p>O backend esta ativo (WebSocket API em <code>/api/current</code>).</p>
-<p><strong>UI nao encontrada.</strong> Compile o frontend Angular para servir a interface:</p>
+<p><strong>UI nao encontrada.</strong> A interface Angular ainda nao foi compilada.</p>
+<p>Para compilar, rode novamente o instalador:</p>
+<pre>cd ~/TrueNAS_Raspberry
+sudo ./install.sh</pre>
+<p>Ou compile manualmente:</p>
 <pre>cd /opt/truenas-rpi/webui-master
-yarn install
-yarn ui reset
-yarn ui remote -i (ip_do_host)
-yarn build:prod</pre>
+sudo yarn build:prod</pre>
 <p>Depois recarregue <code>http://(ip_do_host)/</code></p>
 </body>
 </html>
