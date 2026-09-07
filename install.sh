@@ -201,7 +201,6 @@ if [[ "$WITH_UI" -eq 1 ]] && [[ -d "$INSTALL_DIR/webui-master" ]]; then
         info "     (pode levar 30-60 minutos em um Raspberry Pi)"
         if ( set -e
              export CI=1
-             export YARN_ENABLE_PROMPTS=0
              cd "$INSTALL_DIR/webui-master"
              # alguns scripts usam `git rev-parse --show-toplevel`; garanta um repo git
              [[ -d .git ]] || git init -q
