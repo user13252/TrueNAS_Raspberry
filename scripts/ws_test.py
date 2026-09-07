@@ -18,7 +18,11 @@ async def main(host: str = "127.0.0.1", port: int = 80):
     url = f"ws://{host}:{port}/api/current"
     print(f"Connecting to {url} ...")
 
-    async with websockets.connect(url, max_size=2**20) as ws:
+    async with websockets.connect(
+        url,
+        max_size=2**20,
+        extra_headers={"Origin": f"http://{host}:{port}"},
+    ) as ws:
         async def call(method, params, expect=None):
             await ws.send(json.dumps({
                 "jsonrpc": "2.0", "id": expect, "method": method,

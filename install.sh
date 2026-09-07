@@ -15,6 +15,9 @@
 #
 #  O script deve ser executado a partir da pasta raiz do projeto (onde ele
 #  está, junto com truenas/, run.py, config.json etc).
+#
+#  Não há prompts: a instalação é 100% automática (DEBIAN_FRONTEND=noninteractive).
+#  Para remover, use o script irmão: sudo ./uninstall.sh
 # =============================================================================
 
 set -euo pipefail
@@ -197,6 +200,8 @@ if [[ "$WITH_UI" -eq 1 ]] && [[ -d "$INSTALL_DIR/webui-master" ]]; then
         info "==> [5/7] Instalando dependências e compilando a UI Angular..."
         info "     (pode levar 30-60 minutos em um Raspberry Pi)"
         if ( set -e
+             export CI=1
+             export YARN_ENABLE_PROMPTS=0
              cd "$INSTALL_DIR/webui-master"
              # alguns scripts usam `git rev-parse --show-toplevel`; garanta um repo git
              [[ -d .git ]] || git init -q
@@ -215,7 +220,7 @@ if [[ "$WITH_UI" -eq 1 ]] && [[ -d "$INSTALL_DIR/webui-master" ]]; then
              yarn tn-icons
              node ./setup-production-env.js
              NODE_OPTIONS="--max-old-space-size=${NODE_MAX}" \
-                 yarn ng build --configuration production --base-href /ui/
+                 yarn ng build --configuration production --base-href /
              yarn tsx scripts/update-sw-version.ts
         ); then
             UI_BUILD_OK=1
@@ -230,9 +235,13 @@ if [[ "$WITH_UI" -eq 1 ]] && [[ -d "$INSTALL_DIR/webui-master" ]]; then
 fi
 
 # ------------------------------------------------------- config.json
-# web_ui_path deve apontar para o dist real do Angular (dist/ ou dist/webui)
+# web_ui_path deve apontar para o dist real do Angular (varia conforme a versão)
 WEBUI_DIST=""
-for d in "$INSTALL_DIR/webui-master/dist" "$INSTALL_DIR/webui-master/dist/webui"; do
+for d in \
+    "$INSTALL_DIR/webui-master/dist" \
+    "$INSTALL_DIR/webui-master/dist/browser" \
+    "$INSTALL_DIR/webui-master/dist/webui" \
+    "$INSTALL_DIR/webui-master/dist/webui/browser"; do
     if [[ -f "$d/index.html" ]]; then
         WEBUI_DIST="$d"
         break
@@ -314,13 +323,12 @@ green "  INSTALAÇÃO CONCLUÍDA"
 echo "==============================================================="
 echo "  Pasta do projeto : $INSTALL_DIR"
 echo "  Dados/config     : $DATA_DIR"
-echo "  API (WebSocket)  : ws://${HOST_IP:-<ip>}/api/current"
-echo "  Shell WebSocket  : ws://${HOST_IP:-<ip>}:8080"
 if [[ "$UI_BUILD_OK" -eq 1 ]]; then
-    green "  UI local         : http://${HOST_IP:-<ip>}/ui/  (compilada e servida)"
+    green "  Web UI           : http://${HOST_IP:-<ip>}/  (compilada e servida na raiz)"
 else
-    yellow "  UI local         : NÃO compilada (backend/API OK). Reexecute install.sh para tentar."
+    yellow "  Web UI           : NÃO compilada (backend/API OK). Reexecute install.sh para tentar."
 fi
+echo "  API (interno)    : ws://${HOST_IP:-<ip>}/api/current  (mesmo origin apenas)"
 echo ""
 echo "  Login padrão     : admin / admin   ⚠️  TROQUE JÁ A SENHA!"
 echo "---------------------------------------------------------------"
@@ -328,5 +336,7 @@ echo "  Comandos úteis:"
 echo "    sudo systemctl status $SERVICE_NAME"
 echo "    journalctl -u $SERVICE_NAME -f"
 echo "    sudo systemctl restart $SERVICE_NAME"
+echo "    sudo ./uninstall.sh               # remover serviço e backend"
+echo "    sudo ./uninstall.sh --purge-data  # também apaga os dados (/var/lib/truenas-rpi)"
 echo "  Reboot após a instalação do ZFS (se aplicável): sudo reboot"
 echo "==============================================================="

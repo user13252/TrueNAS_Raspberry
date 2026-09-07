@@ -37,6 +37,18 @@ from .shell.terminal import ShellManager
 
 log = logging.getLogger("truenas")
 
+FORBIDDEN_TEXT = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>403 Forbidden</title></head>
+<body style="font-family:sans-serif;margin:2rem">
+<h1>403 Forbidden</h1>
+<p>As APIs deste servidor s&atilde;o internas.</p>
+<p>Somente a interface web servida por este servidor (mesmo origin) pode
+comunicar-se com elas.</p>
+</body>
+</html>
+"""
+
 ROOT_HTML = """<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><title>TrueNAS Scale RPi</title></head>
@@ -516,8 +528,70 @@ class TrueNasApp:
             self._connected_clients.pop(client_id, None)
             log.info("Client disconnected: %s", client_id)
 
+    # ── HTTP origin / UI helpers ──────────────────────────
+
+    @staticmethod
+    def _split_host_port(host_header: str):
+        """('host', port|None) a partir de um cabeçalho Host (ipv4/v6, c/ ou s/ porta)."""
+        host_header = host_header.strip()
+        if host_header.startswith("["):  # [::1] ou [::1]:8080
+            end = host_header.find("]")
+            host = host_header[1:end].lower()
+            rest = host_header[end + 1:] or ""
+            port = None
+            if rest.startswith(":"):
+                try:
+                    port = int(rest[1:])
+                except (ValueError, IndexError):
+                    port = None
+            return host, port
+        if host_header.count(":") == 1:  # host:port
+            host, _, port_str = host_header.partition(":")
+            try:
+                return host.lower(), int(port_str)
+            except ValueError:
+                return host.lower(), None
+        return host_header.lower(), None
+
+    def _origin_allowed(self, request) -> bool:
+        """Mesmo-origin: o cabeçalho Origin (browser) deve bater com o Host do request.
+        Requests sem Origin (não-browser) são recusados: só a Web UI fala com as APIs."""
+        from urllib.parse import urlsplit
+
+        origin = request.headers.get("Origin")
+        if not origin:
+            return False
+        try:
+            parts = urlsplit(origin)
+        except Exception:
+            return False
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            return False
+        origin_host = parts.hostname.lower()
+        origin_port = parts.port
+        if origin_port is None:
+            origin_port = 443 if parts.scheme == "https" else 80
+
+        req_host, req_port = self._split_host_port(request.host)
+        if req_port is None:
+            req_port = 443 if request.secure else 80
+        return origin_host == req_host and origin_port == req_port
+
+    def _find_ui_dir(self) -> str:
+        """Localiza o diretório com o index.html real (dist/, dist/browser/, ...)."""
+        base = self.config.get("web_ui_path", "")
+        for cand in (
+            base,
+            os.path.join(base, "browser"),
+            os.path.join(base, "webui"),
+            os.path.join(base, "webui", "browser"),
+        ):
+            if cand and os.path.isfile(os.path.join(cand, "index.html")):
+                return cand
+        return base if base and os.path.isdir(base) else ""
+
     async def start_http_server(self):
-        """Serve static web UI files and proxy API/WS endpoints."""
+        """Serve a Web UI na raiz (/) e os endpoints de API/WS (mesmo-origin)."""
         from aiohttp import web
 
         app = web.Application()
@@ -527,11 +601,14 @@ class TrueNasApp:
         app.router.add_get("/websocket/shell/", self._handle_shell_ws)
         app.router.add_get("/api/boot_id", self._handle_boot_id_http)
         app.router.add_get("/api/docs", self._handle_api_docs)
-        app.router.add_get("/", self._handle_root)
+        app.router.add_get("/{path:.*}", self._handle_static)
 
-        web_ui_path = self.config.get("web_ui_path", "")
-        if web_ui_path and os.path.isdir(web_ui_path):
-            app.router.add_static("/ui", web_ui_path)
+        ui_dir = self._find_ui_dir()
+        log.info(
+            "Web UI: %s (%s)",
+            ui_dir or "NAO encontrada",
+            self.config.get("web_ui_path", ""),
+        )
 
         runner = web.AppRunner(app)
         await runner.setup()
@@ -547,8 +624,56 @@ class TrueNasApp:
             self.config.get("port"),
         )
 
+    def _safe_join(self, ui_dir: str, rel_path: str) -> str:
+        """Une um caminho relativo a UI, impedindo traversal para fora da pasta."""
+        if rel_path in ("", ".", "/"):
+            return os.path.realpath(ui_dir)
+        candidate = os.path.realpath(os.path.join(ui_dir, rel_path))
+        root = os.path.realpath(ui_dir)
+        if candidate == root or candidate.startswith(root + os.sep):
+            return candidate
+        return None
+
+    async def _handle_static(self, request):
+        from aiohttp import web
+
+        ui_dir = self._find_ui_dir()
+        if not ui_dir:
+            return web.Response(text=ROOT_HTML, content_type="text/html")
+
+        path = request.match_info.get("path", "") or request.path
+        rel = os.path.normpath(path.lstrip("/"))
+        if rel.startswith(".."):
+            raise web.HTTPForbidden()
+        candidate = self._safe_join(ui_dir, rel)
+        if candidate is None:
+            raise web.HTTPForbidden()
+
+        if os.path.isfile(candidate):
+            return web.FileResponse(candidate)
+        if os.path.isdir(candidate):
+            if path and not path.endswith("/"):
+                raise web.HTTPFound(request.path + "/")
+            index = os.path.join(candidate, "index.html")
+            if os.path.isfile(index):
+                return web.FileResponse(index)
+            raise web.HTTPNotFound()
+
+        # Fallback SPA (TrueNAS Scale usa history routing: /dashboard, /network, ...).
+        index = os.path.join(ui_dir, "index.html")
+        if os.path.isfile(index):
+            ext = os.path.splitext(path)[1].lower()
+            accept = request.headers.get("Accept", "")
+            if not ext or "text/html" in accept:
+                return web.FileResponse(index)
+        raise web.HTTPNotFound()
+
     async def _handle_api_ws(self, request):
         from aiohttp import web
+        if not self._origin_allowed(request):
+            log.warning("API WS rejeitado (origin não permitido): %s",
+                        request.headers.get("Origin", "(sem origin)"))
+            return web.Response(status=403, text=FORBIDDEN_TEXT, content_type="text/html")
         ws = web.WebSocketResponse(max_msg_size=2**20)
         await ws.prepare(request)
         await self.handle_api_websocket(WSAdapter(ws))
@@ -556,25 +681,26 @@ class TrueNasApp:
 
     async def _handle_shell_ws(self, request):
         from aiohttp import web
+        if not self._origin_allowed(request):
+            log.warning("Shell WS rejeitado (origin não permitido): %s",
+                        request.headers.get("Origin", "(sem origin)"))
+            return web.Response(status=403, text=FORBIDDEN_TEXT, content_type="text/html")
         ws = web.WebSocketResponse(max_msg_size=2**20)
         await ws.prepare(request)
         await self.shell_manager.handle_shell_websocket(WSAdapter(ws))
         return ws
 
-    async def _handle_root(self, request):
-        from aiohttp import web
-        web_ui_path = self.config.get("web_ui_path", "")
-        if web_ui_path and os.path.isdir(web_ui_path):
-            raise web.HTTPFound("/ui/")
-        return web.Response(text=ROOT_HTML, content_type="text/html")
-
     async def _handle_boot_id_http(self, request):
         from aiohttp import web
+        if not self._origin_allowed(request):
+            return web.Response(status=403, text=FORBIDDEN_TEXT, content_type="text/html")
         boot_id = await self._handle_boot_id()
         return web.json_response({"boot_id": boot_id})
 
     async def _handle_api_docs(self, request):
         from aiohttp import web
+        if not self._origin_allowed(request):
+            return web.Response(status=403, text=FORBIDDEN_TEXT, content_type="text/html")
         return web.json_response({
             "openapi": "3.0.0",
             "info": {"title": "TrueNAS Scale RPi API", "version": "0.1.0"},
@@ -598,13 +724,12 @@ class TrueNasApp:
         shell_port = self.config.get("shell_port", 8080)
         shell_server = await websockets.serve(
             self.shell_manager.handle_shell_websocket,
-            self.config.get("host", "0.0.0.0"),
+            "127.0.0.1",  # interno: a UI usa o shell na porta 80 (/websocket/shell/)
             shell_port,
             max_size=2**20,
         )
         log.info(
-            "Shell WebSocket server started on ws://%s:%s (porta 80 via /websocket/shell/ tambem)",
-            self.config.get("host"),
+            "Shell WebSocket interno iniciado em ws://127.0.0.1:%s (loopback somente)",
             shell_port,
         )
 
