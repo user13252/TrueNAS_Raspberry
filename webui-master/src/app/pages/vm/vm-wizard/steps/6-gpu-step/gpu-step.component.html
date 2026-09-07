@@ -1,0 +1,40 @@
+<form [formGroup]="form">
+  <tn-form-section>
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="hide_from_msr"
+        [label]="'Hide from MSR' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.ensure_display_device.tooltip | translate">
+      <tn-checkbox
+        formControlName="ensure_display_device"
+        [label]="'Ensure Display Device' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [label]="'GPUs' | translate">
+      <tn-select
+        formControlName="gpus"
+        [options]="(gpuOptions$ | async) ?? []"
+        [multiple]="true"
+      ></tn-select>
+    </tn-form-field>
+  </tn-form-section>
+
+  <ix-form-actions>
+    <tn-button
+      tnStepperPrevious
+      [testId]="'back'"
+      [label]="'Back' | translate"
+    ></tn-button>
+    <tn-button
+      tnStepperNext
+      color="primary"
+      [testId]="'next'"
+      [label]="'Next' | translate"
+      [disabled]="form.invalid"
+    ></tn-button>
+  </ix-form-actions>
+</form>

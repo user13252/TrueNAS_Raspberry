@@ -1,0 +1,98 @@
+@if (!isLoading()) {
+  <div class="pool-container">
+    <div class="pool-header">
+      <h2 class="pool-name">{{ pool()?.name }}</h2>
+      <div class="pool-actions">
+        @if (!pool()?.is_upgraded && isOnline()) {
+          <tn-button
+            *ixRequiresRoles="requiredRoles"
+            color="primary"
+            [testId]="['upgrade-pool', pool()?.name]"
+            [label]="'Upgrade' | translate"
+            (onClick)="onUpgrade()"
+          ></tn-button>
+        }
+
+        <tn-button
+          *ixRequiresRoles="requiredRoles"
+          color="secondary"
+          [testId]="['disconnect', pool()?.name]"
+          [ixUiSearch]="searchableElements.elements.disconnect"
+          [label]="'Disconnect' | translate"
+          (onClick)="onDisconnect()"
+        ></tn-button>
+
+        <tn-icon-button
+          name="dots-vertical"
+          library="mdi"
+          [tooltip]="'Advanced Actions' | translate"
+          [ariaLabel]="'Advanced Actions' | translate"
+          [tnMenuTriggerFor]="advancedMenu"
+          [testId]="['advanced-actions', pool()?.name]"
+        ></tn-icon-button>
+
+        <tn-menu #advancedMenu>
+          <tn-menu-item
+            *ixRequiresRoles="requiredRoles"
+            icon="trending-up"
+            iconLibrary="mdi"
+            [testId]="['expand', pool()?.name]"
+            [ixUiSearch]="searchableElements.elements.expand"
+            [label]="'Expand Pool' | translate"
+            (itemClick)="onExpand()"
+          ></tn-menu-item>
+
+          <tn-menu-item
+            *ixRequiresRoles="requiredRoles"
+            icon="content-cut"
+            iconLibrary="mdi"
+            [testId]="['auto-trim', pool()?.name]"
+            [label]="'Auto TRIM' | translate"
+            (itemClick)="onEditAutotrim()"
+          ></tn-menu-item>
+        </tn-menu>
+      </div>
+    </div>
+
+    @if (isSedLocked()) {
+      <ix-sed-locked-warning
+        [pool]="pool()"
+        (importSuccess)="onImportSuccess()"
+      ></ix-sed-locked-warning>
+    }
+
+    <div class="cards">
+      <ix-vdevs-card
+        [poolState]="pool()"
+        [disks]="disks()"
+      ></ix-vdevs-card>
+
+      @if (rootDataset()) {
+        <ix-pool-usage-card
+          [poolState]="pool()"
+        ></ix-pool-usage-card>
+      }
+
+      <ix-storage-health-card [pool]="pool()"></ix-storage-health-card>
+      <ix-disk-health-card
+        [poolState]="pool()"
+        [disks]="disks()"
+      ></ix-disk-health-card>
+    </div>
+  </div>
+} @else {
+  <div class="skeleton-content">
+    <div class="pool-header">
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    </div>
+    <div class="cards">
+      @for (_ of counter(4); track _) {
+        <tn-card class="card">
+          @for (_ of counter(5); track _) {
+            <ngx-skeleton-loader></ngx-skeleton-loader>
+          }
+        </tn-card>
+      }
+    </div>
+  </div>
+}

@@ -1,0 +1,13 @@
+import { createFeatureSelector, createSelector } from '@ngrx/store';
+import { selectNotNull } from 'app/helpers/operators/select-not-null.helper';
+import { PreferencesState } from 'app/store/preferences/preferences.reducer';
+
+export const preferencesStateKey = 'preferences';
+
+export const selectPreferencesState = createFeatureSelector<PreferencesState>(preferencesStateKey);
+
+export const selectPreferences = createSelector(
+  selectPreferencesState,
+  (state) => state.preferences,
+);
+export const waitForPreferences = selectNotNull(selectPreferences);

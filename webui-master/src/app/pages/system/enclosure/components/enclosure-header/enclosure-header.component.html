@@ -1,0 +1,12 @@
+<div>
+  <h3 class="card-title">{{ title() }}</h3>
+</div>
+<div>
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="default"
+    [testId]="'edit-label'"
+    [label]="'Edit Label' | translate"
+    (onClick)="onEditLabel()"
+  ></tn-button>
+</div>

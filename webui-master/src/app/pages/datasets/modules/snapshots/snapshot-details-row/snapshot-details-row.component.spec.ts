@@ -1,0 +1,130 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { SpectatorRouting } from '@ngneat/spectator';
+import { mockProvider, createRoutingFactory } from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnCheckboxHarness, TnDialog } from '@truenas/ui-components';
+import { MockComponent } from 'ng-mocks';
+import { of, pipe } from 'rxjs';
+import { mockApi, mockCall } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { FormatDateTimePipe } from 'app/modules/dates/pipes/format-date-time/format-datetime.pipe';
+import { IxDateComponent } from 'app/modules/dates/pipes/ix-date/ix-date.component';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { FileSizePipe } from 'app/modules/pipes/file-size/file-size.pipe';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { SnapshotCloneDialog } from 'app/pages/datasets/modules/snapshots/snapshot-clone-dialog/snapshot-clone-dialog.component';
+import { SnapshotDetailsRowComponent } from 'app/pages/datasets/modules/snapshots/snapshot-details-row/snapshot-details-row.component';
+import { SnapshotRollbackDialog } from 'app/pages/datasets/modules/snapshots/snapshot-rollback-dialog/snapshot-rollback-dialog.component';
+import { fakeZfsSnapshot } from 'app/pages/datasets/modules/snapshots/testing/snapshot-fake-datasource';
+
+describe('SnapshotDetailsRowComponent', () => {
+  let spectator: SpectatorRouting<SnapshotDetailsRowComponent>;
+  let loader: HarnessLoader;
+  let api: ApiService;
+
+  const createComponent = createRoutingFactory({
+    component: SnapshotDetailsRowComponent,
+    imports: [
+      ReactiveFormsModule,
+      FileSizePipe,
+      FormatDateTimePipe,
+      MockComponent(IxDateComponent),
+    ],
+    providers: [
+      mockAuth(),
+      mockProvider(LoaderService, {
+        withLoader: jest.fn(() => pipe()),
+      }),
+      mockProvider(DialogService, {
+        confirm: jest.fn(() => of(true)),
+        confirmDelete: jest.fn((options: ConfirmDeleteCallOptions) => options.call()),
+      }),
+      mockApi([
+        mockCall('pool.snapshot.query', [fakeZfsSnapshot]),
+        mockCall('pool.snapshot.hold'),
+        mockCall('pool.snapshot.release'),
+        mockCall('pool.snapshot.delete'),
+      ]),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent({
+      props: {
+        snapshot: fakeZfsSnapshot,
+      },
+    });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    api = spectator.inject(ApiService);
+  });
+
+  it('renders details rows', () => {
+    const rows = spectator.queryAll('.details-row');
+    expect(rows).toHaveLength(4);
+
+    expect(rows[0]).toHaveText('Used: 1.49 TiB');
+    expect(rows[1]).toHaveText('Date created:');
+    expect(spectator.query(IxDateComponent, { parentSelector: '.details-row:nth-child(2)' }).date)
+      .toBe(1634575914 * 1000);
+    expect(rows[2]).toHaveText('Referenced: 1.49 TiB');
+    expect(rows[3]).toHaveText('Retention: Will be automatically destroyed at 2022-06-07 07:25:14 by periodic snapshot task');
+  });
+
+  it('should open clone dialog when `Clone To New Dataset` button click', async () => {
+    const tnDialog = spectator.inject(TnDialog);
+    jest.spyOn(tnDialog, 'open').mockImplementation();
+
+    const cloneButton = await loader.getHarness(TnButtonHarness.with({ label: 'Clone To New Dataset' }));
+    await cloneButton.click();
+
+    expect(tnDialog.open).toHaveBeenCalledWith(SnapshotCloneDialog, { data: fakeZfsSnapshot.name });
+  });
+
+  it('should open rollback dialog when `Rollback` button click', async () => {
+    const tnDialog = spectator.inject(TnDialog);
+    jest.spyOn(tnDialog, 'open').mockImplementation();
+
+    const rollbackButton = await loader.getHarness(TnButtonHarness.with({ label: 'Rollback' }));
+    await rollbackButton.click();
+
+    // The dialog now accepts the full snapshot so it can render the creation
+    // timestamp without a second pool.snapshot.query. By the time the user
+    // clicks Rollback, `pool.snapshot.query` (in ngOnInit) has populated
+    // `snapshotInfo` with `creation`, so the component passes that through.
+    expect(tnDialog.open).toHaveBeenCalledWith(SnapshotRollbackDialog, {
+      data: expect.objectContaining({
+        name: fakeZfsSnapshot.name,
+        properties: expect.objectContaining({
+          creation: expect.objectContaining({ parsed: 1634575914 }),
+        }),
+      }),
+    });
+  });
+
+  it('should make websocket query when Hold is changed', async () => {
+    const holdCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Hold' }));
+    expect(await holdCheckbox.isChecked()).toBeTruthy();
+
+    await holdCheckbox.toggle();
+    expect(api.call).toHaveBeenCalledWith('pool.snapshot.release', [fakeZfsSnapshot.name]);
+    expect(await holdCheckbox.isChecked()).toBeFalsy();
+
+    await holdCheckbox.toggle();
+    expect(api.call).toHaveBeenCalledWith('pool.snapshot.hold', [fakeZfsSnapshot.name]);
+  });
+
+  it('should delete snapshot when `Delete` button click', async () => {
+    const deleteButton = await loader.getHarness(TnButtonHarness.with({ label: 'Delete' }));
+    await deleteButton.click();
+
+    expect(spectator.inject(DialogService).confirmDelete).toHaveBeenCalledWith({
+      message: `Delete snapshot ${fakeZfsSnapshot.name}?`,
+      call: expect.any(Function),
+      successMessage: 'Snapshot deleted.',
+    });
+
+    expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('pool.snapshot.delete', ['test-dataset@first-snapshot']);
+  });
+});

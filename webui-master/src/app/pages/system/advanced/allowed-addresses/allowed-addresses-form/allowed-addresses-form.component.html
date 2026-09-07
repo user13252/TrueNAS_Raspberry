@@ -1,0 +1,46 @@
+<ix-form
+  [formGroup]="form"
+  [title]="'Allowed IP Addresses' | translate"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-list
+      class="addresses"
+      formArrayName="addresses"
+      [control]="form.controls.addresses"
+      [empty]="form.controls.addresses.controls.length === 0"
+      [label]="'Allowed IP Addresses' | translate"
+      [tooltip]="helptext.allowedIpAddresses.tooltip | translate"
+      [addLabel]="'Add' | translate"
+      [emptyMessage]="'No items have been added yet.' | translate"
+      (add)="addAddress()"
+    >
+      @for (network of form.controls.addresses.controls; track network; let i = $index) {
+        <tn-form-list-item
+          testId="remove-from-list"
+          [label]="'Allowed IP Addresses' | translate"
+          [removeAriaLabel]="'Remove {label} item' | translate: { label: 'Allowed IP Addresses' | translate }"
+          (delete)="removeAddress(i)"
+        >
+          <tn-form-field
+            subscriptSizing="dynamic"
+            [label]="'IP Address/Subnet' | translate"
+            [required]="true"
+          >
+            <tn-input [formControlName]="i"></tn-input>
+          </tn-form-field>
+        </tn-form-list-item>
+      }
+    </tn-form-list>
+
+    @if (isLockoutWarningShown()) {
+      <ix-warning
+        color="red"
+        class="lockout-warning"
+        [message]="helptext.allowedIpAddresses.lockoutWarning | translate"
+      ></ix-warning>
+    }
+  </tn-form-section>
+</ix-form>

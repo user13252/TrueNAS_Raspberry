@@ -1,0 +1,139 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ActivatedRoute } from '@angular/router';
+import {
+  byText, createComponentFactory, Spectator, mockProvider,
+} from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnDialog } from '@truenas/ui-components';
+import { MockComponents } from 'ng-mocks';
+import { of } from 'rxjs';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { DiskStandby } from 'app/enums/disk-standby.enum';
+import { DiskType } from 'app/enums/disk-type.enum';
+import { Disk } from 'app/interfaces/disk.interface';
+import { TopologyDisk } from 'app/interfaces/storage.interface';
+import { CopyButtonComponent } from 'app/modules/buttons/copy-button/copy-button.component';
+import { FileSizePipe } from 'app/modules/pipes/file-size/file-size.pipe';
+import { OrNotAvailablePipe } from 'app/modules/pipes/or-not-available/or-not-available.pipe';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import { DiskFormComponent } from 'app/pages/storage/modules/disks/components/disk-form/disk-form.component';
+import { ReplaceDiskDialog } from 'app/pages/storage/modules/vdevs/components/disk-info-card/replace-disk-dialog/replace-disk-dialog.component';
+import { VDevsStore } from 'app/pages/storage/modules/vdevs/stores/vdevs-store.service';
+import { DiskInfoCardComponent } from './disk-info-card.component';
+
+describe('DiskInfoCardComponent', () => {
+  let spectator: Spectator<DiskInfoCardComponent>;
+  let loader: HarnessLoader;
+
+  const disk = {
+    description: '',
+    hddstandby: DiskStandby.AlwaysOn,
+    model: 'VMware_Virtual_S',
+    name: 'sda',
+    serial: 'ABCD1',
+    size: 10737418240,
+    transfermode: 'Auto',
+    type: DiskType.Hdd,
+    zfs_guid: '11254578662959974657',
+  } as Disk;
+
+  const createComponent = createComponentFactory({
+    component: DiskInfoCardComponent,
+    imports: [
+      FileSizePipe,
+      OrNotAvailablePipe,
+    ],
+    declarations: [
+      MockComponents(CopyButtonComponent),
+    ],
+    providers: [
+      mockAuth(),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+      mockProvider(ActivatedRoute, {
+        snapshot: { params: { poolId: '1' } },
+      }),
+      mockProvider(TnDialog, {
+        open: jest.fn(() => ({
+          closed: of(),
+        })),
+      }),
+      // `reloadList` is a ComponentStore effect assigned at construction, so it is not on the
+      // prototype for mockProvider to auto-stub.
+      mockProvider(VDevsStore, { reloadList: jest.fn() }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent({
+      props: {
+        disk,
+        topologyDisk: {
+          guid: '11254578662959974657',
+        } as TopologyDisk,
+      },
+    });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  it('shows info of the current disk', () => {
+    const sizeItem = spectator.query(byText('Disk Size:', { exact: true }))!;
+    expect(sizeItem.nextElementSibling).toHaveText('10 GiB');
+
+    const transfermodeItem = spectator.query(byText('Transfer Mode:', { exact: true }))!;
+    expect(transfermodeItem.nextElementSibling).toHaveText('Auto');
+
+    const serialItem = spectator.query(byText('Serial:', { exact: true }))!;
+    expect(serialItem.nextElementSibling).toHaveText('ABCD1');
+
+    const modelItem = spectator.query(byText('Model:', { exact: true }))!;
+    expect(modelItem.nextElementSibling).toHaveText('VMware_Virtual_S');
+
+    const rotationrateItem = spectator.query(byText('Rotation Rate:', { exact: true }))!;
+    expect(rotationrateItem.nextElementSibling).toHaveText('N/A');
+
+    const typeItem = spectator.query(byText('Type:', { exact: true }))!;
+    expect(typeItem.nextElementSibling).toHaveText('HDD');
+
+    const hddstandbyItem = spectator.query(byText('HDD Standby:', { exact: true }))!;
+    expect(hddstandbyItem.nextElementSibling).toHaveText('ALWAYS ON');
+
+    const descriptionItem = spectator.query(byText('Description:', { exact: true }))!;
+    expect(descriptionItem.nextElementSibling).toHaveText('N/A');
+  });
+
+  it('opens the disk edit form in a side panel when clicks Edit button', async () => {
+    const editButton = await loader.getHarness(TnButtonHarness.with({ label: 'Edit' }));
+    await editButton.click();
+
+    expect(spectator.inject(FormSidePanelService).open).toHaveBeenCalledWith(DiskFormComponent, {
+      title: 'Edit Disk',
+      inputs: { diskToEdit: disk },
+    });
+  });
+
+  it('reloads the vdev list after the disk edit form is saved', async () => {
+    jest.spyOn(spectator.inject(FormSidePanelService), 'open')
+      .mockReturnValue(SlideInResult.success(true));
+
+    const editButton = await loader.getHarness(TnButtonHarness.with({ label: 'Edit' }));
+    await editButton.click();
+
+    expect(spectator.inject(VDevsStore).reloadList).toHaveBeenCalled();
+  });
+
+  it('opens a ReplaceDiskDialogComponent when clicks Replace button', async () => {
+    const replaceButton = await loader.getHarness(TnButtonHarness.with({ label: 'Replace' }));
+    await replaceButton.click();
+
+    expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(ReplaceDiskDialog, {
+      data: {
+        poolId: 1,
+        guid: '11254578662959974657',
+        diskName: 'sda',
+      },
+    });
+  });
+});

@@ -1,0 +1,41 @@
+<div
+  [class]="'empty-page ' + conf().type"
+  [class.large]="conf().large"
+  [class.compact]="conf().compact"
+>
+  @if (!isLoading()) {
+    <div class="icon-div">
+      <tn-icon class="icon" [customSize]="conf().large ? '90px' : '50px'" [name]="getIcon()"></tn-icon>
+    </div>
+  }
+
+  @if (isLoading()) {
+    <div>
+      <tn-spinner [diameter]="40"></tn-spinner>
+    </div>
+  }
+
+  @if (!isLoading()) {
+    <div>
+      @if (conf().title) {
+        <h3 class="empty-title">{{ conf().title | translate }}</h3>
+      }
+      @if (conf().message && !conf().compact) {
+        <div class="empty-message" [innerHTML]="conf().message | translate"></div>
+      }
+
+      <ng-content></ng-content>
+
+      @if (conf().button && !conf().compact) {
+        <tn-button
+          *ixRequiresRoles="requiredRoles()"
+          class="empty-action"
+          color="primary"
+          [testId]="conf().button?.label"
+          [label]="conf().button.label | translate"
+          (onClick)="doAction()"
+        ></tn-button>
+      }
+    </div>
+  }
+</div>

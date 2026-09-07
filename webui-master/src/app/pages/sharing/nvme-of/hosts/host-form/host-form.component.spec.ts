@@ -1,0 +1,283 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { createComponentFactory } from '@ngneat/spectator/jest';
+import {
+  TnButtonHarness, TnCheckboxHarness, TnInputHarness, TnSelectHarness,
+} from '@truenas/ui-components';
+import { mockApi, mockCall } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { NvmeOfGlobalConfig, NvmeOfHost } from 'app/interfaces/nvme-of.interface';
+import { DetailsTableHarness } from 'app/modules/details-table/details-table.harness';
+import { EditableHarness } from 'app/modules/forms/editable/editable.harness';
+import { ixFormTestingProviders } from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { HostFormComponent } from 'app/pages/sharing/nvme-of/hosts/host-form/host-form.component';
+
+describe('HostFormComponent', () => {
+  const savedHost = { id: 1 } as NvmeOfHost;
+  const createComponent = createComponentFactory({
+    component: HostFormComponent,
+    providers: [
+      mockApi([
+        mockCall('nvmet.host.create', savedHost),
+        mockCall('nvmet.host.update', savedHost),
+        mockCall('nvmet.host.generate_key', '123456'),
+        mockCall('nvmet.host.dhchap_hash_choices', ['SHA-256', 'SHA-512']),
+        mockCall('nvmet.host.dhchap_dhgroup_choices', ['2048-BIT', '4096-BIT']),
+        mockCall('nvmet.global.config', {
+          basenqn: 'nqn.2011-06.com.truenas',
+        } as NvmeOfGlobalConfig),
+      ]),
+      mockAuth(),
+      ...ixFormTestingProviders(),
+    ],
+  });
+
+  let spectator: ReturnType<typeof createComponent>;
+  let component: HostFormComponent;
+  let loader: HarnessLoader;
+  let api: ApiService;
+
+  const getTnInput = (name: string): Promise<TnInputHarness> => loader.getHarness(
+    TnInputHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+  const getTnCheckbox = (name: string): Promise<TnCheckboxHarness> => loader.getHarness(
+    TnCheckboxHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+  const setEditableSelect = async (editableIndex: number, controlName: string, option: string): Promise<void> => {
+    const editable = (await loader.getAllHarnesses(EditableHarness))[editableIndex];
+    await editable.open();
+    const select = await loader.getHarness(TnSelectHarness.with({ selector: `[name="${controlName}"]` }));
+    await select.selectOption(option);
+    await editable.tryToClose();
+  };
+
+  beforeEach(() => {
+    spectator = createComponent();
+    component = spectator.component;
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    api = spectator.inject(ApiService);
+  });
+
+  it('creates a new host when form is submitted', async () => {
+    const closedSpy = jest.fn();
+    spectator.component.closed.subscribe(closedSpy);
+
+    // The host panel's footer Save reads canSubmit(), so assert the gate here — hostnqn is required.
+    expect(component.canSubmit()).toBe(false);
+
+    await (await getTnInput('hostnqn')).setValue('nqn.2014-08.org');
+    await (await getTnCheckbox('requireHostAuthentication')).check();
+    await (await getTnInput('dhchap_key')).setValue('1234567890');
+    await (await getTnInput('dhchap_ctrl_key')).setValue('111222');
+    await (await getTnCheckbox('addDhKeyExchange')).check();
+
+    await setEditableSelect(0, 'dhchap_hash', 'SHA-512');
+    // The DH Group editable only renders after addDhKeyExchange is checked above.
+    await setEditableSelect(1, 'dhchap_dhgroup', '2048-BIT');
+
+    expect(component.canSubmit()).toBe(true);
+
+    spectator.component.submit();
+
+    expect(api.call).toHaveBeenCalledWith('nvmet.host.create', [{
+      hostnqn: 'nqn.2014-08.org',
+      description: '',
+      dhchap_key: '1234567890',
+      dhchap_ctrl_key: '111222',
+      dhchap_dhgroup: '2048-BIT',
+      dhchap_hash: 'SHA-512',
+    }]);
+    // The created record is handed back through `closed` so the add-host picker can select it.
+    expect(closedSpy).toHaveBeenCalledWith(savedHost);
+  });
+
+  describe('edits', () => {
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          host: {
+            id: 23,
+            hostnqn: 'nqn.2014-08.org',
+            dhchap_key: '1234567890',
+            dhchap_ctrl_key: '111222',
+            dhchap_dhgroup: '2048-BIT',
+          } as NvmeOfHost,
+        },
+      });
+      component = spectator.component;
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+    });
+
+    it('shows current values when editing an existing host', async () => {
+      expect(await (await getTnInput('hostnqn')).getValue()).toBe('nqn.2014-08.org');
+      expect(await (await getTnInput('description')).getValue()).toBe('');
+      expect(await (await getTnCheckbox('requireHostAuthentication')).isChecked()).toBe(true);
+      expect(await (await getTnInput('dhchap_key')).getValue()).toBe('1234567890');
+      expect(await (await getTnInput('dhchap_ctrl_key')).getValue()).toBe('111222');
+      expect(await (await getTnCheckbox('addDhKeyExchange')).isChecked()).toBe(true);
+
+      const firstDetails = await loader.getHarness(DetailsTableHarness);
+      expect(await firstDetails.getValues()).toEqual({
+        Hash: 'SHA-256',
+      });
+
+      const secondDetails = (await loader.getAllHarnesses(DetailsTableHarness))[1];
+      expect(await secondDetails.getValues()).toEqual({
+        'DH Group': '2048-BIT',
+      });
+    });
+
+    it('updates an existing host', async () => {
+      const closedSpy = jest.fn();
+      spectator.component.closed.subscribe(closedSpy);
+
+      await (await getTnInput('hostnqn')).setValue('nqn.2014-09.org');
+      await (await getTnCheckbox('requireHostAuthentication')).uncheck();
+
+      spectator.component.submit();
+
+      expect(closedSpy).toHaveBeenCalledWith(savedHost);
+      expect(api.call).toHaveBeenCalledWith('nvmet.host.update', [23, {
+        hostnqn: 'nqn.2014-09.org',
+        description: '',
+        dhchap_key: null,
+        dhchap_ctrl_key: '111222',
+        dhchap_hash: 'SHA-256',
+        dhchap_dhgroup: null,
+      }]);
+    });
+  });
+
+  describe('key generation', () => {
+    it('generates a host key when host authentication is enabled and Generate Key button is pressed', async () => {
+      await (await getTnInput('hostnqn')).setValue('nqn.2014-08.org');
+      await (await getTnCheckbox('requireHostAuthentication')).check();
+
+      const generateKeyButton = await loader.getHarness(TnButtonHarness.with({ label: 'Generate Key' }));
+      await generateKeyButton.click();
+
+      expect(api.call).toHaveBeenCalledWith('nvmet.host.generate_key', ['SHA-256', 'nqn.2014-08.org']);
+      expect(await (await getTnInput('dhchap_key')).getValue()).toBe('123456');
+    });
+
+    it('generates TrueNAS key using basenqn from settings when the other Generate Key is pressed', async () => {
+      await (await getTnInput('hostnqn')).setValue('nqn.2014-08.org');
+      await (await getTnCheckbox('requireHostAuthentication')).check();
+
+      const generateKeyButton = (await loader.getAllHarnesses(TnButtonHarness.with({ label: 'Generate Key' })))[1];
+      await generateKeyButton.click();
+
+      expect(api.call).toHaveBeenCalledWith('nvmet.global.config');
+      expect(api.call).toHaveBeenCalledWith('nvmet.host.generate_key', ['SHA-256', 'nqn.2011-06.com.truenas']);
+      expect(await (await getTnInput('dhchap_ctrl_key')).getValue()).toBe('123456');
+    });
+  });
+
+  describe('nqn validation', () => {
+    it('shows error when NQN does not start with nqn.', async () => {
+      await (await getTnInput('hostnqn')).setValue('invalid.2014-08.org.example');
+
+      expect(component.form.controls.hostnqn.errors).toEqual({
+        nqnFormat: {
+          message: 'Host NQN must start with "nqn." followed by a date and domain (e.g., nqn.2014-08.org.nvmexpress)',
+        },
+      });
+    });
+
+    it('shows error when NQN is too short', async () => {
+      await (await getTnInput('hostnqn')).setValue('nqn.2014');
+
+      expect(component.form.controls.hostnqn.errors).toEqual({
+        nqnMinLength: {
+          message: 'Host NQN must be at least 11 characters long',
+        },
+      });
+    });
+
+    it('shows error when NQN is too long', async () => {
+      const longNqn = 'nqn.2014-08.' + 'a'.repeat(212);
+      await (await getTnInput('hostnqn')).setValue(longNqn);
+
+      expect(component.form.controls.hostnqn.errors).toEqual({
+        nqnMaxLength: {
+          message: 'Host NQN cannot exceed 223 characters',
+        },
+      });
+    });
+
+    it('shows error when NQN format is invalid', async () => {
+      await (await getTnInput('hostnqn')).setValue('nqn.invalid-date.org');
+
+      expect(component.form.controls.hostnqn.errors).toEqual({
+        nqnInvalid: {
+          message: 'Invalid NQN format. Must be: nqn.YYYY-MM.reverse-domain-name (e.g., nqn.2014-08.com.example or nqn.2014-08.org.nvmexpress:host1)',
+        },
+      });
+    });
+
+    it('accepts valid NQN with date and domain', async () => {
+      await (await getTnInput('hostnqn')).setValue('nqn.2014-08.org.nvmexpress');
+
+      expect(component.form.controls.hostnqn.errors).toBeNull();
+    });
+
+    it('accepts valid NQN with optional identifier', async () => {
+      await (await getTnInput('hostnqn')).setValue('nqn.2014-08.com.example:host1');
+
+      expect(component.form.controls.hostnqn.errors).toBeNull();
+    });
+
+    it('accepts valid NQN with multiple domain parts', async () => {
+      await (await getTnInput('hostnqn')).setValue('nqn.2014-08.com.example.storage');
+
+      expect(component.form.controls.hostnqn.errors).toBeNull();
+    });
+  });
+
+  describe('description field', () => {
+    it('submits description when creating a new host', async () => {
+      await (await getTnInput('hostnqn')).setValue('nqn.2014-08.org.example');
+      await (await getTnInput('description')).setValue('Test host description');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenLastCalledWith('nvmet.host.create', [{
+        hostnqn: 'nqn.2014-08.org.example',
+        description: 'Test host description',
+        dhchap_key: null,
+        dhchap_ctrl_key: null,
+        dhchap_hash: 'SHA-256',
+        dhchap_dhgroup: null,
+      }]);
+    });
+
+    it('updates description when editing an existing host', async () => {
+      spectator = createComponent({
+        props: {
+          host: {
+            id: 24,
+            hostnqn: 'nqn.2014-08.org',
+            description: 'Old description',
+          } as NvmeOfHost,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+
+      await (await getTnInput('description')).setValue('Updated description');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenLastCalledWith('nvmet.host.update', [24, {
+        hostnqn: 'nqn.2014-08.org',
+        description: 'Updated description',
+        dhchap_key: null,
+        dhchap_ctrl_key: null,
+        dhchap_hash: 'SHA-256',
+        dhchap_dhgroup: null,
+      }]);
+    });
+  });
+});

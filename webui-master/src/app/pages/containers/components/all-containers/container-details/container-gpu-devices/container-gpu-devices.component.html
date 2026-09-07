@@ -1,0 +1,42 @@
+<tn-card
+  padding="small"
+  [title]="'GPU Devices' | translate"
+>
+  <ng-template tnCardFooterActions>
+    <ix-add-gpu-device-menu></ix-add-gpu-device-menu>
+  </ng-template>
+
+  @if (hasNvidiaGpusWithoutDrivers()) {
+    <tn-banner
+      type="warning"
+      [heading]="'NVIDIA GPUs detected, but drivers are not enabled.' | translate"
+    >
+      <tn-button
+        tnBannerAction
+        variant="outline"
+        [testId]="'enable-nvidia-drivers'"
+        [label]="'Enable NVIDIA Drivers' | translate"
+        (onClick)="enableNvidiaDrivers()"
+      ></tn-button>
+    </tn-banner>
+  }
+
+  @if (isLoadingDevices()) {
+    <ngx-skeleton-loader></ngx-skeleton-loader>
+  } @else {
+    @for (device of shownDevices(); track device.id) {
+      <div class="device">
+        <span class="device-description">{{ getDeviceDescription(device) }}</span>
+
+        <ix-device-actions-menu
+          [device]="device"
+          [showEdit]="false"
+          [isDisabled]="isContainerActive()"
+          [disabledTooltip]="isContainerActive() ? (helptext.deviceRequiresStoppedTooltip | translate) : null"
+        ></ix-device-actions-menu>
+      </div>
+    } @empty {
+      <div class="no-devices">{{ 'No GPU devices added.' | translate }}</div>
+    }
+  }
+</tn-card>

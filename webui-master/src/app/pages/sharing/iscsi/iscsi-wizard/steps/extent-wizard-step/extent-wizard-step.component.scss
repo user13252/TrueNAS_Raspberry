@@ -1,0 +1,31 @@
+// Bare tn-form-fields (no <ix-form>/<tn-form-section> host to space them): restore the
+// inter-field gap the legacy SlideIn container's global margin used to provide.
+tn-form-field {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.snapshot-info-box {
+  background-color: var(--alt-bg1);
+  border: 1px solid var(--lines);
+  border-left: 4px solid var(--primary);
+  border-radius: 4px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.info-header {
+  align-items: center;
+  color: var(--primary);
+  display: flex;
+  font-size: 16px;
+  font-weight: 600;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.info-message {
+  color: var(--fg2);
+  line-height: 1.5;
+  margin: 0;
+}

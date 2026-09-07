@@ -1,0 +1,45 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="true"
+  [title]="'Global Configuration' | translate"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-field
+    [label]="'Preferred Pool' | translate"
+    [tooltip]="'Default pool to use when creating containers if pool is not explicitly specified.' | translate"
+  >
+    <tn-select
+      formControlName="preferred_pool"
+      [allowEmpty]="true"
+      [options]="(poolOptions$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+
+  <tn-form-section [heading]="'Default Network' | translate">
+    <tn-form-field [label]="'Bridge' | translate">
+      <tn-select
+        formControlName="bridge"
+        [options]="(bridgeOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (isAutoBridge) {
+      <ix-ip-input-with-netmask
+        formControlName="v4_network"
+        [label]="'IPv4 Network' | translate"
+      ></ix-ip-input-with-netmask>
+
+      <ix-ip-input-with-netmask
+        formControlName="v6_network"
+        [label]="'IPv6 Network' | translate"
+      ></ix-ip-input-with-netmask>
+
+      <p class="hint">
+        <strong>{{ 'Note' | translate }}:</strong>
+        {{ 'At least one network (IPv4 or IPv6) must be specified.' | translate }}
+      </p>
+    }
+  </tn-form-section>
+</ix-form>

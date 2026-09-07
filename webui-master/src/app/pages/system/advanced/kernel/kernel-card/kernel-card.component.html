@@ -1,0 +1,25 @@
+<tn-card
+  padding="small"
+  [title]="'Kernel' | translate"
+  [ixUiSearch]="searchableElements.elements.kernel"
+>
+  <div class="details">
+    <div class="details-item" [ixUiSearch]="searchableElements.elements.enableKernelDebug">
+      <span class="label">{{ 'Enable Debug Kernel' | translate }}:</span>
+      <span *ixWithLoadingState="debugKernel$ as debugKernel" class="value">
+        {{ debugKernel ? ('Enabled' | translate) : ('Disabled' | translate) }}
+      </span>
+    </div>
+  </div>
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      [testId]="['kernel', 'configure']"
+      [ixUiSearch]="searchableElements.elements.configure"
+      [label]="'Configure' | translate"
+      (onClick)="onConfigurePressed()"
+    ></tn-button>
+  </ng-template>
+</tn-card>

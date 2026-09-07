@@ -1,0 +1,118 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, input } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnBannerComponent, TnCardComponent, TnCardFooterActionsDirective, TnIconButtonComponent, TnIconComponent,
+  TnTooltipDirective,
+} from '@truenas/ui-components';
+import { forkJoin, of } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { UiSearchDirective } from 'app/directives/ui-search.directive';
+import { Role } from 'app/enums/role.enum';
+import { helptextNvmeOf } from 'app/helptext/sharing/nvme-of/nvme-of';
+import { NvmeOfSubsystemDetails, NvmeOfHost } from 'app/interfaces/nvme-of.interface';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { normalizeTestIdString } from 'app/modules/test-id/normalize-test-id.utils';
+import { AddHostMenuComponent } from 'app/pages/sharing/nvme-of/hosts/add-host-menu/add-host-menu.component';
+import { NvmeOfService } from 'app/pages/sharing/nvme-of/services/nvme-of.service';
+import { NvmeOfStore } from 'app/pages/sharing/nvme-of/services/nvme-of.store';
+import { subsystemHostsCardElements } from 'app/pages/sharing/nvme-of/subsystem-details/subsystem-hosts-card/subsystem-hosts-card.elements';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-subsystem-hosts-card',
+  templateUrl: './subsystem-hosts-card.component.html',
+  styleUrl: './subsystem-hosts-card.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnBannerComponent,
+    TnCardComponent,
+    TnCardFooterActionsDirective,
+    TnIconComponent,
+    TnIconButtonComponent,
+    TnTooltipDirective,
+    TranslateModule,
+    AddHostMenuComponent,
+    UiSearchDirective,
+    RequiresRolesDirective,
+  ],
+})
+export class SubsystemHostsCardComponent {
+  private loader = inject(LoaderService);
+  private errorHandler = inject(ErrorHandlerService);
+  private nvmeOfService = inject(NvmeOfService);
+  private snackbar = inject(SnackbarService);
+  private translate = inject(TranslateService);
+  private nvmeOfStore = inject(NvmeOfStore);
+  private destroyRef = inject(DestroyRef);
+
+  subsystem = input.required<NvmeOfSubsystemDetails>();
+
+  protected helptext = helptextNvmeOf;
+
+  protected readonly searchableElements = subsystemHostsCardElements;
+
+  protected readonly requiredRoles = [Role.SharingNvmeTargetWrite];
+
+  protected hostTestIdSlug(host: NvmeOfHost): string {
+    return normalizeTestIdString(host.hostnqn);
+  }
+
+  protected hostAdded(host: NvmeOfHost): void {
+    const subsystem = this.subsystem();
+
+    const disallowAll$ = subsystem.allow_any_host
+      ? this.nvmeOfService.updateSubsystem(subsystem, { allow_any_host: false })
+      : of(null);
+
+    disallowAll$
+      .pipe(
+        switchMap(() => this.nvmeOfService.associateHosts(subsystem, [host])),
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        // TODO: Consider reloading a single record or removing loading animation.
+        this.snackbar.success(this.translate.instant('Host added to the subsystem'));
+        this.nvmeOfStore.initialize();
+      });
+  }
+
+  protected allowAllHostsSelected(): void {
+    const subsystem = this.subsystem();
+
+    this.nvmeOfService.updateSubsystem(subsystem, { allow_any_host: true })
+      .pipe(
+        switchMap(() => {
+          const removalCalls = subsystem.hosts.map((host) => (
+            this.nvmeOfService.removeHostAssociation(subsystem, host)
+          ));
+
+          return removalCalls.length ? forkJoin(removalCalls) : of([]);
+        }),
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.snackbar.success(this.translate.instant('All hosts are now allowed'));
+        this.nvmeOfStore.initialize();
+      });
+  }
+
+  protected removeAssociation(host: NvmeOfHost): void {
+    this.nvmeOfService.removeHostAssociation(this.subsystem(), host)
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.snackbar.success(this.translate.instant('Host removed from the subsystem'));
+        this.nvmeOfStore.initialize();
+      });
+  }
+}

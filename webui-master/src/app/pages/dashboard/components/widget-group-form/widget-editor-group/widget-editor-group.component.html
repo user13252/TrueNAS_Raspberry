@@ -1,0 +1,34 @@
+@for (slotIndex of slotRange(); track slotIndex) {
+  <!-- Slot 0 keeps the bare legacy ID: the old [ixTest] dropped falsy segments. -->
+  <button
+    tabindex="0"
+    tnTestIdType="button"
+    [attr.aria-label]="'Slot {n}' | translate: { n: slotIndex + 1 }"
+    [tnTestId]="slotIndex === 0 ? 'slot' : ['slot', slotIndex]"
+    [class]="['slot', 'slot' + slotIndex]"
+    [class.selected]="slotIndex === selectedSlot() && slotRange().length > 1"
+    [class.empty]="!slots()[slotIndex]"
+    (click)="onSlotSelected($event, slotIndex)"
+    (keydown.enter)="onSlotSelected($event, slotIndex)"
+  >
+    @if (slots()[slotIndex]; as slot) {
+      <div
+        class="inert-container"
+        inert
+      >
+        @if (hasErrors(slotIndex)) {
+          <div class="error">
+            <ix-widget-error [message]="'Card has errors' | translate"></ix-widget-error>
+          </div>
+        } @else {
+          <ng-container *ngComponentOutlet="slot.component; inputs: slot.inputs;" />
+        }
+        <ng-template #component>
+          <ng-container *ngComponentOutlet="slot.component; inputs: slot.inputs;" />
+        </ng-template>
+      </div>
+    } @else {
+      {{ 'Empty' | translate }}
+    }
+  </button>
+}

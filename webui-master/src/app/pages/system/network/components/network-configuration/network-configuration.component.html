@@ -1,0 +1,152 @@
+<form class="card ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <div class="two-columns">
+    <tn-form-section [heading]="helptext.hostnameAndDomain | translate">
+      <tn-form-field [label]="hostname.label | translate">
+        <tn-input [name]="hostname.fcName" [formControlName]="hostname.fcName"></tn-input>
+      </tn-form-field>
+
+      @if (!hostnameB.hidden) {
+        <tn-form-field [label]="hostnameB.label | translate">
+          <tn-input [name]="hostnameB.fcName" [formControlName]="hostnameB.fcName"></tn-input>
+        </tn-form-field>
+      }
+
+      @if (!hostnameVirtual.hidden) {
+        <tn-form-field
+          [label]="hostnameVirtual.label | translate"
+          [tooltip]="hostnameVirtual.tooltip | translate"
+        >
+          <tn-input [name]="hostnameVirtual.fcName" [formControlName]="hostnameVirtual.fcName"></tn-input>
+        </tn-form-field>
+      }
+
+      <tn-form-field>
+        <tn-checkbox
+          [formControlName]="inheritDhcp.fcName"
+          [label]="inheritDhcp.label | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="domain.label | translate"
+        [tooltip]="domain.tooltip | translate"
+      >
+        <tn-input [name]="domain.fcName" [formControlName]="domain.fcName"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="domains.label | translate"
+        [tooltip]="domains.tooltip | translate"
+      >
+        <tn-chip-input
+          [formControlName]="domains.fcName"
+          [placeholder]="domains.label | translate"
+          [allowCustomValue]="true"
+        ></tn-chip-input>
+      </tn-form-field>
+    </tn-form-section>
+    <tn-form-section [heading]="helptext.serviceAnnouncement | translate">
+      <tn-form-field class="mt-field" [tooltip]="netbios.tooltip | translate">
+        <tn-checkbox
+          [formControlName]="netbios.fcName"
+          [label]="netbios.label | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="mdns.tooltip | translate">
+        <tn-checkbox
+          [formControlName]="mdns.fcName"
+          [label]="mdns.label | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="wsd.tooltip | translate">
+        <tn-checkbox
+          [formControlName]="wsd.fcName"
+          [label]="wsd.label | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </tn-form-section>
+  </div>
+
+  <div class="two-columns">
+    <tn-form-section [heading]="helptext.nameservers | translate">
+      <tn-form-field [label]="nameserver1.label | translate">
+        <tn-input [name]="nameserver1.fcName" [formControlName]="nameserver1.fcName"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="nameserver2.label | translate">
+        <tn-input [name]="nameserver2.fcName" [formControlName]="nameserver2.fcName"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="nameserver3.label | translate">
+        <tn-input [name]="nameserver3.fcName" [formControlName]="nameserver3.fcName"></tn-input>
+      </tn-form-field>
+    </tn-form-section>
+    <tn-form-section [heading]="helptext.gateway | translate">
+      <tn-form-field
+        [label]="ipv4gateway.label | translate"
+        [tooltip]="ipv4gateway.tooltip | translate"
+      >
+        <tn-input [name]="ipv4gateway.fcName" [formControlName]="ipv4gateway.fcName"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="ipv6gateway.label | translate"
+        [tooltip]="ipv6gateway.tooltip | translate"
+      >
+        <tn-input [name]="ipv6gateway.fcName" [formControlName]="ipv6gateway.fcName"></tn-input>
+      </tn-form-field>
+    </tn-form-section>
+  </div>
+
+  <div class="two-columns">
+    <tn-form-section [heading]="helptext.outboundNetwork | translate">
+      <tn-form-field
+        class="mt-field"
+        [label]="outboundNetworkActivity.label | translate"
+        [tooltip]="outboundNetworkActivity.tooltip"
+      >
+        @for (option of (outboundNetworkActivity.options | async) ?? []; track option.value) {
+          <tn-radio
+            name="outbound_network_activity"
+            [formControlName]="outboundNetworkActivity.fcName"
+            [value]="option.value"
+            [label]="option.label"
+          ></tn-radio>
+        }
+      </tn-form-field>
+
+      @if (!outboundNetworkValue.hidden) {
+        <tn-form-field [label]="outboundNetworkValue.label | translate">
+          <tn-select
+            class="outbound-network-value"
+            [formControlName]="outboundNetworkValue.fcName"
+            [options]="(outboundNetworkValue.options | async) ?? []"
+            [multiple]="true"
+          ></tn-select>
+        </tn-form-field>
+      }
+    </tn-form-section>
+
+    <tn-form-section [heading]="helptext.other | translate">
+      <tn-form-field
+        [label]="httpproxy.label | translate"
+        [tooltip]="httpproxy.tooltip | translate"
+      >
+        <tn-input [name]="httpproxy.fcName" [formControlName]="httpproxy.fcName"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="hosts.label | translate"
+        [tooltip]="hosts.tooltip | translate"
+      >
+        <tn-chip-input
+          [formControlName]="hosts.fcName"
+          [placeholder]="hosts.label | translate"
+          [allowCustomValue]="true"
+        ></tn-chip-input>
+      </tn-form-field>
+    </tn-form-section>
+  </div>
+</form>

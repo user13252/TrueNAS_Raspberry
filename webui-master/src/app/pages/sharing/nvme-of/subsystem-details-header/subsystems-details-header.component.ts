@@ -1,0 +1,61 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, input, output } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnDialog } from '@truenas/ui-components';
+import {
+  filter, switchMap,
+} from 'rxjs';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { NvmeOfSubsystemDetails } from 'app/interfaces/nvme-of.interface';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  SubsystemDeleteDialogComponent,
+} from 'app/pages/sharing/nvme-of/subsystem-details-header/subsystem-delete-dialog/subsystem-delete-dialog.component';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-subsystems-details-header',
+  imports: [
+    TnButtonComponent,
+    RequiresRolesDirective,
+    TranslateModule,
+  ],
+  templateUrl: './subsystems-details-header.component.html',
+  styleUrl: './subsystems-details-header.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class SubsystemsDetailsHeaderComponent {
+  private tnDialog = inject(TnDialog);
+  private api = inject(ApiService);
+  private loader = inject(LoaderService);
+  private errorHandler = inject(ErrorHandlerService);
+  private destroyRef = inject(DestroyRef);
+
+  subsystem = input.required<NvmeOfSubsystemDetails>();
+
+  subsystemRemoved = output();
+
+  protected readonly requiredRoles = [Role.SharingNvmeTargetWrite];
+
+  deleteSubsystem(): void {
+    this.tnDialog.open(
+      SubsystemDeleteDialogComponent,
+      { data: this.subsystem(), minWidth: '500px' },
+    )
+      .closed
+      .pipe(
+        filter((data: { confirmed: boolean; force: boolean }) => data?.confirmed),
+        switchMap(({ force }) => {
+          return this.api.call('nvmet.subsys.delete', [this.subsystem().id, { force }]).pipe(
+            this.loader.withLoader(),
+            this.errorHandler.withErrorHandler(),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      ).subscribe(() => {
+        this.subsystemRemoved.emit();
+      });
+  }
+}

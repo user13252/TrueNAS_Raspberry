@@ -1,0 +1,10 @@
+@import 'mixins/cards';
+@import 'mixins/animations';
+
+@include tn-detail-card();
+
+.card {
+  height: 100%;
+
+  @include tn-details-item();
+}

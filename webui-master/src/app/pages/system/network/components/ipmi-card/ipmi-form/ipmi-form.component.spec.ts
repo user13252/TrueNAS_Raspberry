@@ -1,0 +1,566 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { StoreModule } from '@ngrx/store';
+import {
+  TnCheckboxHarness, TnInputHarness, TnRadioHarness,
+} from '@truenas/ui-components';
+import { throwError } from 'rxjs';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { IpmiChassisIdentifyState, IpmiIpAddressSource } from 'app/enums/ipmi.enum';
+import { OnOff } from 'app/enums/on-off.enum';
+import { ProductType } from 'app/enums/product-type.enum';
+import { Ipmi, IpmiChassis } from 'app/interfaces/ipmi.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import {
+  SidePanelFooterMenu,
+} from 'app/modules/slide-ins/form-side-panel/side-panel-footer-actions';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { IpmiFormComponent } from 'app/pages/system/network/components/ipmi-card/ipmi-form/ipmi-form.component';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { RedirectService } from 'app/services/redirect.service';
+import { SystemGeneralService } from 'app/services/system-general.service';
+import { haInfoReducer } from 'app/store/ha-info/ha-info.reducer';
+import { haInfoStateKey } from 'app/store/ha-info/ha-info.selectors';
+import { systemInfoReducer } from 'app/store/system-info/system-info.reducer';
+import { systemInfoStateKey } from 'app/store/system-info/system-info.selectors';
+
+describe('IpmiFormComponent', () => {
+  let spectator: Spectator<IpmiFormComponent>;
+  let loader: HarnessLoader;
+  let productType: ProductType;
+
+  const createComponent = createComponentFactory({
+    component: IpmiFormComponent,
+    imports: [
+      ReactiveFormsModule,
+      StoreModule.forRoot({
+        [haInfoStateKey]: haInfoReducer,
+        [systemInfoStateKey]: systemInfoReducer,
+      }, {
+        initialState: {
+          [haInfoStateKey]: {
+            haStatus: {
+              hasHa: true,
+              reasons: [],
+            },
+            isHaLicensed: true,
+          },
+          [systemInfoStateKey]: {
+            systemInfo: null,
+            get productType() {
+              return productType;
+            },
+            isIxHardware: false,
+            buildYear: 2024,
+          },
+        },
+      }),
+    ],
+    providers: [
+      mockProvider(SystemGeneralService),
+      mockProvider(RedirectService),
+      mockProvider(DialogService),
+      mockProvider(SnackbarService),
+      mockApi([
+        mockCall('failover.licensed', true),
+        mockCall('failover.node', 'A'),
+        mockCall('ipmi.lan.query', (params) => {
+          if (params?.length ? params[0]['ipmi-options']!['query-remote'] : false) {
+            return [{
+              channel: 1,
+              ip_address_source: IpmiIpAddressSource.Static,
+              default_gateway_ip_address: '10.220.0.2',
+              id: 1,
+              ip_address: '10.220.15.115',
+              subnet_mask: '255.255.240.0',
+              vlan_id_enable: true,
+              vlan_id: 3,
+            }] as Ipmi[];
+          }
+
+          return [{
+            channel: 1,
+            ip_address_source: IpmiIpAddressSource.Static,
+            default_gateway_ip_address: '10.220.0.1',
+            id: 1,
+            ip_address: '10.220.15.114',
+            subnet_mask: '255.255.240.0',
+            vlan_id_enable: true,
+            vlan_id: 2,
+          }] as Ipmi[];
+        }),
+        mockCall('ipmi.lan.update', {
+          channel: 1,
+          ip_address_source: IpmiIpAddressSource.Static,
+          default_gateway_ip_address: '10.220.0.2',
+          id: 1,
+          ip_address: '10.220.15.115',
+          subnet_mask: '255.255.240.0',
+        } as Ipmi),
+        mockCall('ipmi.chassis.info', {
+          chassis_identify_state: IpmiChassisIdentifyState.Off,
+        } as IpmiChassis),
+        mockCall('ipmi.chassis.identify'),
+      ]),
+      mockAuth(),
+    ],
+  });
+
+  async function setupTest(newProductType: ProductType): Promise<void> {
+    productType = newProductType;
+    spectator = createComponent({
+      props: { editIpmiId: 1 },
+    });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    await spectator.fixture.whenStable();
+  }
+
+  describe('product type is SCALE_ENTERPRISE', () => {
+    beforeEach(async () => {
+      await setupTest(ProductType.Enterprise);
+    });
+
+    it('loads data with controller radio buttons in the form for ScaleEnterprise', async () => {
+      const activeController = await loader.getHarness(
+        TnRadioHarness.with({ label: 'Active: TrueNAS Controller 1' }),
+      );
+      const ipaddress = await loader.getHarness(TnInputHarness.with({ name: 'ipaddress' }));
+      const gateway = await loader.getHarness(TnInputHarness.with({ name: 'gateway' }));
+      const netmask = await loader.getHarness(TnInputHarness.with({ name: 'netmask' }));
+      const vlanId = await loader.getHarness(TnInputHarness.with({ name: 'vlan_id' }));
+      const dhcp = await loader.getHarness(TnCheckboxHarness.with({ label: 'DHCP' }));
+      const enableVlan = await loader.getHarness(TnCheckboxHarness.with({ label: 'Enable VLAN' }));
+
+      expect(await activeController.isChecked()).toBe(true);
+      expect(await ipaddress.getValue()).toBe('10.220.15.114');
+      expect(await gateway.getValue()).toBe('10.220.0.1');
+      expect(await netmask.getValue()).toBe('255.255.240.0');
+      expect(await vlanId.getValue()).toBe('2');
+      expect(await dhcp.isChecked()).toBe(false);
+      expect(await enableVlan.isChecked()).toBe(true);
+    });
+
+    it('loads remote controller data', async () => {
+      const standbyController = await loader.getHarness(
+        TnRadioHarness.with({ label: 'Standby: TrueNAS Controller 2' }),
+      );
+      await standbyController.check();
+
+      const ipaddress = await loader.getHarness(TnInputHarness.with({ name: 'ipaddress' }));
+      const gateway = await loader.getHarness(TnInputHarness.with({ name: 'gateway' }));
+      const vlanId = await loader.getHarness(TnInputHarness.with({ name: 'vlan_id' }));
+
+      expect(await standbyController.isChecked()).toBe(true);
+      expect(await ipaddress.getValue()).toBe('10.220.15.115');
+      expect(await gateway.getValue()).toBe('10.220.0.2');
+      expect(await vlanId.getValue()).toBe('3');
+    });
+
+    it('disabled ipaddress, gateway, netmask fields if \'DHCP\' is checked', async () => {
+      const checkboxDhcp = await loader.getHarness(TnCheckboxHarness.with({ label: 'DHCP' }));
+      await checkboxDhcp.check();
+      const ipaddress = await loader.getHarness(TnInputHarness.with({ name: 'ipaddress' }));
+      const netmask = await loader.getHarness(TnInputHarness.with({ name: 'netmask' }));
+      const gateway = await loader.getHarness(TnInputHarness.with({ name: 'gateway' }));
+
+      expect(await ipaddress.isDisabled()).toBe(true);
+      expect(await netmask.isDisabled()).toBe(true);
+      expect(await gateway.isDisabled()).toBe(true);
+    });
+
+    it('updates controller data and closes modal when save is pressed', () => {
+      const closedSpy = jest.fn();
+      spectator.component.closed.subscribe(closedSpy);
+
+      spectator.component.submit();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('ipmi.lan.update', [1, {
+        dhcp: false,
+        ipaddress: '10.220.15.114',
+        gateway: '10.220.0.1',
+        netmask: '255.255.240.0',
+        vlan: 2,
+      }]);
+      expect(closedSpy).toHaveBeenCalledWith(true);
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Successfully saved IPMI settings.');
+    });
+
+    it('updates remote controller data and closes modal when save is pressed', async () => {
+      const standbyController = await loader.getHarness(
+        TnRadioHarness.with({ label: 'Standby: TrueNAS Controller 2' }),
+      );
+      await standbyController.check();
+
+      const vlanId = await loader.getHarness(TnInputHarness.with({ name: 'vlan_id' }));
+      await vlanId.setValue('2');
+
+      const closedSpy = jest.fn();
+      spectator.component.closed.subscribe(closedSpy);
+
+      spectator.component.submit();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenLastCalledWith('ipmi.lan.update', [1, {
+        dhcp: false,
+        ipaddress: '10.220.15.115',
+        gateway: '10.220.0.2',
+        netmask: '255.255.240.0',
+        apply_remote: true,
+        vlan: 2,
+      }]);
+      expect(closedSpy).toHaveBeenCalledWith(true);
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Successfully saved IPMI settings.');
+    });
+
+    it('updates remote controller data and closes modal when save is pressed with vlan disabled', async () => {
+      const standbyController = await loader.getHarness(
+        TnRadioHarness.with({ label: 'Standby: TrueNAS Controller 2' }),
+      );
+      await standbyController.check();
+
+      const enableVlan = await loader.getHarness(TnCheckboxHarness.with({ label: 'Enable VLAN' }));
+      await enableVlan.uncheck();
+
+      const closedSpy = jest.fn();
+      spectator.component.closed.subscribe(closedSpy);
+
+      spectator.component.submit();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenLastCalledWith('ipmi.lan.update', [1, {
+        dhcp: false,
+        ipaddress: '10.220.15.115',
+        gateway: '10.220.0.2',
+        netmask: '255.255.240.0',
+        apply_remote: true,
+        vlan: null,
+      }]);
+      expect(closedSpy).toHaveBeenCalledWith(true);
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Successfully saved IPMI settings.');
+    });
+  });
+
+  describe('product type is SCALE', () => {
+    beforeEach(async () => {
+      await setupTest(ProductType.CommunityEdition);
+    });
+
+    it('loads data in the form if the product type is SCALE', async () => {
+      const ipaddress = await loader.getHarness(TnInputHarness.with({ name: 'ipaddress' }));
+      const gateway = await loader.getHarness(TnInputHarness.with({ name: 'gateway' }));
+      const netmask = await loader.getHarness(TnInputHarness.with({ name: 'netmask' }));
+      const vlanId = await loader.getHarness(TnInputHarness.with({ name: 'vlan_id' }));
+      const dhcp = await loader.getHarness(TnCheckboxHarness.with({ label: 'DHCP' }));
+      const enableVlan = await loader.getHarness(TnCheckboxHarness.with({ label: 'Enable VLAN' }));
+
+      expect(await dhcp.isChecked()).toBe(false);
+      expect(await ipaddress.getValue()).toBe('10.220.15.114');
+      expect(await gateway.getValue()).toBe('10.220.0.1');
+      expect(await netmask.getValue()).toBe('255.255.240.0');
+      expect(await enableVlan.isChecked()).toBe(true);
+      expect(await vlanId.getValue()).toBe('2');
+    });
+  });
+
+  describe('IPMI lights', () => {
+    const flashItem = (): SidePanelFooterMenu['items'][number] | undefined => {
+      return spectator.component.footerMenu().items.find((item) => item.testId === 'toggle-identify-light');
+    };
+
+    beforeEach(async () => {
+      await setupTest(ProductType.Enterprise);
+    });
+
+    it('flashes IPMI light when Flash Identify Light is pressed', () => {
+      flashItem()!.onClick();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenLastCalledWith('ipmi.chassis.identify', [{ verb: OnOff.On }]);
+    });
+
+    it('stops flashing IPMI light when Flash Identify Light is pressed again', () => {
+      flashItem()!.onClick();
+      expect(flashItem()!.label).toBe('Stop Flashing');
+
+      flashItem()!.onClick();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenLastCalledWith('ipmi.chassis.identify', [{ verb: OnOff.Off }]);
+    });
+
+    it('flashes IPMI light on remote controller when remote controller is selected', async () => {
+      const standbyController = await loader.getHarness(
+        TnRadioHarness.with({ label: 'Standby: TrueNAS Controller 2' }),
+      );
+      await standbyController.check();
+
+      flashItem()!.onClick();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenLastCalledWith(
+        'ipmi.chassis.identify',
+        [{ verb: OnOff.On, apply_remote: true }],
+      );
+    });
+
+    it('stops flashing IPMI light on remote controller when remote controller is selected', async () => {
+      const standbyController = await loader.getHarness(
+        TnRadioHarness.with({ label: 'Standby: TrueNAS Controller 2' }),
+      );
+      await standbyController.check();
+
+      flashItem()!.onClick();
+      flashItem()!.onClick();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenLastCalledWith(
+        'ipmi.chassis.identify',
+        [{ verb: OnOff.Off, apply_remote: true }],
+      );
+    });
+  });
+
+  describe('VLAN validation', () => {
+    beforeEach(async () => {
+      await setupTest(ProductType.Enterprise);
+    });
+
+    it('does not require VLAN ID when Enable VLAN is false', async () => {
+      const enableVlanCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Enable VLAN' }));
+      await enableVlanCheckbox.uncheck();
+
+      expect(spectator.component.form.valid).toBe(true);
+      expect(spectator.component.form.controls.vlan_id.hasError('required')).toBe(false);
+    });
+
+    it('clears VLAN ID value when Enable VLAN is disabled', async () => {
+      // First enable VLAN and set a value
+      const enableVlanCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Enable VLAN' }));
+      await enableVlanCheckbox.check();
+
+      const vlanIdInput = await loader.getHarness(TnInputHarness.with({ name: 'vlan_id' }));
+      await vlanIdInput.setValue('10');
+
+      // Then disable VLAN
+      await enableVlanCheckbox.uncheck();
+
+      expect(spectator.component.form.controls.vlan_id.value).toBeNull();
+    });
+  });
+
+  describe('Manage button functionality', () => {
+    const manageItem = (): SidePanelFooterMenu['items'][number] | undefined => {
+      return spectator.component.footerMenu().items.find((item) => item.testId === 'manage-ipmi');
+    };
+
+    beforeEach(async () => {
+      await setupTest(ProductType.Enterprise);
+    });
+
+    it('should be enabled by default with valid static IP', () => {
+      expect(manageItem()!.disabled?.()).toBe(false);
+      expect(spectator.component.managementIp).toBe('10.220.15.114');
+      expect(spectator.component.isManageButtonDisabled).toBe(false);
+    });
+
+    it('should be disabled when IP address is empty', () => {
+      spectator.component.form.controls.ipaddress.setValue('');
+      spectator.component.form.controls.ipaddress.updateValueAndValidity();
+
+      expect(spectator.component.isManageButtonDisabled).toBe(true);
+    });
+
+    it('should be disabled when IP address is 0.0.0.0', async () => {
+      const ipaddressInput = await loader.getHarness(TnInputHarness.with({ name: 'ipaddress' }));
+      await ipaddressInput.setValue('0.0.0.0');
+
+      expect(manageItem()!.disabled?.()).toBe(true);
+      expect(spectator.component.isManageButtonDisabled).toBe(true);
+    });
+
+    it('should be disabled when IP address is invalid', async () => {
+      const ipaddressInput = await loader.getHarness(TnInputHarness.with({ name: 'ipaddress' }));
+      await ipaddressInput.setValue('invalid.ip.address');
+
+      expect(manageItem()!.disabled?.()).toBe(true);
+      expect(spectator.component.isManageButtonDisabled).toBe(true);
+    });
+
+    it('should be enabled with valid IP address in static mode', async () => {
+      const ipaddressInput = await loader.getHarness(TnInputHarness.with({ name: 'ipaddress' }));
+      await ipaddressInput.setValue('192.168.1.100');
+
+      expect(manageItem()!.disabled?.()).toBe(false);
+      expect(spectator.component.managementIp).toBe('192.168.1.100');
+      expect(spectator.component.isManageButtonDisabled).toBe(false);
+    });
+
+    it('should be enabled with valid IP address when DHCP is enabled', async () => {
+      // Enable DHCP first
+      const dhcpCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'DHCP' }));
+      await dhcpCheckbox.check();
+
+      // Simulate DHCP obtaining an IP address by directly setting form value
+      spectator.component.form.controls.ipaddress.setValue('192.168.1.50');
+      spectator.component.form.controls.ipaddress.updateValueAndValidity();
+
+      expect(manageItem()!.disabled?.()).toBe(false);
+      expect(spectator.component.managementIp).toBe('192.168.1.50');
+      expect(spectator.component.isManageButtonDisabled).toBe(false);
+    });
+
+    it('should update managementIp when IP address changes', async () => {
+      const testIp = '10.0.0.100';
+      const ipaddressInput = await loader.getHarness(TnInputHarness.with({ name: 'ipaddress' }));
+      await ipaddressInput.setValue(testIp);
+
+      expect(spectator.component.managementIp).toBe(testIp);
+    });
+
+    it('should respond to setFormValues updates', () => {
+      const mockIpmiData: Ipmi = {
+        channel: 1,
+        ip_address_source: IpmiIpAddressSource.UseDhcp,
+        ip_address: '192.168.1.200',
+        default_gateway_ip_address: '192.168.1.1',
+        id: 1,
+        subnet_mask: '255.255.255.0',
+        vlan_id_enable: false,
+        vlan_id: null,
+      } as Ipmi;
+
+      spectator.component.setFormValues(mockIpmiData);
+
+      expect(spectator.component.managementIp).toBe('192.168.1.200');
+      expect(spectator.component.isManageButtonDisabled).toBe(false);
+      expect(spectator.component.form.controls.dhcp.value).toBe(true);
+    });
+
+    it('should call redirect service when manage button is clicked', () => {
+      const redirectService = spectator.inject(RedirectService);
+      const openWindowSpy = jest.spyOn(redirectService, 'openWindow');
+
+      manageItem()!.onClick();
+
+      expect(openWindowSpy).toHaveBeenCalledWith('https://10.220.15.114');
+    });
+  });
+
+  describe('DHCP to static IP transitions', () => {
+    beforeEach(async () => {
+      await setupTest(ProductType.Enterprise);
+    });
+
+    it('should disable manage button when switching to DHCP with no IP', async () => {
+      const dhcpCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'DHCP' }));
+      await dhcpCheckbox.check();
+
+      // Clear IP address to simulate initial DHCP state
+      spectator.component.form.controls.ipaddress.setValue('');
+      spectator.component.form.controls.ipaddress.updateValueAndValidity();
+
+      expect(spectator.component.isManageButtonDisabled).toBe(true);
+    });
+
+    it('should enable manage button when DHCP obtains valid IP', async () => {
+      // Start with DHCP enabled and no IP
+      const dhcpCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'DHCP' }));
+      await dhcpCheckbox.check();
+
+      spectator.component.form.controls.ipaddress.setValue('');
+      spectator.component.form.controls.ipaddress.updateValueAndValidity();
+
+      expect(spectator.component.isManageButtonDisabled).toBe(true);
+
+      // Simulate DHCP obtaining an IP
+      spectator.component.form.controls.ipaddress.setValue('10.0.0.50');
+      spectator.component.form.controls.ipaddress.updateValueAndValidity();
+
+      expect(spectator.component.isManageButtonDisabled).toBe(false);
+      expect(spectator.component.managementIp).toBe('10.0.0.50');
+    });
+
+    it('should maintain button state when switching from DHCP back to static', async () => {
+      // Start with DHCP and valid IP
+      const dhcpCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'DHCP' }));
+      await dhcpCheckbox.check();
+
+      spectator.component.form.controls.ipaddress.setValue('192.168.1.100');
+      spectator.component.form.controls.ipaddress.updateValueAndValidity();
+
+      // Switch back to static
+      await dhcpCheckbox.uncheck();
+
+      const manageItem = spectator.component.footerMenu().items.find((item) => item.testId === 'manage-ipmi');
+      expect(manageItem!.disabled?.()).toBe(false);
+      expect(spectator.component.managementIp).toBe('192.168.1.100');
+    });
+  });
+
+  describe('error handling', () => {
+    it('does not change flashing state when identify light request fails', async () => {
+      await setupTest(ProductType.Enterprise);
+      const errorHandler = spectator.inject(ErrorHandlerService);
+      jest.spyOn(errorHandler, 'showErrorModal').mockReturnValue(undefined);
+
+      jest.spyOn(spectator.inject(ApiService), 'call').mockImplementation((method) => {
+        if (method === 'ipmi.chassis.identify') {
+          return throwError(() => new Error('IPMI identify failed'));
+        }
+        throw new Error(`Unexpected method: ${method}`);
+      });
+
+      const flashItem = (): SidePanelFooterMenu['items'][number] | undefined => {
+        return spectator.component.footerMenu().items.find((item) => item.testId === 'toggle-identify-light');
+      };
+      flashItem()!.onClick();
+
+      // Label should remain "Flash Identify Light" since the request failed
+      expect(flashItem()!.label).toBe('Flash Identify Light');
+    });
+
+    it('resets loading state when identify light request fails', async () => {
+      await setupTest(ProductType.Enterprise);
+      const errorHandler = spectator.inject(ErrorHandlerService);
+      jest.spyOn(errorHandler, 'showErrorModal').mockReturnValue(undefined);
+
+      jest.spyOn(spectator.inject(ApiService), 'call').mockImplementation((method) => {
+        if (method === 'ipmi.chassis.identify') {
+          return throwError(() => new Error('IPMI identify failed'));
+        }
+        throw new Error(`Unexpected method: ${method}`);
+      });
+
+      const flashItem = (): SidePanelFooterMenu['items'][number] | undefined => {
+        return spectator.component.footerMenu().items.find((item) => item.testId === 'toggle-identify-light');
+      };
+      flashItem()!.onClick();
+
+      // Loading state should be reset after error
+      expect(flashItem()!.disabled?.()).toBe(false);
+    });
+  });
+
+  describe('side-panel footer menu', () => {
+    beforeEach(async () => {
+      await setupTest(ProductType.Enterprise);
+    });
+
+    it('exposes Manage and Flash actions in the footer overflow menu', () => {
+      const items = spectator.component.footerMenu().items;
+      expect(items.map((item) => item.testId)).toEqual(['manage-ipmi', 'toggle-identify-light']);
+    });
+
+    it('flashes the identify light from the footer menu', () => {
+      const flashItem = spectator.component.footerMenu().items.find((item) => item.testId === 'toggle-identify-light');
+      flashItem!.onClick();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenLastCalledWith('ipmi.chassis.identify', [{ verb: OnOff.On }]);
+    });
+
+    it('opens the management window from the footer menu', () => {
+      const manageItem = spectator.component.footerMenu().items.find((item) => item.testId === 'manage-ipmi');
+      manageItem!.onClick();
+
+      expect(spectator.inject(RedirectService).openWindow).toHaveBeenCalledWith('https://10.220.15.114');
+    });
+  });
+});

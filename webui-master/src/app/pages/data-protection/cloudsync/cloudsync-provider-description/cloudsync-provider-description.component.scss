@@ -1,0 +1,36 @@
+:host {
+  display: block;
+
+  .header {
+    align-items: center;
+    display: flex;
+    margin-bottom: 8px;
+  }
+
+  .image {
+    height: 40px;
+    margin-right: 8px;
+    max-width: 40px;
+    min-width: 40px;
+    overflow: hidden;
+
+    img {
+      display: block;
+      height: auto;
+      max-height: 100%;
+      max-width: 100%;
+      object-fit: contain;
+    }
+  }
+
+  .body {
+    color: var(--fg2);
+    margin: 0;
+  }
+
+  .name {
+    font-family: var(--font-family-header);
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+}

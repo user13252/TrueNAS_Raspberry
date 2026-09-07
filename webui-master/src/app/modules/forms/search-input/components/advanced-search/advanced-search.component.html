@@ -1,0 +1,56 @@
+<div class="search-row">
+  <div class="advanced-search">
+    <span class="prefix-icon" [tnTooltip]="errorMessages?.[0]?.message">
+      @if (!queryInputValue) {
+        <tn-icon name="text-search-variant" library="mdi"></tn-icon>
+      } @else if (hasQueryErrors) {
+        <tn-icon name="alert" library="mdi"></tn-icon>
+      } @else {
+        <tn-icon name="check" library="mdi"></tn-icon>
+      }
+    </span>
+
+    <div #inputArea class="input-area" (focusin)="startSuggestionsCompletion()" (click)="startSuggestionsCompletion()">
+      @if (showDatePicker$ | async) {
+        <tn-card class="calendar" [padContent]="false">
+          <tn-calendar (selectedChange)="dateSelected($event)"></tn-calendar>
+        </tn-card>
+      }
+    </div>
+
+    <span
+      class="reset-icon reset-input"
+      role="button"
+      tabindex="0"
+      tnTestIdType="text"
+      [tnTestId]="'clear-search'"
+      [class.hidden]="!editorHasValue"
+      [attr.aria-label]="'Clear search' | translate"
+      [tnTooltip]="'Clear search' | translate"
+      (click)="onResetInput()"
+      (keydown.enter)="$event.preventDefault(); onResetInput()"
+    >
+      <tn-icon name="close-circle" library="mdi"></tn-icon>
+    </span>
+  </div>
+
+  <button
+    class="switch-link"
+    type="button"
+    tnTestIdType="button"
+    [tnTestId]="'switch-to-basic'"
+    [tnTooltip]="'Switch To Basic' | translate"
+    (click)="switchToBasic.emit()"
+  >
+    <tn-icon name="tune" library="mdi" size="sm"></tn-icon>
+    {{ 'Basic' | translate }}
+  </button>
+</div>
+
+@if (filterPresets()?.length > 0) {
+  <ix-filter-presets
+    [presets]="filterPresets()"
+    [selectedPresetLabels]="selectedPresetLabels()"
+    (filtersChanged)="applyPreset($event.filters, $event.selectedLabels)"
+  ></ix-filter-presets>
+}

@@ -1,0 +1,158 @@
+import { DialogRef } from '@angular/cdk/dialog';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, forwardRef, input, output, inject, viewChild, TemplateRef,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl, Validators, ReactiveFormsModule, NonNullableFormBuilder,
+} from '@angular/forms';
+import { Router } from '@angular/router';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnCheckboxComponent, TnFormFieldComponent } from '@truenas/ui-components';
+import * as EmailValidator from 'email-validator';
+import { finalize, of } from 'rxjs';
+import { MiB } from 'app/constants/bytes.constant';
+import {
+  ticketAcceptedFiles,
+  TicketCategory, ticketCategoryLabels,
+  TicketCriticality, ticketCriticalityLabels,
+  TicketEnvironment, ticketEnvironmentLabels,
+} from 'app/enums/file-ticket.enum';
+import { mapToOptions } from 'app/helpers/options.helper';
+import { WINDOW } from 'app/helpers/window.helper';
+import { helptextSystemSupport as helptext } from 'app/helptext/system/support';
+import { FeedbackDialog } from 'app/modules/feedback/components/feedback-dialog/feedback-dialog.component';
+import { FeedbackForm } from 'app/modules/feedback/interfaces/feedback-form';
+import { FeedbackService } from 'app/modules/feedback/services/feedback.service';
+import { IxChipsComponent } from 'app/modules/forms/ix-forms/components/ix-chips/ix-chips.component';
+import { IxFileInputComponent } from 'app/modules/forms/ix-forms/components/ix-file-input/ix-file-input.component';
+import { IxInputComponent } from 'app/modules/forms/ix-forms/components/ix-input/ix-input.component';
+import { IxSelectComponent } from 'app/modules/forms/ix-forms/components/ix-select/ix-select.component';
+import { IxTextareaComponent } from 'app/modules/forms/ix-forms/components/ix-textarea/ix-textarea.component';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { IxValidatorsService } from 'app/modules/forms/ix-forms/services/ix-validators.service';
+import { emailValidator } from 'app/modules/forms/ix-forms/validators/email-validation/email-validation';
+import { ImageValidatorService } from 'app/modules/forms/ix-forms/validators/image-validator/image-validator.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+
+@Component({
+  selector: 'ix-file-ticket-licensed',
+  styleUrls: ['file-ticket-licensed.component.scss'],
+  templateUrl: './file-ticket-licensed.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    IxInputComponent,
+    IxChipsComponent,
+    IxSelectComponent,
+    IxTextareaComponent,
+    IxFileInputComponent,
+    TnButtonComponent,
+    TnCheckboxComponent,
+    TnFormFieldComponent,
+    TranslateModule,
+  ],
+  providers: [
+    { provide: FeedbackForm, useExisting: forwardRef(() => FileTicketLicensedComponent) },
+  ],
+})
+export class FileTicketLicensedComponent implements FeedbackForm {
+  private formBuilder = inject(NonNullableFormBuilder);
+  private translate = inject(TranslateService);
+  private validatorsService = inject(IxValidatorsService);
+  private feedbackService = inject(FeedbackService);
+  private router = inject(Router);
+  private imageValidator = inject(ImageValidatorService);
+  private formErrorHandler = inject(FormErrorHandlerService);
+  private window = inject<Window>(WINDOW);
+  private api = inject(ApiService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly dialogRef = input.required<DialogRef<unknown, FeedbackDialog>>();
+  readonly isLoading = input<boolean>();
+
+  readonly isLoadingChange = output<boolean>();
+
+  readonly dialogActions = viewChild('dialogActions', { read: TemplateRef });
+
+  protected form = this.formBuilder.group({
+    name: ['', [Validators.required]],
+    email: ['', [Validators.required, emailValidator()]],
+    cc: [[] as string[], [
+      this.validatorsService.customValidator(
+        (control: AbstractControl<string[]>) => {
+          return control.value?.every((item: string) => EmailValidator.validate(item));
+        },
+        this.translate.instant(helptext.cc.err),
+      ),
+    ]],
+    phone: ['', [Validators.required]],
+    category: [TicketCategory.Bug, [Validators.required]],
+    environment: [TicketEnvironment.Production, [Validators.required]],
+    criticality: [TicketCriticality.Inquiry, [Validators.required]],
+    title: ['', [Validators.required, Validators.maxLength(200)]],
+
+    message: ['', [Validators.maxLength(20000)]],
+    images: [[] as File[], []],
+    attach_debug: [true],
+    attach_images: [false],
+    take_screenshot: [true],
+  });
+
+  protected readonly messagePlaceholder = helptext.bug.message.label;
+  protected readonly acceptedFiles = ticketAcceptedFiles;
+
+  readonly categoryOptions$ = of(mapToOptions(ticketCategoryLabels, this.translate));
+  readonly environmentOptions$ = of(mapToOptions(ticketEnvironmentLabels, this.translate));
+  readonly criticalityOptions$ = of(mapToOptions(ticketCriticalityLabels, this.translate));
+
+  readonly tooltips = {
+    name: helptext.name.tooltip,
+    email: helptext.email.tooltip,
+    cc: helptext.cc.tooltip,
+    phone: helptext.phone.tooltip,
+    category: helptext.type.tooltip,
+    title: helptext.title.placeholder,
+    attach_debug: helptext.attachDebug.tooltip,
+  };
+
+  constructor() {
+    this.getSystemFileSizeLimit();
+  }
+
+  onUserGuidePressed(): void {
+    this.window.open('https://www.truenas.com/docs/hub/');
+  }
+
+  onEulaPressed(): void {
+    this.router.navigate(['system', 'support', 'eula']).then(() => {
+      this.dialogRef().close();
+    });
+  }
+
+  onSubmit(): void {
+    this.isLoadingChange.emit(true);
+
+    this.feedbackService.createTicketLicensed(this.form.getRawValue()).pipe(
+      finalize(() => this.isLoadingChange.emit(false)),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: (createdTicket) => this.onSuccess(createdTicket.url, createdTicket.debug_attach_error),
+      error: (error: unknown) => this.formErrorHandler.handleValidationErrors(error, this.form),
+    });
+  }
+
+  private onSuccess(ticketUrl: string, debugAttachError?: string | null): void {
+    this.feedbackService.showTicketSuccessMessage(ticketUrl, debugAttachError);
+    this.dialogRef().close();
+  }
+
+  private getSystemFileSizeLimit(): void {
+    this.api.call('support.attach_ticket_max_size').pipe(takeUntilDestroyed(this.destroyRef)).subscribe((size) => {
+      this.form.controls.images.addAsyncValidators(
+        this.imageValidator.getImagesValidator(size * MiB),
+      );
+      this.form.controls.images.updateValueAndValidity();
+    });
+  }
+}

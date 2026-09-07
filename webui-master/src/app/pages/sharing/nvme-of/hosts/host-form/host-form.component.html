@@ -1,0 +1,123 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew()"
+  [addTitle]="'Add Host' | translate"
+  [editTitle]="'Edit Host' | translate"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="onFormClosed()"
+>
+  <tn-form-section>
+    <tn-form-field
+      class="host-nqn"
+      [label]="'Host NQN' | translate"
+      [tooltip]="helptext.hostNqnTooltip | translate"
+    >
+      <tn-input formControlName="hostnqn" [required]="true"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Description' | translate"
+      [tooltip]="helptext.hostDescriptionTooltip | translate"
+    >
+      <tn-input formControlName="description"></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+  <tn-form-section [heading]="'Authentication' | translate">
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="requireHostAuthentication"
+        [label]="'Require Host Authentication' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    @if (form.value.requireHostAuthentication) {
+      <ix-details-table class="authentication-details">
+        <ix-details-item [label]="'Hash' | translate">
+          <ix-editable>
+            <div view>
+              {{ form.value.dhchap_hash }}
+            </div>
+
+            <div edit>
+              <tn-select
+                name="dhchap_hash"
+                formControlName="dhchap_hash"
+                [options]="(hashOptions$ | async) ?? []"
+              ></tn-select>
+            </div>
+          </ix-editable>
+        </ix-details-item>
+      </ix-details-table>
+
+      <tn-form-field
+        [label]="'Key For Host To Present' | translate"
+        [tooltip]="helptext.dhchapKeyTooltip | translate"
+      >
+        <tn-input formControlName="dhchap_key" [multiline]="true"></tn-input>
+      </tn-form-field>
+
+      <div class="generate-key-row">
+        <tn-button
+          [testId]="'generate-key-host'"
+          [label]="'Generate Key' | translate"
+          [disabled]="!hasNqn || isGeneratingHostKey()"
+          [tnTooltip]="!hasNqn ? (helptext.generateHostKeyDisabled | translate) : ''"
+          (onClick)="generateHostKey()"
+        ></tn-button>
+      </div>
+
+      <tn-form-field
+        [label]="'Key For TrueNAS To Present (Optional)' | translate"
+        [tooltip]="helptext.dhchapCtrlKey | translate"
+      >
+        <tn-input formControlName="dhchap_ctrl_key" [multiline]="true"></tn-input>
+      </tn-form-field>
+
+      <div class="generate-key-row">
+        <tn-button
+          [testId]="'generate-key-ctrl'"
+          [label]="'Generate Key' | translate"
+          [disabled]="isGeneratingTrueNasKey()"
+          (onClick)="generateTrueNasKey()"
+        ></tn-button>
+      </div>
+
+      <tn-form-field
+        class="dh-checkbox"
+        [tooltip]="helptext.dhKeyExchangeTooltip | translate"
+      >
+        <tn-checkbox
+          formControlName="addDhKeyExchange"
+          [label]="'Also use Diffie–Hellman key exchange for additional security' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      @if (form.value.addDhKeyExchange) {
+        <ix-details-table class="authentication-details">
+          <ix-details-item
+            [label]="'DH Group' | translate"
+          >
+            <ix-editable>
+              <div view>
+                {{ form.value.dhchap_dhgroup || (helptext.noDhText | translate) }}
+              </div>
+
+              <div edit>
+                <tn-select
+                  class="dh-group-select"
+                  name="dhchap_dhgroup"
+                  formControlName="dhchap_dhgroup"
+                  [options]="(dhGroupOptions$ | async) ?? []"
+                  [allowEmpty]="true"
+                  [emptyLabel]="helptext.noDhText | translate"
+                ></tn-select>
+              </div>
+            </ix-editable>
+          </ix-details-item>
+        </ix-details-table>
+      }
+    }
+  </tn-form-section>
+</ix-form>

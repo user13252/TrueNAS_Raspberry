@@ -1,0 +1,73 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnCheckboxHarness, TnSelectHarness } from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { mockJob, mockApi, mockCall } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { App } from 'app/interfaces/app.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { AppRollbackModalComponent } from 'app/pages/apps/components/installed-apps/app-rollback-modal/app-rollback-modal.component';
+
+describe('AppRollbackModalComponent', () => {
+  let spectator: Spectator<AppRollbackModalComponent>;
+  let loader: HarnessLoader;
+  const createComponent = createComponentFactory({
+    component: AppRollbackModalComponent,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    providers: [
+      mockProvider(DialogRef),
+      {
+        provide: DIALOG_DATA,
+        useValue: {
+          name: 'my-app',
+        } as App,
+      },
+      mockAuth(),
+      mockApi([
+        mockJob('app.rollback'),
+        mockCall('app.rollback_versions', ['0.9.8', '0.9.9']),
+      ]),
+      mockProvider(DialogService, {
+        jobDialog: jest.fn(() => ({
+          afterClosed: () => of(null),
+        })),
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  it('shows a list of previous versions for an installed app to roll back to', async () => {
+    const versionSelect = await loader.getHarness(TnSelectHarness);
+    const options = await versionSelect.getOptions();
+
+    expect(options).toEqual(['0.9.8', '0.9.9']);
+  });
+
+  it('rolls back app when form is submitted', async () => {
+    const versionSelect = await loader.getHarness(TnSelectHarness);
+    await versionSelect.selectOption('0.9.8');
+
+    const snapshotCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Roll back snapshots' }));
+    await snapshotCheckbox.check();
+
+    const rollbackButton = await loader.getHarness(TnButtonHarness.with({ label: 'Roll Back' }));
+    await rollbackButton.click();
+
+    expect(spectator.inject(DialogService).jobDialog).toHaveBeenCalled();
+    expect(spectator.inject(ApiService).job).toHaveBeenCalledWith(
+      'app.rollback',
+      ['my-app', { app_version: '0.9.8', rollback_snapshot: true }],
+    );
+    expect(spectator.inject(DialogRef).close).toHaveBeenCalledWith(true);
+  });
+});

@@ -1,0 +1,215 @@
+@let schema = dynamicSchema();
+@if (schema) {
+  <div
+    [formGroup]="dynamicForm()"
+    [class.indent]="schema?.indent"
+  >
+    @if (!(isHidden$ | async)) {
+      @switch (schema.type) {
+        @case (DynamicFormSchemaType.Cron) {
+          <ix-scheduler
+            [formControlName]="schema.controlName"
+            [label]="schema.title ? (schema.title | translate) : ''"
+            [tooltip]="schema.tooltip ? (schema.tooltip | translate) : ''"
+            [required]="schema.required || false"
+          ></ix-scheduler>
+        }
+
+        @case (DynamicFormSchemaType.Dict) {
+          @let dictSchema = asDictSchema(schema);
+          @if (dictSchema.title) {
+            <div class="label">
+              <div class="label-wrapper">
+                {{ dictSchema.title }}
+              </div>
+
+              @if (dictSchema.tooltip) {
+                <div class="label-tooltip">
+                  <button
+                    type="button"
+                    class="tooltip"
+                    [attr.aria-label]="dictSchema.tooltip"
+                    [tnTooltip]="dictSchema.tooltip"
+                  >
+                    <tn-icon name="help-circle" library="mdi" size="sm"></tn-icon>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+
+          @for (attr of dictSchema.attrs; track attr) {
+            <ix-dynamic-form-item
+              [id]="attr.controlName"
+              [dynamicSchema]="attr"
+              [dynamicForm]="dynamicForm()?.controls[dictSchema.controlName] | cast"
+              [isEditMode]="isEditMode()"
+              (addListItem)="addControlNext($event)"
+              (deleteListItem)="removeControlNext($event)"
+            ></ix-dynamic-form-item>
+          }
+        }
+
+        @case (DynamicFormSchemaType.Text) {
+          @let textSchema = asTextSchema(schema);
+          <ix-code-editor
+            [language]="textSchema.language || CodeEditorLanguage.Text"
+            [label]="textSchema.title ? (textSchema.title | translate) : ''"
+            [formControlName]="textSchema.controlName"
+            [tooltip]="textSchema.tooltip ? (textSchema.tooltip | translate) : ''"
+            [placeholder]="textSchema.placeholder ? (textSchema.placeholder | translate) : ''"
+            [required]="textSchema.required || false"
+            [defaultValue]="'\n\n'"
+          ></ix-code-editor>
+        }
+
+        @case (DynamicFormSchemaType.List) {
+          @let listSchema = asListSchema(schema);
+          <ix-list
+            [label]="listSchema.title ? (listSchema.title | translate) : ''"
+            [empty]="getFormArray.controls.length === 0"
+            [formArrayName]="listSchema.controlName"
+            [default]="listSchema.default"
+            [tooltip]="listSchema.tooltip ? (listSchema.tooltip | translate) : ''"
+            [itemsSchema]="listSchema.itemsSchema"
+            [required]="listSchema.required || false"
+            [isEditMode]="isEditMode()"
+            [canAdd]="!isAllListControlsDisabled"
+            [formArray]="getFormArray"
+            (add)="addControl($event)"
+          >
+            @for (element of getFormArray.controls; track element; let i = $index) {
+              <ix-list-item
+                [label]="listSchema.title ? (listSchema.title | translate) : ''"
+                [canDelete]="!isAllListControlsDisabled"
+                (delete)="removeControl(i)"
+              >
+                @for (item of listSchema.items; track item) {
+                  <ix-dynamic-form-item
+                    [dynamicSchema]="item"
+                    [dynamicForm]="element | cast"
+                    [isEditMode]="isEditMode()"
+                    (addListItem)="addControlNext($event)"
+                    (deleteListItem)="removeControlNext($event)"
+                  ></ix-dynamic-form-item>
+                }
+              </ix-list-item>
+            }
+            <ix-errors
+              [control]="dynamicForm()"
+              [label]="listSchema.title ? (listSchema.title | translate) : ''"
+            ></ix-errors>
+          </ix-list>
+        }
+
+        @case (DynamicFormSchemaType.Input) {
+          @let inputSchema = asInputSchema(schema);
+          <tn-form-field
+            [label]="inputSchema.title ? (inputSchema.title | translate) : ''"
+            [tooltip]="inputSchema.tooltip ? (inputSchema.tooltip | translate) : ''"
+            [required]="inputSchema.required || false"
+          >
+            <tn-input
+              [name]="inputSchema.controlName"
+              [testId]="inputSchema.controlName"
+              [formControlName]="inputSchema.controlName"
+              [placeholder]="inputSchema.placeholder ? (inputSchema.placeholder | translate) : ''"
+              [required]="inputSchema.required || false"
+              [inputType]="toInputType(inputSchema.inputType)"
+              [showPasswordToggle]="inputSchema.inputType === 'password'"
+            ></tn-input>
+          </tn-form-field>
+        }
+
+        @case (DynamicFormSchemaType.Uri) {
+          @let uriSchema = asUriSchema(schema);
+          <tn-form-field
+            [label]="uriSchema.title ? (uriSchema.title | translate) : ''"
+            [tooltip]="uriSchema.tooltip ? (uriSchema.tooltip | translate) : ''"
+            [required]="uriSchema.required || false"
+          >
+            <tn-input
+              [name]="uriSchema.controlName"
+              [testId]="uriSchema.controlName"
+              [formControlName]="uriSchema.controlName"
+              [placeholder]="uriSchema.placeholder ? (uriSchema.placeholder | translate) : ''"
+              [required]="uriSchema.required || false"
+              [inputType]="toInputType(uriSchema.inputType)"
+            ></tn-input>
+          </tn-form-field>
+        }
+
+        @case (DynamicFormSchemaType.Select) {
+          @let selectSchema = asSelectSchema(schema);
+          <tn-form-field
+            [label]="selectSchema.title ? (selectSchema.title | translate) : ''"
+            [tooltip]="selectSchema.tooltip ? (selectSchema.tooltip | translate) : ''"
+            [required]="selectSchema.required || false"
+          >
+            <tn-select
+              [testId]="selectSchema.controlName"
+              [formControlName]="selectSchema.controlName"
+              [options]="(selectSchema.options | async) ?? []"
+              [allowEmpty]="!selectSchema.required && !selectSchema.hideEmpty"
+            ></tn-select>
+          </tn-form-field>
+        }
+
+        @case (DynamicFormSchemaType.Enum) {
+          @let enumSchema = asEnumSchema(schema);
+          <tn-form-field
+            [label]="enumSchema.title ? (enumSchema.title | translate) : ''"
+            [tooltip]="enumSchema.tooltip ? (enumSchema.tooltip | translate) : ''"
+            [required]="enumSchema.required || false"
+          >
+            <tn-autocomplete
+              [testId]="enumSchema.controlName"
+              [formControlName]="enumSchema.controlName"
+              [options]="(enumSchema.options | async) ?? []"
+              [requireSelection]="true"
+            ></tn-autocomplete>
+          </tn-form-field>
+        }
+
+        @case (DynamicFormSchemaType.Explorer) {
+          @let explorerSchema = asExplorerSchema(schema);
+          <ix-explorer
+            [formControlName]="explorerSchema.controlName"
+            [label]="explorerSchema.title ? (explorerSchema.title | translate) : ''"
+            [tooltip]="explorerSchema.tooltip ? (explorerSchema.tooltip | translate) : ''"
+            [required]="explorerSchema.required || false"
+            [nodeProvider]="explorerSchema.nodeProvider"
+          >
+            @if (!isEditMode()) {
+              <ix-explorer-create-dataset></ix-explorer-create-dataset>
+            }
+          </ix-explorer>
+        }
+
+        @case (DynamicFormSchemaType.Checkbox) {
+          <tn-form-field
+            class="checkbox-field"
+            [tooltip]="schema.tooltip ? (schema.tooltip | translate) : ''"
+            [required]="schema.required || false"
+          >
+            <tn-checkbox
+              [testId]="schema.controlName"
+              [formControlName]="schema.controlName"
+              [label]="schema.title ? (schema.title | translate) : ''"
+              [required]="schema.required || false"
+            ></tn-checkbox>
+          </tn-form-field>
+        }
+
+        @case (DynamicFormSchemaType.Ipaddr) {
+          <ix-ip-input-with-netmask
+            [formControlName]="schema.controlName"
+            [label]="schema.title ? (schema.title | translate) : ''"
+            [tooltip]="schema.tooltip ? (schema.tooltip | translate) : ''"
+            [required]="schema.required || false"
+          ></ix-ip-input-with-netmask>
+        }
+      }
+    }
+  </div>
+}

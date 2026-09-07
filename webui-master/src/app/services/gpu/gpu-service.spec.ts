@@ -1,0 +1,213 @@
+import { createServiceFactory, SpectatorService } from '@ngneat/spectator/jest';
+import { Store } from '@ngrx/store';
+import { provideMockStore } from '@ngrx/store/testing';
+import { firstValueFrom, of } from 'rxjs';
+import { TestScheduler } from 'rxjs/testing';
+import { getTestScheduler } from 'app/core/testing/utils/get-test-scheduler.utils';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { DeviceType } from 'app/enums/device-type.enum';
+import { AdvancedConfig } from 'app/interfaces/advanced-config.interface';
+import { Device } from 'app/interfaces/device.interface';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { GpuService } from 'app/services/gpu/gpu.service';
+import { advancedConfigUpdated } from 'app/store/system-config/system-config.actions';
+import { selectAdvancedConfig } from 'app/store/system-config/system-config.selectors';
+
+describe('GpuService', () => {
+  let spectator: SpectatorService<GpuService>;
+  let testScheduler: TestScheduler;
+
+  const allGpus = [
+    {
+      addr: {
+        pci_slot: '0000:01:00.0',
+      },
+      description: 'GeForce',
+    },
+    {
+      addr: {
+        pci_slot: '0000:02:00.0',
+      },
+      description: 'Radeon',
+    },
+  ] as Device[];
+  const createService = createServiceFactory({
+    service: GpuService,
+    providers: [
+      mockApi([
+        mockCall('system.advanced.update_gpu_pci_ids'),
+        mockCall('device.get_info', allGpus),
+        mockCall('system.advanced.get_gpu_pci_choices', {
+          'GeForce [0000:01:00.0]': {
+            pci_slot: '0000:01:00.0',
+            uses_system_critical_devices: false,
+            critical_reason: '',
+          },
+          'Radeon [0000:02:00.0]': {
+            pci_slot: '0000:02:00.0',
+            uses_system_critical_devices: false,
+            critical_reason: '',
+          },
+        }),
+      ]),
+      provideMockStore({
+        selectors: [
+          {
+            selector: selectAdvancedConfig,
+            value: {
+              isolated_gpu_pci_ids: ['0000:02:00.0'],
+            } as AdvancedConfig,
+          },
+        ],
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createService();
+    testScheduler = getTestScheduler();
+  });
+
+  describe('getAllGpus', () => {
+    it('returns a list of all gpus available in the system', async () => {
+      const gpus = await firstValueFrom(spectator.service.getAllGpus());
+
+      expect(gpus).toEqual(allGpus);
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('device.get_info', [{ type: DeviceType.Gpu }]);
+    });
+  });
+
+  describe('getRawGpuPciChoices', () => {
+    it('calls the correct API endpoint and returns raw GPU PCI choices', async () => {
+      const choices = await firstValueFrom(spectator.service.getRawGpuPciChoices());
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('system.advanced.get_gpu_pci_choices');
+      expect(choices).toEqual({
+        'GeForce [0000:01:00.0]': {
+          pci_slot: '0000:01:00.0',
+          uses_system_critical_devices: false,
+          critical_reason: '',
+        },
+        'Radeon [0000:02:00.0]': {
+          pci_slot: '0000:02:00.0',
+          uses_system_critical_devices: false,
+          critical_reason: '',
+        },
+      });
+    });
+  });
+
+  describe('transformGpuChoicesToOptions', () => {
+    it('transforms raw GPU choices to select options', () => {
+      const rawChoices = {
+        'GPU 1': {
+          pci_slot: '0000:01:00.0',
+          uses_system_critical_devices: false,
+          critical_reason: '',
+        },
+        'GPU 2': {
+          pci_slot: '0000:02:00.0',
+          uses_system_critical_devices: true,
+          critical_reason: 'Critical devices',
+        },
+      };
+
+      const result = spectator.service.transformGpuChoicesToOptions(rawChoices);
+
+      expect(result).toEqual([
+        { value: '0000:01:00.0', label: 'GPU 1', disabled: false },
+        { value: '0000:02:00.0', label: 'GPU 2 (System Critical)', disabled: false },
+      ]);
+    });
+
+    it('handles empty GPU choices', () => {
+      const result = spectator.service.transformGpuChoicesToOptions({});
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getGpuOptions', () => {
+    it('returns an observable with a list of options for GPU select', async () => {
+      const store$ = spectator.inject(Store);
+      jest.spyOn(store$, 'dispatch');
+      const options = await firstValueFrom(spectator.service.getGpuOptions());
+      expect(options).toEqual([
+        { label: 'GeForce [0000:01:00.0]', value: '0000:01:00.0', disabled: false },
+        { label: 'Radeon [0000:02:00.0]', value: '0000:02:00.0', disabled: false },
+      ]);
+    });
+
+    it('marks GPUs with system critical devices in the label', async () => {
+      const apiService = spectator.inject(ApiService);
+      jest.spyOn(apiService, 'call').mockImplementation((method: string) => {
+        if (method === 'system.advanced.get_gpu_pci_choices') {
+          return of({
+            'Safe GPU [0000:01:00.0]': {
+              pci_slot: '0000:01:00.0',
+              uses_system_critical_devices: false,
+              critical_reason: '',
+            },
+            'Critical GPU [0000:02:00.0]': {
+              pci_slot: '0000:02:00.0',
+              uses_system_critical_devices: true,
+              critical_reason: 'Critical devices found: 0000:00:01.0',
+            },
+          });
+        }
+        return of([]);
+      });
+
+      const options = await firstValueFrom(spectator.service.getGpuOptions());
+      expect(options).toEqual([
+        { label: 'Safe GPU [0000:01:00.0]', value: '0000:01:00.0', disabled: false },
+        {
+          label: 'Critical GPU [0000:02:00.0] (System Critical)',
+          value: '0000:02:00.0',
+          disabled: false,
+        },
+      ]);
+    });
+  });
+
+  describe('getIsolatedGpuPciIds', () => {
+    it('returns an observable with list of ids for isolated gpus', async () => {
+      const options = await firstValueFrom(spectator.service.getIsolatedGpuPciIds());
+      expect(options).toEqual(['0000:02:00.0']);
+    });
+  });
+
+  describe('getIsolatedGpus', () => {
+    it('returns a observable with gpu devices that have been isolated', async () => {
+      const gpus = await firstValueFrom(spectator.service.getIsolatedGpus());
+      expect(gpus).toEqual([{
+        addr: {
+          pci_slot: '0000:02:00.0',
+        },
+        description: 'Radeon',
+      }]);
+    });
+  });
+
+  describe('addIsolatedGpuPciIds', () => {
+    it('adds new ids of new isolated gpu devices in addition to ones that were previously isolated', async () => {
+      const store$ = spectator.inject(Store);
+      jest.spyOn(store$, 'dispatch');
+      await firstValueFrom(spectator.service.addIsolatedGpuPciIds(['0000:01:00.0']));
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith(
+        'system.advanced.update_gpu_pci_ids',
+        [['0000:02:00.0', '0000:01:00.0']],
+      );
+      expect(spectator.inject(Store).dispatch).toHaveBeenCalledWith(advancedConfigUpdated());
+    });
+
+    it('does nothing when new gpu has already been isolated', () => {
+      testScheduler.run(({ expectObservable }) => {
+        const call$ = spectator.service.addIsolatedGpuPciIds(['0000:02:00.0']);
+
+        expect(spectator.inject(ApiService).call).not.toHaveBeenCalled();
+        expectObservable(call$).toBe('(a|)', { a: undefined });
+      });
+    });
+  });
+});

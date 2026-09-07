@@ -1,0 +1,53 @@
+<tn-dialog-shell testId="confirm" [title]="options.title" [showCloseButton]="false">
+  <div id="confirm-msg">
+    <div class="message-content">
+      <span [innerHTML]="options.message"></span>
+    </div>
+
+    @if (options.secondaryCheckbox) {
+      <span>
+        <tn-checkbox
+          class="secondary-checkbox"
+          testId="secondary-confirmation"
+          [(ngModel)]="isSecondaryCheckboxChecked"
+          (ngModelChange)="onSecondaryCheckboxChange()"
+        >
+          <span tnCheckboxLabel id="confirm-label">{{ options.secondaryCheckboxText }}</span>
+        </tn-checkbox>
+      </span>
+    }
+
+    @if (options.secondaryCheckboxMessage && isSecondaryCheckboxChecked) {
+      <div class="message-content secondary-message">
+        <span [innerHTML]="options.secondaryCheckboxMessage"></span>
+      </div>
+    }
+  </div>
+
+  <ix-form-actions tnDialogAction class="form-actions">
+    @if (!options.hideCheckbox && options.confirmationCheckboxText) {
+      <tn-checkbox
+        testId="confirm"
+        [label]="options.confirmationCheckboxText"
+        (change)="toggleSubmit($event)"
+      ></tn-checkbox>
+    }
+    @if (!options.hideCancel && options.cancelText) {
+      <tn-button
+        variant="outline"
+        testId="dialog-cancel"
+        [label]="options.cancelText"
+        (onClick)="onCancel()"
+      ></tn-button>
+    }
+    @if (options.buttonText) {
+      <tn-button
+        testId="dialog-confirm"
+        [color]="options.buttonColor || 'primary'"
+        [label]="options.buttonText"
+        [disabled]="isDisabled()"
+        (onClick)="onSubmit()"
+      ></tn-button>
+    }
+  </ix-form-actions>
+</tn-dialog-shell>

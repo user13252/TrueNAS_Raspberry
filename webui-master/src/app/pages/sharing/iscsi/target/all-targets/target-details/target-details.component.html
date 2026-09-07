@@ -1,0 +1,25 @@
+<div class="cards">
+  <div class="scroll-window">
+    @if (hasIscsiCards()) {
+      <ix-authorized-networks-card [target]="target()"></ix-authorized-networks-card>
+      <ix-iscsi-groups-card [target]="target()"></ix-iscsi-groups-card>
+    }
+
+    @if (hasFibreCards()) {
+      <ix-fibre-channel-port-card
+        [ports]="targetPorts()"
+        [isLoading]="isLoading()"
+      ></ix-fibre-channel-port-card>
+
+      @if (targetPorts().length > 0) {
+        <ix-fibre-channel-connections-card [connections]="connections()"></ix-fibre-channel-connections-card>
+      }
+    }
+
+    <ix-associated-extents-card [target]="target()"></ix-associated-extents-card>
+
+    @if (hasIscsiCards()) {
+      <ix-iscsi-connections-card [target]="target()"></ix-iscsi-connections-card>
+    }
+  </div>
+</div>

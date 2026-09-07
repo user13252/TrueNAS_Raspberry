@@ -1,0 +1,265 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [addTitle]="'Add Rsync Task' | translate"
+  [editTitle]="'Edit Rsync Task' | translate"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <div class="fieldsets">
+    <tn-form-section class="fieldset" [heading]="'Local' | translate">
+      <tn-form-field
+        [label]="'Path' | translate"
+        [tooltip]="helptext.rsyncPathTooltip | translate"
+        [required]="true"
+      >
+        <ix-explorer
+          formControlName="path"
+          [nodeProvider]="treeNodeProvider"
+        >
+          <ix-explorer-create-dataset></ix-explorer-create-dataset>
+        </ix-explorer>
+      </tn-form-field>
+
+      <ix-user-combobox
+        formControlName="user"
+        [label]="'User' | translate"
+        [tooltip]="helptext.rsyncUserTooltip | translate"
+        [required]="true"
+      ></ix-user-combobox>
+
+      <tn-form-field
+        [label]="'Direction' | translate"
+        [tooltip]="helptext.rsyncDirectionTooltip | translate"
+        [required]="true"
+      >
+        <tn-select
+          name="direction"
+          testId="direction"
+          formControlName="direction"
+          [options]="directions"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Description' | translate">
+        <tn-input
+          name="desc"
+          testId="desc"
+          formControlName="desc"
+        ></tn-input>
+      </tn-form-field>
+    </tn-form-section>
+
+    <tn-form-section class="fieldset" [heading]="'Remote' | translate">
+      <tn-form-field [label]="'Rsync Mode' | translate" [tooltip]="helptext.rsyncModeTooltip | translate">
+        <tn-select
+          name="mode"
+          testId="mode"
+          formControlName="mode"
+          [options]="rsyncModes"
+        ></tn-select>
+      </tn-form-field>
+
+      @if (isModuleMode) {
+        <tn-form-field
+          [label]="'Remote Host' | translate"
+          [tooltip]="helptext.rsyncRemotehostTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="remotehost"
+            testId="remotehost"
+            formControlName="remotehost"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+        <tn-form-field
+          [label]="'Remote Module Name' | translate"
+          [tooltip]="helptext.rsyncRemotemoduleTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="remotemodule"
+            testId="remotemodule"
+            formControlName="remotemodule"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+      } @else {
+        <tn-form-field
+          [label]="'Connect using:' | translate"
+          [tooltip]="helptext.rsyncSshConnectModeTooltip | translate"
+        >
+          <tn-select
+            name="sshconnectmode"
+            testId="sshconnectmode"
+            formControlName="sshconnectmode"
+            [options]="sshConnectModes"
+          ></tn-select>
+        </tn-form-field>
+
+        @if (isSshConnectionPrivateMode) {
+          <tn-form-field
+            [label]="'Remote Host' | translate"
+            [tooltip]="helptext.rsyncRemotehostTooltip | translate"
+            [required]="true"
+          >
+            <tn-input
+              name="remotehost"
+              testId="remotehost"
+              formControlName="remotehost"
+              [required]="true"
+            ></tn-input>
+          </tn-form-field>
+          @if (isRemoteHostSpecified) {
+            <tn-form-field [tooltip]="helptext.sshKeyscanTooltip | translate">
+              <tn-slide-toggle
+                formControlName="ssh_keyscan"
+                [label]="'SSH Keyscan' | translate"
+              ></tn-slide-toggle>
+            </tn-form-field>
+          }
+          <tn-form-field
+            [label]="'Remote SSH Port' | translate"
+            [tooltip]="helptext.rsyncRemoteportTooltip | translate"
+            [required]="true"
+          >
+            <tn-input
+              name="remoteport"
+              testId="remoteport"
+              formControlName="remoteport"
+              [inputType]="InputType.Number"
+              [required]="true"
+            ></tn-input>
+          </tn-form-field>
+        } @else {
+          <ix-ssh-credentials-select
+            formControlName="ssh_credentials"
+            [label]="'SSH Connection' | translate"
+            [tooltip]="helptext.rsyncSshCredentialsTooltip | translate"
+            [required]="true"
+          ></ix-ssh-credentials-select>
+        }
+
+        <tn-form-field [label]="'Remote Path' | translate">
+          <tn-input
+            name="remotepath"
+            testId="remotepath"
+            formControlName="remotepath"
+          ></tn-input>
+        </tn-form-field>
+
+        <tn-form-field [tooltip]="helptext.rsyncValidateRpathTooltip | translate">
+          <tn-checkbox
+            testId="validate-rpath"
+            formControlName="validate_rpath"
+            [label]="'Validate Remote Path' | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      }
+    </tn-form-section>
+
+    <tn-form-section class="fieldset" [heading]="'Schedule' | translate">
+      <ix-scheduler
+        formControlName="schedule"
+        [required]="true"
+        [label]="'Schedule' | translate"
+        [tooltip]="helptext.rsyncPickerTooltip | translate"
+      ></ix-scheduler>
+
+      <tn-form-field [tooltip]="helptext.rsyncRecursiveTooltip | translate">
+        <tn-checkbox
+          testId="recursive"
+          formControlName="recursive"
+          [label]="'Recursive' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field>
+        <tn-checkbox
+          testId="enabled"
+          formControlName="enabled"
+          [label]="'Enabled' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </tn-form-section>
+
+    <tn-form-section class="fieldset" [heading]="'More Options' | translate">
+      <tn-form-field [tooltip]="helptext.rsyncTimesTooltip | translate">
+        <tn-checkbox
+          testId="times"
+          formControlName="times"
+          [label]="'Times' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="helptext.rsyncCompressTooltip | translate">
+        <tn-checkbox
+          testId="compress"
+          formControlName="compress"
+          [label]="'Compress' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="helptext.rsyncArchiveTooltip | translate">
+        <tn-checkbox
+          testId="archive"
+          formControlName="archive"
+          [label]="'Archive' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="helptext.rsyncDeleteTooltip | translate">
+        <tn-checkbox
+          testId="delete"
+          formControlName="delete"
+          [label]="'Delete' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="helptext.rsyncQuietTooltip | translate">
+        <tn-checkbox
+          testId="quiet"
+          formControlName="quiet"
+          [label]="'Quiet' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="helptext.rsyncPreservepermTooltip | translate">
+        <tn-checkbox
+          testId="preserveperm"
+          formControlName="preserveperm"
+          [label]="'Preserve Permissions' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="helptext.rsyncPreserveattrTooltip | translate">
+        <tn-checkbox
+          testId="preserveattr"
+          formControlName="preserveattr"
+          [label]="'Preserve Extended Attributes' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="helptext.rsyncDelayupdatesTooltip | translate">
+        <tn-checkbox
+          testId="delayupdates"
+          formControlName="delayupdates"
+          [label]="'Delay Updates' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'Auxiliary Parameters' | translate"
+        [tooltip]="helptext.rsyncExtraTooltip | translate"
+      >
+        <tn-chip-input
+          testId="extra"
+          formControlName="extra"
+          [allowCustomValue]="true"
+        ></tn-chip-input>
+      </tn-form-field>
+    </tn-form-section>
+  </div>
+</ix-form>

@@ -1,0 +1,285 @@
+import { CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { NgTemplateOutlet } from '@angular/common';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import {
+  TnButtonComponent, TnButtonHarness, TnIconButtonComponent, TnIconButtonHarness,
+} from '@truenas/ui-components';
+import { MockComponent, ngMocks } from 'ng-mocks';
+import { NgxSkeletonLoaderComponent } from 'ngx-skeleton-loader';
+import { BehaviorSubject, of } from 'rxjs';
+import { AnimateOutDirective } from 'app/directives/animate-out/animate-out.directive';
+import {
+  DisableFocusableElementsDirective,
+} from 'app/directives/disable-focusable-elements/disable-focusable-elements.directive';
+import { NewFeatureIndicatorDirective } from 'app/directives/new-feature-indicator/new-feature-indicator.directive';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { PageHeaderComponent } from 'app/modules/page-header/page-title-header/page-header.component';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { DashboardComponent } from 'app/pages/dashboard/components/dashboard/dashboard.component';
+import {
+  WidgetGroupControlsComponent,
+} from 'app/pages/dashboard/components/dashboard/widget-group-controls/widget-group-controls.component';
+import { WidgetGroupComponent } from 'app/pages/dashboard/components/widget-group/widget-group.component';
+import { WidgetGroupFormComponent } from 'app/pages/dashboard/components/widget-group-form/widget-group-form.component';
+import { DashboardStore } from 'app/pages/dashboard/services/dashboard.store';
+import { getDefaultWidgets } from 'app/pages/dashboard/services/get-default-widgets';
+import { WidgetResourcesService } from 'app/pages/dashboard/services/widget-resources.service';
+import { WidgetGroup, WidgetGroupLayout } from 'app/pages/dashboard/types/widget-group.interface';
+
+// Mocking a child that transitively imports these tn-components would otherwise mock them too,
+// tripping the ng-mocks signal-query bug (https://github.com/help-me-mom/ng-mocks/issues/8634).
+// Keep the ones the dashboard itself renders real so their harnesses work.
+ngMocks.globalKeep(TnButtonComponent, true);
+ngMocks.globalKeep(TnIconButtonComponent, true);
+
+describe('DashboardComponent', () => {
+  const groupA: WidgetGroup = { layout: WidgetGroupLayout.Full, slots: [] };
+  const groupB: WidgetGroup = { layout: WidgetGroupLayout.Halves, slots: [] };
+  const groupC: WidgetGroup = { layout: WidgetGroupLayout.QuartersAndHalf, slots: [] };
+  const groupD: WidgetGroup = { layout: WidgetGroupLayout.HalfAndQuarters, slots: [] };
+  const defaultGroups = [groupA, groupB, groupC, groupD];
+  const groups$ = new BehaviorSubject<WidgetGroup[] | null>(defaultGroups);
+  const isLoading$ = new BehaviorSubject(false);
+
+  let spectator: Spectator<DashboardComponent>;
+  let loader: HarnessLoader;
+  const createComponent = createComponentFactory({
+    component: DashboardComponent,
+    imports: [
+      NgTemplateOutlet,
+      WidgetGroupControlsComponent,
+      MockComponent(PageHeaderComponent),
+      MockComponent(WidgetGroupComponent),
+      NewFeatureIndicatorDirective,
+      DisableFocusableElementsDirective,
+      AnimateOutDirective,
+    ],
+    componentProviders: [
+      mockProvider(WidgetResourcesService),
+      mockProvider(DashboardStore, {
+        groups$,
+        isLoading$,
+        entered: jest.fn(),
+        save: jest.fn(() => of(undefined)),
+      }),
+    ],
+    providers: [
+      mockProvider(DialogService, {
+        confirm: jest.fn(() => of(true)),
+      }),
+      mockProvider(SnackbarService),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.cancel()),
+      }),
+      provideMockStore(),
+    ],
+  });
+
+  let formPanel: FormSidePanelService;
+
+  beforeEach(() => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    formPanel = spectator.inject(FormSidePanelService);
+  });
+
+  async function enterConfiguration(): Promise<void> {
+    const configureButton = await loader.getHarness(TnButtonHarness.with({ label: 'Configure' }));
+    await configureButton.click();
+  }
+
+  describe('loading', () => {
+    it('initializes store when user enters the dashboard', () => {
+      expect(spectator.inject(DashboardStore, true).entered).toHaveBeenCalled();
+    });
+
+    it('shows skeleton loader when loading for first time', () => {
+      isLoading$.next(true);
+      groups$.next(null);
+      spectator.detectChanges();
+      expect(spectator.query(NgxSkeletonLoaderComponent)).toExist();
+
+      groups$.next(defaultGroups);
+      isLoading$.next(false);
+      spectator.detectChanges();
+      expect(spectator.query(NgxSkeletonLoaderComponent)).not.toExist();
+    });
+
+    it('renders widgets that were loaded', () => {
+      const groups = spectator.queryAll(WidgetGroupComponent);
+      expect(groups).toHaveLength(4);
+      expect(groups[0].group).toEqual(groupA);
+      expect(groups[1].group).toEqual(groupB);
+      expect(groups[2].group).toEqual(groupC);
+      expect(groups[3].group).toEqual(groupD);
+    });
+  });
+
+  describe('configuration - editing', () => {
+    beforeEach(async () => {
+      await enterConfiguration();
+    });
+
+    it('enters configuration mode when Configure is pressed', () => {
+      const containers = spectator.queryAll('.group-container');
+      expect(containers[0]).toHaveClass('editing');
+    });
+
+    it('opens the card editor panel to edit a widget when edit icon is pressed', async () => {
+      const editButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'pencil' }));
+      await editButton.click();
+
+      expect(formPanel.open).toHaveBeenCalledWith(
+        WidgetGroupFormComponent,
+        expect.objectContaining({ inputs: { initialGroup: groupA } }),
+      );
+    });
+
+    it('updates a widget group after the editor is saved', async () => {
+      const updatedGroup = { ...groupA, layout: WidgetGroupLayout.Halves };
+      (formPanel.open as jest.Mock).mockReturnValue(SlideInResult.success(updatedGroup));
+
+      const editButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'pencil' }));
+      await editButton.click();
+      spectator.detectChanges();
+
+      const groups = spectator.queryAll(WidgetGroupComponent);
+      expect(groups).toHaveLength(4);
+      expect(groups[0].group).toEqual(updatedGroup);
+      expect(groups[1].group).toEqual(groupB);
+      expect(groups[2].group).toEqual(groupC);
+      expect(groups[3].group).toEqual(groupD);
+    });
+
+    it('removes a widget when delete button is pressed', async () => {
+      const deleteButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'delete' }));
+      await deleteButton.click();
+
+      // Wait for animation to complete
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 350);
+      });
+      spectator.detectChanges();
+
+      const groups = spectator.queryAll(WidgetGroupComponent);
+      expect(groups).toHaveLength(3);
+      expect(groups[0].group).toEqual(groupB);
+      expect(groups[1].group).toEqual(groupC);
+      expect(groups[2].group).toEqual(groupD);
+    });
+
+    it('adds a new widget group when the editor is saved after Add is pressed', async () => {
+      (formPanel.open as jest.Mock).mockReturnValue(SlideInResult.success(groupA));
+
+      const addButton = await loader.getHarness(TnButtonHarness.with({ label: 'Add' }));
+      await addButton.click();
+
+      expect(formPanel.open).toHaveBeenCalledWith(
+        WidgetGroupFormComponent,
+        expect.objectContaining({ inputs: { initialGroup: undefined } }),
+      );
+
+      spectator.detectChanges();
+      expect(spectator.queryAll(WidgetGroupComponent)).toHaveLength(5);
+    });
+
+    it('resets configuration to defaults with confirmation when Reset is pressed', async () => {
+      const resetButton = await loader.getHarness(TnButtonHarness.with({ label: 'Reset' }));
+      await resetButton.click();
+
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Default cards restored');
+
+      const saveButton = await loader.getHarness(TnButtonHarness.with({ label: 'Save' }));
+      await saveButton.click();
+
+      expect(spectator.inject(DialogService).confirm).toHaveBeenCalled();
+      expect(spectator.inject(DashboardStore, true).save).toHaveBeenCalledWith(getDefaultWidgets());
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Dashboard settings saved');
+    });
+
+    it('saves new configuration when Save is pressed', async () => {
+      const deleteButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'delete' }));
+      await deleteButton.click();
+
+      // Wait for animation to complete
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 350);
+      });
+      spectator.detectChanges();
+
+      const saveButton = await loader.getHarness(TnButtonHarness.with({ label: 'Save' }));
+      await saveButton.click();
+
+      expect(spectator.inject(DashboardStore, true).save).toHaveBeenCalledWith([groupB, groupC, groupD]);
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Dashboard settings saved');
+    });
+
+    it('reverts to loaded configuration when Cancel button is pressed', async () => {
+      const deleteButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'delete' }));
+      await deleteButton.click();
+
+      const cancelButton = await loader.getHarness(TnButtonHarness.with({ label: 'Cancel' }));
+      await cancelButton.click();
+
+      const groups = spectator.queryAll(WidgetGroupComponent);
+      expect(groups).toHaveLength(4);
+      expect(groups[0].group).toEqual(groupA);
+    });
+
+    it('reverts to loaded configuration when Escape is pressed', async () => {
+      const deleteButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'delete' }));
+      await deleteButton.click();
+
+      spectator.dispatchKeyboardEvent(spectator.debugElement, 'keydown', 'Escape');
+
+      const groups = spectator.queryAll(WidgetGroupComponent);
+      expect(groups).toHaveLength(4);
+      expect(groups[0].group).toEqual(groupA);
+    });
+  });
+
+  describe('configuration - moving', () => {
+    beforeEach(async () => {
+      await enterConfiguration();
+    });
+
+    it('moves widget up when widget is moved down via button on mobile', async () => {
+      const moveButtons = await loader.getAllHarnesses(TnIconButtonHarness.with({ name: 'menu-up' }));
+      await moveButtons[1].click();
+
+      const groups = spectator.queryAll(WidgetGroupComponent);
+      expect(groups[0].group).toEqual(groupB);
+      expect(groups[1].group).toEqual(groupA);
+      expect(groups[2].group).toEqual(groupC);
+      expect(groups[3].group).toEqual(groupD);
+    });
+
+    it('moves widget down when widget is moved down via button on mobile', async () => {
+      const moveButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'menu-down' }));
+      await moveButton.click();
+
+      const groups = spectator.queryAll(WidgetGroupComponent);
+      expect(groups[0].group).toEqual(groupB);
+      expect(groups[1].group).toEqual(groupA);
+      expect(groups[2].group).toEqual(groupC);
+      expect(groups[3].group).toEqual(groupD);
+    });
+
+    it('updates order when widgets are reordered via drag and drop', () => {
+      const list = spectator.query(CdkDropList<WidgetGroup>)!;
+      list.dropped.emit({ previousIndex: 0, currentIndex: 3 } as CdkDragDrop<WidgetGroup>);
+      spectator.detectChanges();
+
+      const groups = spectator.queryAll(WidgetGroupComponent);
+      expect(groups[0].group).toEqual(groupB);
+      expect(groups[1].group).toEqual(groupC);
+      expect(groups[2].group).toEqual(groupD);
+      expect(groups[3].group).toEqual(groupA);
+    });
+  });
+});

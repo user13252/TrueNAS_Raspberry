@@ -1,0 +1,45 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <div class="fieldsets">
+    <ix-replication-general-section
+      [replication]="existingReplication"
+    ></ix-replication-general-section>
+
+    <ix-replication-transport-section
+      [replication]="existingReplication"
+      [transport]="generalSection().form.value.transport"
+    ></ix-replication-transport-section>
+
+    <ix-replication-source-section
+      [replication]="existingReplication"
+      [direction]="generalSection().form.value.direction"
+      [nodeProvider]="sourceNodeProvider"
+      [isLocal]="isSourceLocal"
+    ></ix-replication-source-section>
+
+    <ix-replication-target-section
+      [replication]="existingReplication"
+      [nodeProvider]="targetNodeProvider"
+      [allowsCustomRetentionPolicy]="!usesNameRegex"
+      [isLocal]="isTargetLocal"
+    ></ix-replication-target-section>
+
+    <ix-replication-schedule-section
+      [replication]="existingReplication"
+    ></ix-replication-schedule-section>
+  </div>
+
+  @if (eligibleSnapshotsMessage) {
+    <div
+      class="eligible-snapshots"
+      [class.danger]="isEligibleSnapshotsMessageRed"
+    >
+      {{ eligibleSnapshotsMessage | translate }}
+    </div>
+  }
+</ix-form>

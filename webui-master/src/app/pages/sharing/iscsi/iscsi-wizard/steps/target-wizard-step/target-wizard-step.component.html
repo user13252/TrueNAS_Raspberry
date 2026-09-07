@@ -1,0 +1,17 @@
+<ng-container [formGroup]="form()">
+  @if (hasFibreChannel() && isNewTarget) {
+    <tn-form-field [label]="'Mode' | translate">
+      <tn-radio-group formControlName="mode" [options]="modeOptions"></tn-radio-group>
+    </tn-form-field>
+  }
+  <tn-form-field
+    [label]="helptextSharingIscsi.targetLabel | translate"
+    [tooltip]="helptextSharingIscsi.targetTooltip | translate"
+    [required]="true"
+  >
+    <tn-select
+      formControlName="target"
+      [options]="(targetOptions$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+</ng-container>

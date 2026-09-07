@@ -1,0 +1,52 @@
+<tn-dialog-shell testId="cloudsync-restore" [title]="'Restore Cloud Sync Task' | translate">
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-field [label]="'Description' | translate">
+    <tn-input
+      testId="description"
+      formControlName="description"
+      [required]="true"
+    ></tn-input>
+  </tn-form-field>
+
+  <tn-form-field [label]="'Transfer Mode' | translate" [required]="true">
+    <tn-select
+      testId="transfer-mode"
+      formControlName="transfer_mode"
+      [options]="(transferModes$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+
+  <ix-transfer-mode-explanation
+    [mode]="form.controls.transfer_mode.value"
+  ></ix-transfer-mode-explanation>
+
+  <tn-form-field
+    [label]="'Directory/Files' | translate"
+    [tooltip]="helptext.pathTooltip | translate"
+    [required]="true"
+  >
+    <ix-explorer
+      formControlName="path"
+      [nodeProvider]="treeNodeProvider"
+    ></ix-explorer>
+  </tn-form-field>
+
+  </form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close()"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    testId="restore"
+    [label]="'Restore' | translate"
+    [disabled]="form.invalid"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

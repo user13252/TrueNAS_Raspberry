@@ -1,0 +1,23 @@
+@switch (mode()) {
+  @case (TransferMode.Copy) {
+    <tn-icon name="image-plus" library="mdi"></tn-icon>
+    <div
+      class="description"
+      [innerHtml]="helptext.copyModeExplanation"
+    ></div>
+  }
+  @case (TransferMode.Move) {
+    <tn-icon name="inbox-arrow-down" library="mdi"></tn-icon>
+    <div
+      class="description"
+      [innerHtml]="helptext.moveModeExplanation"
+    ></div>
+  }
+  @case (TransferMode.Sync) {
+    <tn-icon name="sync" library="mdi"></tn-icon>
+    <div
+      class="description"
+      [innerHtml]="helptext.syncModeExplanation"
+    ></div>
+  }
+}

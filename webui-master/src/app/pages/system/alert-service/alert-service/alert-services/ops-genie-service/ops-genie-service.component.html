@@ -1,0 +1,16 @@
+<ng-container [formGroup]="form">
+  <tn-form-field
+    [label]="'API Key' | translate"
+    [tooltip]="helptext.opsGenie.apiKeyTooltip | translate"
+    [required]="true"
+  >
+    <tn-input formControlName="api_key" [testId]="'api_key'"></tn-input>
+  </tn-form-field>
+
+  <tn-form-field
+    [label]="'API URL' | translate"
+    [tooltip]="helptext.opsGenie.apiUrlTooltip | translate"
+  >
+    <tn-input formControlName="api_url" [testId]="'api_url'"></tn-input>
+  </tn-form-field>
+</ng-container>

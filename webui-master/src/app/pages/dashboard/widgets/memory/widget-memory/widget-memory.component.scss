@@ -1,0 +1,255 @@
+@import 'scss-imports/cssvars';
+
+.card {
+  box-sizing: border-box;
+  display: block;
+  height: 100%;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  .header {
+    padding-bottom: 0;
+    padding-right: 12px;
+  }
+
+  .container {
+    padding-left: 12px;
+    padding-right: 0;
+    padding-top: 0;
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+
+  h3 {
+    font-size: 24px;
+  }
+}
+
+.container {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+
+  &.half {
+    @extend %half-size;
+  }
+
+  &.quarter {
+    @extend %quarter-size;
+  }
+
+  &.full,
+  &.half {
+    @media(max-width: $breakpoint-xs) {
+      .stats {
+        flex: 0 0 60%;
+      }
+
+      .chart {
+        flex: 0 0 40%;
+      }
+    }
+  }
+
+  .stats {
+    align-items: center;
+    display: flex;
+    flex: 0 0 45%;
+    flex-direction: column;
+    justify-content: center;
+
+    @media(max-width: $breakpoint-xs) {
+      flex: 1;
+    }
+
+    .total-memory {
+      color: var(--fg1);
+      font-family: var(--font-family-body);
+      font-size: 49px;
+      font-weight: 400;
+      line-height: 1;
+      text-align: center;
+
+      @media(max-width: $breakpoint-xs) {
+        font-size: 38px;
+      }
+
+      .units {
+        font-size: 50%;
+        margin-left: -6px;
+      }
+
+      .skeleton {
+        display: block;
+        width: 170px;
+      }
+    }
+
+    .memory-used-caption {
+      font-size: 14px;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .legend {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 10px;
+      row-gap: 14px;
+
+      .skeleton {
+        display: inline-flex;
+        width: 45px;
+      }
+    }
+  }
+
+  .chart {
+    align-items: center;
+    display: flex;
+    flex: 0 0 55%;
+    margin: 0;
+    overflow: hidden;
+    padding-left: 24px;
+    padding-right: 35px;
+    position: relative;
+
+    @media(max-width: $breakpoint-xs) {
+      flex: 0 0 50%;
+      padding: 0 16px 0 0;
+    }
+
+    .skeleton {
+      display: block;
+      flex-grow: 1;
+    }
+  }
+}
+
+.stats-item {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  margin-right: 7px;
+
+  .label {
+    font-weight: 500;
+  }
+
+  .legend-swatch {
+    border: solid #000 0;
+    border-radius: 50%;
+    display: inline-block;
+    height: 12px;
+    margin-bottom: 1px;
+    margin-right: 5px;
+    width: 12px;
+  }
+}
+
+%half-size {
+  ngx-skeleton-loader::ng-deep > span {
+    margin: 0;
+  }
+
+  .stats {
+    flex: 0 0 60%;
+
+    @media(max-width: $breakpoint-xs) {
+      .stats-item {
+        justify-content: center;
+      }
+    }
+
+    .legend {
+      margin-bottom: 0;
+      row-gap: 0;
+
+      ngx-skeleton-loader::ng-deep > span {
+        height: 15px;
+      }
+    }
+
+    .total-memory {
+      font-size: 28px;
+    }
+
+    .memory-used-caption {
+      margin-bottom: 5px;
+    }
+  }
+
+  .chart {
+    flex: 0 0 23%;
+    padding: 0;
+  }
+}
+
+%quarter-size {
+  ngx-skeleton-loader::ng-deep > span {
+    margin: 5px 0;
+  }
+
+  .stats {
+    flex: 0 0 58%;
+
+    @media(max-width: $breakpoint-xs) {
+      flex: 1;
+
+      .stats-item {
+        justify-content: center;
+      }
+    }
+
+    .label,
+    .stats-item {
+      font-size: 12px;
+      margin-right: 4px;
+    }
+
+    .legend {
+      margin-bottom: 0;
+      row-gap: 0;
+
+      ngx-skeleton-loader::ng-deep > span {
+        height: 11px;
+      }
+    }
+
+    .total-memory {
+      font-size: 30px;
+    }
+
+    .memory-used-caption {
+      margin-bottom: 12px;
+    }
+  }
+
+  .chart {
+    flex: 0 0 35%;
+    padding: 0;
+
+    @media(max-width: $breakpoint-xs) {
+      flex: 0 0 25%;
+    }
+  }
+
+  .chart,
+  .legend-swatch {
+    @media (max-width: $breakpoint-xs) {
+      display: none;
+    }
+  }
+}
+
+// Replicates the legacy global "mat-card-content > div" padding from _material-reduction.scss.
+.card-content > div {
+  padding: 16px;
+}

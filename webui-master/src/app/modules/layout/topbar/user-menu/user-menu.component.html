@@ -1,0 +1,87 @@
+@if (loggedInUser(); as user) {
+  <div class="user-menu-wrapper">
+    <!-- Single trigger: the icon button projects the username text beside its icon,
+         so the name and icon are one focusable, accessible menu trigger. -->
+    <tn-icon-button
+      class="topbar-button-right"
+      name="account-circle"
+      library="mdi"
+      size="lg"
+      testId="user-menu"
+      [dense]="true"
+      [ariaLabel]="('Open user menu for' | translate) + ' ' + user.pw_name"
+      [tooltip]="tooltips.settings | translate"
+      [tnMenuTriggerFor]="userMenu"
+      [ixUiSearch]="searchableElements.elements.userMenu"
+    >
+      @if (user.pw_name) {
+        <span
+          class="username"
+          tnTestIdType="button"
+          [tnTestId]="'user-menu-name'"
+        >{{ user.pw_name }}</span>
+      }
+    </tn-icon-button>
+
+    <tn-menu #userMenu>
+      @if (user.account_attributes?.includes(AccountAttribute.Local)) {
+        <tn-menu-item
+          icon="dialpad"
+          iconLibrary="mdi"
+          [testId]="'change-password'"
+          [label]="'Change Password' | translate"
+          [ixUiSearch]="searchableElements.elements.changePassword"
+          (itemClick)="openChangePasswordDialog()"
+        ></tn-menu-item>
+      }
+
+      @if (isTwoFactorEnabledGlobally()) {
+        <tn-menu-item
+          icon="tn-two-factor-auth"
+          [testId]="'2-fa'"
+          [label]="'Two-Factor Authentication' | translate"
+          (itemClick)="onTwoFactorAuth()"
+        ></tn-menu-item>
+      }
+
+      <tn-menu-item
+        icon="cog"
+        iconLibrary="mdi"
+        [testId]="'preferences'"
+        [label]="'Preferences' | translate"
+        [ixUiSearch]="searchableElements.elements.preferences"
+        (itemClick)="openPreferencesForm()"
+      ></tn-menu-item>
+
+      <tn-menu-item
+        icon="laptop"
+        iconLibrary="mdi"
+        [testId]="'api-keys'"
+        [label]="'My API Keys' | translate"
+        [ixUiSearch]="searchableElements.elements.myApiKeys"
+        (itemClick)="openMyApiKeys()"
+      ></tn-menu-item>
+
+      <tn-menu-item
+        icon="book-multiple"
+        iconLibrary="mdi"
+        [testId]="'guide'"
+        [label]="'Guide' | translate"
+        [ixUiSearch]="searchableElements.elements.guide"
+        (itemClick)="openGuide()"
+      ></tn-menu-item>
+
+      <!-- TEMP: the divider that separated Log Out is gone — tn-menu has no
+           separator support for projected <tn-menu-item> entries (only for the
+           [items] array input). Restore once the library ships one. -->
+      <tn-menu-item
+        icon="logout"
+        iconLibrary="mdi"
+        [testId]="'log-out'"
+        [label]="'Log Out' | translate"
+        [ixUiSearch]="searchableElements.elements.logOut"
+        (itemClick)="onSignOut()"
+      ></tn-menu-item>
+    </tn-menu>
+  </div>
+}

@@ -1,0 +1,144 @@
+@if (!isLoading && dataSource.data.length === 0) {
+  <ng-container [ngTemplateOutlet]="empty"></ng-container>
+} @else {
+  <div class="container">
+    <div class="table-container">
+      @if (!showMobileDetails) {
+        <ix-fake-progress-bar
+          class="loader-bar"
+          [loading]="!!(isLoading$ | async)"
+        ></ix-fake-progress-bar>
+      }
+      <div class="item-search">
+        <ix-basic-search
+          [query]="searchQuery()"
+          (queryChange)="onListFiltered($event)"
+        ></ix-basic-search>
+      </div>
+
+      <div
+        #ixTreeHeader
+        class="sticky-header"
+      >
+        <div class="tree-header" [style.width.px]="ixTreeHeaderWidth">
+          <div>
+            <span class="name-header">
+              {{ 'Dataset' | translate }}
+            </span>
+          </div>
+          <div>{{ 'Used' | translate }}</div>
+          <div class="available-header">
+            <span>{{ 'Available' | translate }}</span>
+            @if (tierEnabled()) {
+              <small class="tier-subtitle">{{ '(Regular Tier)' | translate }}</small>
+            }
+          </div>
+          <div>{{ 'Encryption' | translate }}</div>
+          <div>{{ 'Usage' | translate }}</div>
+        </div>
+      </div>
+
+      <div
+        #ixTree
+        ixContentVirtualScrollable
+        class="tree-wrapper"
+        (scroll)="datasetTreeWrapperScrolled()"
+      >
+        <div class="tree-inner">
+
+          <!--
+            No-results empty state. IMPORTANT: the tree below is kept MOUNTED (hidden via
+            a class) rather than swapped out with @else. Destroying the tn-tree causes
+            CdkTree.ngOnDestroy to disconnect the data source, which permanently kills its
+            debounced filter subscription and breaks the search after the first no-results.
+          -->
+          @let noSearchResults = searchQuery() && !dataSource.filteredData.length && !isLoading;
+
+          @if (noSearchResults) {
+            <ng-container [ngTemplateOutlet]="empty"></ng-container>
+          }
+
+          <tn-tree-virtual-scroll-view
+            class="dataset-tree"
+            [class.tree-hidden]="noSearchResults"
+            [dataSource]="dataSource"
+            [treeControl]="treeControl"
+            [scrollWindow]="false"
+            [itemSize]="52"
+            [minBufferPx]="52"
+            [maxBufferPx]="52"
+            [nodeTrackBy]="trackById"
+            [scrollToTopLabel]="'Scroll to top' | translate"
+            (viewportResized)="datasetTreeWidthChanged()"
+          >
+              <tn-tree-node
+                *cdkTreeNodeDef="let dataset"
+                class="dataset-tree-node"
+                routerLinkActive="selected"
+                cdkTreeNodePadding
+                [cdkTreeNodePaddingIndent]="40"
+                [routerLink]="['/datasets', dataset.id]"
+                [testId]="['dataset', dataset.name]"
+              >
+                <!--
+                  Navigation lives on the projected content, not the tn-tree-node host:
+                  the library node's cdkTreeNodeToggle stops click propagation, so a host
+                  (click) never fires. Handling it here (and stopping propagation) gives
+                  row-click = open details, while the chevron alone still expands/collapses.
+                -->
+                <div
+                  class="dataset-node-click"
+                  role="button"
+                  tabindex="0"
+                  (click)="viewDetails(dataset); $event.stopPropagation()"
+                  (keydown.enter)="viewDetails(dataset)"
+                  (keydown.space)="viewDetails(dataset); $event.preventDefault()"
+                >
+                  <ix-dataset-node
+                    [dataset]="dataset"
+                    [isSystemDataset]="isSystemDataset(dataset)"
+                  ></ix-dataset-node>
+                  <tn-icon name="chevron-right" library="mdi" class="mobile-actions"></tn-icon>
+                </div>
+              </tn-tree-node>
+          </tn-tree-virtual-scroll-view>
+        </div>
+      </div>
+    </div>
+
+    @let dataset = selectedDataset$ | async;
+    @let showDetails = !searchQuery() || dataset.name.toLowerCase().includes(searchQuery().toLowerCase());
+
+    @if (dataset && showDetails) {
+      <div
+        ixDetailsHeight
+        class="details-container"
+        [class.details-container-mobile]="showMobileDetails"
+      >
+        @if (showMobileDetails) {
+          <ix-fake-progress-bar
+            class="loader-bar"
+            [loading]="!!(isLoading$ | async)"
+          ></ix-fake-progress-bar>
+        }
+        <ix-dataset-details-panel
+          [dataset]="dataset"
+          [systemDataset]="systemDataset()"
+          (closeMobileDetails)="closeMobileDetails()"
+        ></ix-dataset-details-panel>
+      </div>
+    }
+  </div>
+}
+
+<ng-template #empty>
+  <tn-empty
+    iconSize="56px"
+    [title]="emptyConfig().title || ''"
+    [description]="emptyConfig().message"
+    [icon]="emptyIcon().name"
+    [iconLibrary]="emptyIcon().library"
+    [actionText]="emptyActionText()"
+    (onAction)="onEmptyAction()"
+  ></tn-empty>
+</ng-template>

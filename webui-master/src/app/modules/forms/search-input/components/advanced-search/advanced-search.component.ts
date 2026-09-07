@@ -1,0 +1,403 @@
+import { InteractivityChecker } from '@angular/cdk/a11y';
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, input, OnInit, output, signal, Signal, viewChild, inject } from '@angular/core';
+import {
+  autocompletion, closeBrackets, closeCompletion, CompletionContext, completionStatus, startCompletion,
+} from '@codemirror/autocomplete';
+import { Diagnostic, linter } from '@codemirror/lint';
+import {
+  EditorState, Prec, StateEffect, StateField,
+} from '@codemirror/state';
+import {
+  EditorView, keymap, placeholder,
+} from '@codemirror/view';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnCalendarComponent, TnCardComponent, TnIconComponent, TnTestIdDirective, TnTooltipDirective,
+} from '@truenas/ui-components';
+import { format } from 'date-fns';
+import { FilterPreset, QueryFilter, QueryFilters } from 'app/interfaces/query-api.interface';
+import { FilterPresetsComponent } from 'app/modules/forms/search-input/components/filter-presets/filter-presets.component';
+import { AdvancedSearchAutocompleteService } from 'app/modules/forms/search-input/services/advanced-search-autocomplete.service';
+import { QueryParserService } from 'app/modules/forms/search-input/services/query-parser/query-parser.service';
+import { QueryParsingError } from 'app/modules/forms/search-input/services/query-parser/query-parsing-result.interface';
+import { QueryToApiService } from 'app/modules/forms/search-input/services/query-to-api/query-to-api.service';
+import { SearchProperty } from 'app/modules/forms/search-input/types/search-property.interface';
+
+const setDiagnostics = StateEffect.define<Diagnostic[] | null>();
+
+// Cheap CSS pre-filter only — it over-matches (e.g. tabindex="-1", disabled
+// controls), so every candidate is still run through CDK's InteractivityChecker
+// before being treated as tabbable. Kept as a coarse selector to avoid walking
+// the whole subtree with '*' on every Tab keystroke.
+const focusableSelector = [
+  'a[href]',
+  'area[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'iframe',
+  'audio[controls]',
+  'video[controls]',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[tabindex]',
+].join(',');
+
+@Component({
+  selector: 'ix-advanced-search',
+  templateUrl: './advanced-search.component.html',
+  styleUrls: ['./advanced-search.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnTooltipDirective,
+    TnIconComponent,
+    TnCardComponent,
+    TnCalendarComponent,
+    TnTestIdDirective,
+    TranslateModule,
+    AsyncPipe,
+    FilterPresetsComponent,
+  ],
+})
+export class AdvancedSearchComponent<T> implements OnInit {
+  private queryParser = inject<QueryParserService<T>>(QueryParserService);
+  private queryToApi = inject<QueryToApiService<T>>(QueryToApiService);
+  private advancedSearchAutocomplete = inject<AdvancedSearchAutocompleteService<T>>(AdvancedSearchAutocompleteService);
+  private cdr = inject(ChangeDetectorRef);
+  private interactivityChecker = inject(InteractivityChecker);
+
+  readonly query = input<QueryFilters<T>>([]);
+  readonly filterPresets = input<FilterPreset<T>[]>([]);
+  readonly properties = input<SearchProperty<T>[]>([]);
+  readonly placeholder = input('');
+
+  readonly paramsChange = output<QueryFilters<T>>();
+  readonly switchToBasic = output();
+  readonly runSearch = output();
+
+  private readonly inputArea: Signal<ElementRef<HTMLElement>> = viewChild.required('inputArea', { read: ElementRef });
+
+  protected hasQueryErrors = false;
+  protected queryInputValue: string;
+  errorMessages: QueryParsingError[] | null = null;
+  protected editorView: EditorView;
+
+  protected showDatePicker$ = this.advancedSearchAutocomplete.showDatePicker$;
+
+  get editorHasValue(): boolean {
+    return this.editorView?.state?.doc?.length > 0;
+  }
+
+  readonly selectedPresetLabels = signal<Set<string>>(new Set());
+
+  ngOnInit(): void {
+    this.initEditor();
+    this.advancedSearchAutocomplete.setProperties(this.properties());
+    this.advancedSearchAutocomplete.setEditorView(this.editorView);
+
+    if (this.query()) {
+      this.replaceEditorContents(
+        this.queryParser.formatFiltersToQuery(this.query(), this.properties()),
+      );
+    }
+  }
+
+  startSuggestionsCompletion(): void {
+    startCompletion(this.editorView);
+  }
+
+  initEditor(): void {
+    const updateListener = EditorView.updateListener.of((update) => {
+      if (!update.docChanged) {
+        return;
+      }
+
+      this.onInputChanged();
+    });
+
+    const diagnosticField = StateField.define({
+      create(): Diagnostic[] {
+        return [] as Diagnostic[];
+      },
+      update(diagnostics, transaction): Diagnostic[] {
+        for (const effect of transaction.effects) {
+          if (effect.is(setDiagnostics)) {
+            return effect.value;
+          }
+        }
+        return diagnostics;
+      },
+    });
+
+    const advancedSearchLinter = linter((view) => view.state.field(diagnosticField));
+
+    const autocompleteExtension = autocompletion({
+      override: [(context: CompletionContext) => this.advancedSearchAutocomplete.getCompletions(context)],
+      icons: false,
+    });
+
+    const customKeyMap = Prec.highest(keymap.of([
+      {
+        key: 'Enter',
+        run: () => {
+          this.runSearch.emit();
+          return true;
+        },
+      },
+      {
+        key: 'Tab',
+        run: (view) => {
+          if (completionStatus(view.state) !== null) {
+            closeCompletion(view);
+          }
+          // Swallow Tab only when we actually moved focus; otherwise let the
+          // browser handle it so focus isn't stranded on the editor.
+          return this.moveFocusToNextFocusable();
+        },
+      },
+      {
+        key: 'Shift-Tab',
+        run: (view) => {
+          if (completionStatus(view.state) !== null) {
+            closeCompletion(view);
+          }
+          return this.moveFocusToPreviousFocusable();
+        },
+      },
+    ]));
+
+    this.editorView = new EditorView({
+      state: EditorState.create({
+        extensions: [
+          autocompleteExtension,
+          updateListener,
+          advancedSearchLinter,
+          diagnosticField,
+          customKeyMap,
+          EditorView.lineWrapping,
+          closeBrackets(),
+          placeholder(this.placeholder()),
+        ],
+      }),
+      parent: this.inputArea().nativeElement,
+    });
+
+    this.focusInput();
+  }
+
+  hideDatePicker(): void {
+    this.showDatePicker$.next(false);
+  }
+
+  dateSelected(value: Date): void {
+    this.appendEditorContents(`"${format(value, 'yyyy-MM-dd')}" `);
+    this.focusInput();
+    this.hideDatePicker();
+  }
+
+  applyPreset(filters: QueryFilters<T>[], presetLabels: Set<string>): void {
+    this.selectedPresetLabels.set(new Set(presetLabels));
+
+    const currentQuery = this.editorView.state.doc.toString().trim();
+    const newFilters = filters.flat();
+    const updatedQuery = this.smartMergePresetFilters(currentQuery, newFilters);
+
+    this.replaceEditorContents(updatedQuery);
+  }
+
+  private smartMergePresetFilters(currentQuery: string, newFilters: QueryFilters<T>): string {
+    if (!currentQuery.trim()) {
+      return this.queryParser.formatFiltersToQuery(newFilters, this.properties());
+    }
+
+    const parsedQuery = this.queryParser.parseQuery(currentQuery);
+    if (parsedQuery.hasErrors) {
+      const presetQuery = this.queryParser.formatFiltersToQuery(newFilters, this.properties());
+      return `${currentQuery} AND ${presetQuery}`;
+    }
+
+    const currentFilters = this.queryToApi.buildFilters(parsedQuery, this.properties());
+
+    const newFilterProperties = new Set<string>();
+    newFilters.forEach((filter) => {
+      if (Array.isArray(filter) && filter.length === 3) {
+        const [property] = filter;
+        newFilterProperties.add(String(property));
+      }
+    });
+
+    const nonConflictingFilters = currentFilters.filter((filter) => {
+      if (Array.isArray(filter) && filter.length === 3) {
+        const [property] = filter;
+        return !newFilterProperties.has(String(property));
+      }
+      return true;
+    });
+
+    const mergedFilters = [...nonConflictingFilters, ...newFilters];
+    return this.queryParser.formatFiltersToQuery(mergedFilters, this.properties());
+  }
+
+  protected onResetInput(): void {
+    this.replaceEditorContents('');
+    this.focusInput();
+    this.hideDatePicker();
+    this.paramsChange.emit([]);
+    this.selectedPresetLabels.set(new Set());
+    this.runSearch.emit();
+  }
+
+  private focusInput(): void {
+    this.editorView.focus();
+  }
+
+  private moveFocusToNextFocusable(): boolean {
+    return this.moveFocusInDirection(1);
+  }
+
+  private moveFocusToPreviousFocusable(): boolean {
+    return this.moveFocusInDirection(-1);
+  }
+
+  /** Returns true if a focusable target was found and focused, false otherwise. */
+  private moveFocusInDirection(direction: 1 | -1): boolean {
+    const editorRoot = this.editorView.dom;
+    // Stay within the surrounding focus trap (dialog) so Tab from the CodeMirror
+    // editor doesn't escape into background content. Outside dialogs we fall back
+    // to the whole document — letting Tab walk freely is the expected behavior.
+    // Scope detection is attribute-based: it matches the [cdkTrapFocus] directive
+    // and role="dialog" hosts, but not traps installed programmatically via
+    // FocusTrapFactory (which set no such attribute) — those fall back to document.
+    const scope = editorRoot.closest<HTMLElement>(
+      '[cdkTrapFocus], [role="dialog"]',
+    ) ?? document.body;
+
+    // Narrow selector keeps this cheap on large pages — querying '*' and then
+    // filtering through isFocusable for every element walked the whole subtree
+    // on each Tab keystroke. isTabbable is still required because the selector
+    // can match elements with tabindex="-1" or disabled controls.
+    const candidates = scope.querySelectorAll<HTMLElement>(focusableSelector);
+    const tabbable: HTMLElement[] = [];
+    candidates.forEach((el) => {
+      if (!editorRoot.contains(el) && this.interactivityChecker.isTabbable(el)) {
+        tabbable.push(el);
+      }
+    });
+
+    const target = direction === 1
+      ? tabbable.find((el) => (editorRoot.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0)
+      : tabbable.findLast((el) => (editorRoot.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) !== 0);
+
+    if (!target) {
+      return false;
+    }
+
+    target.focus();
+    return true;
+  }
+
+  private onInputChanged(): void {
+    this.queryInputValue = this.editorView.state.doc.toString();
+    const parsedQuery = this.queryParser.parseQuery(this.queryInputValue);
+
+    queueMicrotask(() => {
+      this.hasQueryErrors = Boolean(this.queryInputValue.length && parsedQuery.hasErrors);
+      this.cdr.markForCheck();
+      this.cdr.detectChanges();
+
+      this.recalculateActivePresetsFromRawQuery(this.queryInputValue);
+
+      if (parsedQuery.hasErrors && this.queryInputValue?.length) {
+        this.errorMessages = parsedQuery.errors;
+        this.editorView.dispatch({
+          effects: setDiagnostics.of(
+            parsedQuery.errors.filter((error) => error.from !== error.to) as Diagnostic[],
+          ),
+        });
+        return;
+      }
+
+      this.editorView.dispatch({
+        effects: setDiagnostics.of([]),
+      });
+      this.errorMessages = null;
+
+      const filters = this.queryToApi.buildFilters(parsedQuery, this.properties());
+      const mergedFilters = this.mergeConflictingFilters(filters);
+      this.paramsChange.emit(mergedFilters);
+    });
+  }
+
+  private replaceEditorContents(contents: string): void {
+    this.editorView.dispatch({
+      changes: { from: 0, to: this.editorView.state.doc.length, insert: contents },
+      selection: { anchor: contents.length },
+    });
+  }
+
+  private appendEditorContents(contents: string): void {
+    this.editorView.dispatch({
+      changes: { from: this.editorView.state.doc.length, insert: contents },
+      selection: { anchor: this.editorView.state.doc.length + contents.length },
+    });
+  }
+
+  private recalculateActivePresetsFromRawQuery(query: string): void {
+    const normalizedQuery = this.normalize(query);
+    const activeLabels = new Set<string>();
+
+    if (!normalizedQuery || normalizedQuery.length < 2) {
+      this.selectedPresetLabels.set(activeLabels);
+      return;
+    }
+
+    for (const preset of this.filterPresets() || []) {
+      const presetFilters = preset.query.map((filter) => {
+        return this.normalize(this.queryParser.formatFiltersToQuery([filter], this.properties()));
+      });
+
+      const hasPartialMatch = presetFilters.some((filterExpr) => {
+        return normalizedQuery.includes(filterExpr) || filterExpr.includes(normalizedQuery);
+      });
+
+      if (hasPartialMatch) {
+        activeLabels.add(preset.label);
+      }
+    }
+
+    this.selectedPresetLabels.set(activeLabels);
+  }
+
+  /**
+   * Two `property = value` conditions on the same property can never both hold, so a repeated
+   * `=` is treated as the user replacing the earlier value — the behavior the filter-preset
+   * toggles rely on (e.g. picking "Show Built-in Users" after "Hide Built-in Users").
+   *
+   * Every other comparator stacks legitimately and is left untouched:
+   * `Event != "AUTHENTICATION" AND Event != "CLOSE"` excludes both events, and
+   * `Timestamp > "..." AND Timestamp < "..."` is a range. Collapsing those by property name
+   * silently dropped all but the last condition (NAS-142222).
+   */
+  private mergeConflictingFilters(filters: QueryFilters<T>): QueryFilters<T> {
+    const lastEqualityIndexes = new Map<string, number>();
+
+    filters.forEach((filter, index) => {
+      if (this.isEqualityCondition(filter)) {
+        lastEqualityIndexes.set(String(filter[0]), index);
+      }
+    });
+
+    return filters.filter((filter, index) => {
+      return !this.isEqualityCondition(filter) || lastEqualityIndexes.get(String(filter[0])) === index;
+    }) as QueryFilters<T>;
+  }
+
+  private isEqualityCondition(filter: QueryFilters<T>[number]): filter is QueryFilter<T> {
+    return Array.isArray(filter) && filter.length === 3 && filter[1] === '=';
+  }
+
+  private normalize(value: string): string {
+    return value.replace(/["']/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+}

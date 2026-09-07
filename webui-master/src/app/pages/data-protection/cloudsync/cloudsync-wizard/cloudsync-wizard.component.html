@@ -1,0 +1,16 @@
+<tn-stepper orientation="vertical" [linear]="true">
+  <tn-step [label]="'Provider' | translate" [completed]="!!existingCredential">
+    <ix-cloudsync-provider
+      (save)="onProviderSaved($event)"
+      (loading)="onProviderLoading($event)"
+    ></ix-cloudsync-provider>
+  </tn-step>
+
+  <tn-step [label]="'What and When' | translate" [completed]="whatAndWhen()?.completed()">
+    <ix-cloudsync-what-and-when
+      [credentialId]="existingCredential?.id"
+      [loading]="!!(mergedLoading$ | async)"
+      (save)="onSubmit()"
+    ></ix-cloudsync-what-and-when>
+  </tn-step>
+</tn-stepper>

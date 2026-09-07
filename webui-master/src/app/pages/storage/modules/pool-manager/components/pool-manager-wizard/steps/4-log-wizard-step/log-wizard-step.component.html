@@ -1,0 +1,44 @@
+<ix-layout-step
+  [description]="helptext.logVdevDescription | translate"
+  [type]="vDevType.Log"
+  [inventory]="(inventory$ | async) || []"
+  [canChangeLayout]="canChangeLayout"
+  [limitLayouts]="allowedLayouts"
+  [isStepActive]="isStepActive()"
+></ix-layout-step>
+
+@if (stepWarning()) {
+  <p class="error-warning">
+    {{ stepWarning() }}
+  </p>
+}
+
+<ix-form-actions>
+  <tn-button
+    tnStepperPrevious
+    color="secondary"
+    [testId]="'back-log'"
+    [label]="'Back' | translate"
+  ></tn-button>
+  <tn-button
+    tnStepperNext
+    color="primary"
+    [testId]="'next-log'"
+    [label]="'Next' | translate"
+  ></tn-button>
+
+  <tn-button
+    color="warn"
+    [testId]="'reset-fields-in-log-step'"
+    [label]="'Reset Step' | translate"
+    (onClick)="resetStep()"
+  ></tn-button>
+
+  <tn-button
+    color="secondary"
+    [testId]="'save-and-go-to-review-log'"
+    [label]="'Go to Review' | translate"
+    (onClick)="goToReviewStep()"
+  ></tn-button>
+</ix-form-actions>
+

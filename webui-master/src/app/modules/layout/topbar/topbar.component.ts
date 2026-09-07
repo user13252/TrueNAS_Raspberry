@@ -1,0 +1,265 @@
+import { DialogRef } from '@angular/cdk/dialog';
+import {
+  ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef,
+  OnInit, signal, viewChild, inject,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { Store } from '@ngrx/store';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnDialog, TnIconButtonComponent } from '@truenas/ui-components';
+import {
+  filter, Observable, Subscription, switchMap, tap,
+} from 'rxjs';
+import { UiSearchDirective } from 'app/directives/ui-search.directive';
+import { JobState } from 'app/enums/job-state.enum';
+import { helptextGlobal } from 'app/helptext/global-helptext';
+import { helptextTopbar } from 'app/helptext/topbar';
+import {
+  AlertSlice, selectImportantUnreadAlertsCount, selectIsAlertPanelOpen, selectTopAlertSeverity,
+} from 'app/modules/alerts/store/alert.selectors';
+import { UpdateDialog } from 'app/modules/dialog/components/update-dialog/update-dialog.component';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FeedbackDialog } from 'app/modules/feedback/components/feedback-dialog/feedback-dialog.component';
+import { GlobalSearchTriggerComponent } from 'app/modules/global-search/components/global-search-trigger/global-search-trigger.component';
+import { selectUpdateJobs } from 'app/modules/jobs/store/job.selectors';
+import { CheckinIndicatorComponent } from 'app/modules/layout/topbar/checkin-indicator/checkin-indicator.component';
+import { HaStatusIconComponent } from 'app/modules/layout/topbar/ha-status-icon/ha-status-icon.component';
+import { JobsIndicatorComponent } from 'app/modules/layout/topbar/jobs-indicator/jobs-indicator.component';
+import { PowerMenuComponent } from 'app/modules/layout/topbar/power-menu/power-menu.component';
+import { ResilveringIndicatorComponent } from 'app/modules/layout/topbar/resilvering-indicator/resilvering-indicator.component';
+import { StatusBadge, StatusBadgeComponent } from 'app/modules/layout/topbar/status-badge/status-badge.component';
+import { toolBarElements } from 'app/modules/layout/topbar/topbar.elements';
+import { UserMenuComponent } from 'app/modules/layout/topbar/user-menu/user-menu.component';
+import { TruecommandButtonComponent } from 'app/modules/truecommand/truecommand-button.component';
+import { TruenasConnectService } from 'app/modules/truenas-connect/services/truenas-connect.service';
+import { TruenasConnectButtonComponent } from 'app/modules/truenas-connect/truenas-connect-button.component';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { RebootInfoDialogSuppressionService } from 'app/services/reboot-info-dialog-suppression.service';
+import { SystemGeneralService } from 'app/services/system-general.service';
+import { AppState } from 'app/store';
+import { selectIsHaLicensed } from 'app/store/ha-info/ha-info.selectors';
+import { selectRebootInfo } from 'app/store/reboot-info/reboot-info.selectors';
+import { selectHasConsoleFooter } from 'app/store/system-config/system-config.selectors';
+import { selectIsEnterprise } from 'app/store/system-info/system-info.selectors';
+import { alertIndicatorPressed, sidenavIndicatorPressed } from 'app/store/topbar/topbar.actions';
+import { TruenasLogoComponent } from './truenas-logo/truenas-logo.component';
+
+@Component({
+  selector: 'ix-topbar',
+  templateUrl: './topbar.component.html',
+  styleUrls: ['./topbar.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnIconButtonComponent,
+    GlobalSearchTriggerComponent,
+    CheckinIndicatorComponent,
+    ResilveringIndicatorComponent,
+    HaStatusIconComponent,
+    JobsIndicatorComponent,
+    StatusBadgeComponent,
+    UserMenuComponent,
+    PowerMenuComponent,
+    TranslateModule,
+    UiSearchDirective,
+    TruecommandButtonComponent,
+    TruenasLogoComponent,
+    TruenasConnectButtonComponent,
+  ],
+})
+export class TopbarComponent implements OnInit {
+  private router = inject(Router);
+  private systemGeneralService = inject(SystemGeneralService);
+  private tnDialog = inject(TnDialog);
+  private dialogService = inject(DialogService);
+  private store$ = inject<Store<AlertSlice>>(Store);
+  private appStore$ = inject<Store<AppState>>(Store);
+  private cdr = inject(ChangeDetectorRef);
+  private translate = inject(TranslateService);
+  private tnc = inject(TruenasConnectService);
+  private apiService = inject<ApiService>(ApiService);
+  private rebootInfoSuppression = inject(RebootInfoDialogSuppressionService);
+  private destroyRef = inject(DestroyRef);
+
+  private alertIndicator = viewChild<TnIconButtonComponent>('alertIndicator');
+
+  updateIsDone: Subscription;
+
+  updateDialog: DialogRef<unknown, UpdateDialog> | null = null;
+  private readonly isEnterprise = toSignal(this.appStore$.select(selectIsEnterprise));
+  isHaLicensed = false;
+  updateIsRunning = false;
+  systemWillRestart = false;
+  updateNotificationSent = false;
+  tooltips = helptextTopbar.tooltips;
+  protected searchableElements = toolBarElements;
+
+  readonly hasRebootRequiredReasons = signal(false);
+  readonly shownDialog = signal(false);
+  readonly hasTncConfig = computed(() => {
+    const config = this.tnc.config();
+    return config?.tnc_base_url && config?.account_service_base_url && config?.leca_service_base_url;
+  });
+
+  protected readonly isAlertPanelOpen = toSignal(this.store$.select(selectIsAlertPanelOpen), { initialValue: false });
+  protected readonly alertBadgeCount = toSignal(this.store$.select(
+    selectImportantUnreadAlertsCount,
+  ), { initialValue: 0 });
+
+  protected readonly hasConsoleFooter = toSignal(this.store$.select(selectHasConsoleFooter), { initialValue: false });
+
+  protected readonly alertSeverity = toSignal(this.store$.select(selectTopAlertSeverity), { initialValue: null });
+  protected readonly alertTooltip = computed(() => {
+    switch (this.alertSeverity()) {
+      case 'critical': return this.translate.instant(this.tooltips.alertsCritical);
+      case 'warning': return this.translate.instant(this.tooltips.alertsWarning);
+      default: return this.translate.instant(this.tooltips.alerts);
+    }
+  });
+
+  protected readonly alertIconClass = computed(() => {
+    switch (this.alertSeverity()) {
+      case 'critical': return 'alert-critical';
+      case 'warning': return 'alert-warning';
+      default: return '';
+    }
+  });
+
+  // When the bell icon is already coloured for its severity, the count badge goes
+  // neutral so the icon stays the primary indicator; otherwise it uses the accent.
+  protected readonly alertBadge = computed<StatusBadge | null>(() => {
+    const count = this.alertBadgeCount();
+    if (count === 0) {
+      return null;
+    }
+    const isSeverityColoured = this.alertSeverity() === 'critical' || this.alertSeverity() === 'warning';
+    return {
+      label: String(count),
+      background: isSeverityColoured ? 'var(--bg2)' : 'var(--primary)',
+      color: isSeverityColoured ? 'var(--fg2)' : 'var(--primary-txt)',
+    };
+  });
+
+  updateText = computed(() => {
+    if (this.isHaLicensed || !this.systemWillRestart) {
+      return this.translate.instant(helptextGlobal.sysUpdateMessage);
+    }
+    return [
+      this.translate.instant(helptextGlobal.sysUpdateMessage),
+      this.translate.instant(helptextGlobal.sysUpdateMessagePt2),
+    ].join(' ');
+  });
+
+  constructor() {
+    this.systemGeneralService.updateRunningNoticeSent.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.updateNotificationSent = true;
+      this.cdr.markForCheck();
+    });
+  }
+
+  ngOnInit(): void {
+    if (this.isEnterprise()) {
+      this.store$.select(selectIsHaLicensed).pipe(takeUntilDestroyed(this.destroyRef)).subscribe((isHaLicensed) => {
+        this.isHaLicensed = isHaLicensed;
+        this.cdr.markForCheck();
+      });
+    }
+
+    this.store$.select(selectUpdateJobs).pipe(takeUntilDestroyed(this.destroyRef)).subscribe((jobs) => {
+      const job = jobs[0];
+      if (!job) {
+        this.updateIsRunning = false;
+        this.updateDialog?.close();
+        return;
+      }
+
+      this.updateIsRunning = true;
+      if (job.state === JobState.Failed || job.state === JobState.Aborted) {
+        this.updateIsRunning = false;
+        this.systemWillRestart = false;
+        this.updateDialog?.close();
+      }
+
+      // When update starts on HA system, listen for 'finish', then quit listening
+      if (this.isHaLicensed) {
+        this.updateIsDone = this.systemGeneralService.updateIsDone$.pipe(
+          takeUntilDestroyed(this.destroyRef),
+        ).subscribe(() => {
+          this.updateIsRunning = false;
+          this.updateIsDone.unsubscribe();
+        });
+      }
+      if (
+        !this.isHaLicensed
+        && job?.arguments[0]
+        && (job.arguments[0] as { reboot: boolean }).reboot
+      ) {
+        this.systemWillRestart = true;
+        if (job.state === JobState.Success) {
+          this.router.navigate(['/system-tasks/restart'], { skipLocationChange: true });
+        }
+      }
+
+      if (!this.updateNotificationSent) {
+        this.updateInProgress();
+        this.updateNotificationSent = true;
+      }
+
+      this.cdr.markForCheck();
+    });
+
+    this.showRebootInfoDialog();
+  }
+
+  onAlertIndicatorPressed(): void {
+    this.store$.dispatch(alertIndicatorPressed());
+  }
+
+  focusAlertIndicator(): void {
+    this.alertIndicator()?.focus();
+  }
+
+  onSidenavIndicatorPressed(): void {
+    this.store$.dispatch(sidenavIndicatorPressed());
+  }
+
+  private updateInProgress(): void {
+    this.systemGeneralService.updateRunning.emit('true');
+    if (!this.updateNotificationSent) {
+      this.showUpdateDialog();
+      this.updateNotificationSent = true;
+    }
+  }
+
+  showUpdateDialog(): void {
+    const title = this.translate.instant('Update in Progress');
+    const message = this.updateText();
+
+    this.updateDialog = this.dialogService.update({ title, message });
+  }
+
+  showRebootInfoDialog(): void {
+    this.checkRebootInfo().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.shownDialog.set(false);
+    });
+  }
+
+  onFeedbackIndicatorPressed(): void {
+    this.tnDialog.open(FeedbackDialog);
+  }
+
+  private checkRebootInfo(): Observable<unknown> {
+    return this.appStore$.select(selectRebootInfo).pipe(
+      tap(() => this.hasRebootRequiredReasons.set(false)),
+      filter(({ thisNodeRebootInfo, otherNodeRebootInfo }) => {
+        return !!thisNodeRebootInfo?.reboot_required_reasons?.length
+          || !!otherNodeRebootInfo?.reboot_required_reasons?.length;
+      }),
+      tap(() => this.hasRebootRequiredReasons.set(true)),
+      filter(() => !this.shownDialog()),
+      filter(() => !this.updateIsRunning && !this.rebootInfoSuppression.isSuppressed()),
+      tap(() => this.shownDialog.set(true)),
+      switchMap(() => this.dialogService.rebootRequired()),
+    );
+  }
+}

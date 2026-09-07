@@ -1,0 +1,72 @@
+import { DIALOG_DATA } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnDialogShellComponent, TnDividerComponent, TnListComponent, TnListItemComponent,
+} from '@truenas/ui-components';
+import { CreateVdevLayout, VDevType, vdevTypeLabels } from 'app/enums/v-dev-type.enum';
+import { Enclosure } from 'app/interfaces/enclosure.interface';
+import { ManualSelectionVdevComponent } from 'app/pages/storage/modules/pool-manager/components/manual-disk-selection/components/manual-selection-vdev/manual-selection-vdev.component';
+import {
+  ManualSelectionVdev,
+} from 'app/pages/storage/modules/pool-manager/components/manual-disk-selection/interfaces/manual-disk-selection.interface';
+import { ManualDiskDragToggleStore } from 'app/pages/storage/modules/pool-manager/components/manual-disk-selection/store/manual-disk-drag-toggle.store';
+import { ManualDiskSelectionStore } from 'app/pages/storage/modules/pool-manager/components/manual-disk-selection/store/manual-disk-selection.store';
+import {
+  vdevsToManualSelectionVdevs,
+} from 'app/pages/storage/modules/pool-manager/components/manual-disk-selection/utils/vdevs-to-manual-selection-vdevs.utils';
+import {
+  PoolManagerTopology,
+} from 'app/pages/storage/modules/pool-manager/store/pool-manager.store';
+
+@Component({
+  selector: 'ix-inspect-vdevs-dialog',
+  templateUrl: './inspect-vdevs-dialog.component.html',
+  styleUrls: ['./inspect-vdevs-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    TnListComponent,
+    TnListItemComponent,
+    TnDividerComponent,
+    ManualSelectionVdevComponent,
+    TranslateModule,
+  ],
+  providers: [
+    ManualDiskSelectionStore,
+    ManualDiskDragToggleStore,
+  ],
+})
+export class InspectVdevsDialog implements OnInit {
+  protected data = inject<{
+    topology: PoolManagerTopology;
+    enclosures: Enclosure[];
+  }>(DIALOG_DATA);
+
+  protected presentTypes: VDevType[] = [];
+  protected selectedType: VDevType;
+  protected vdevs: ManualSelectionVdev[] = [];
+  protected layout: CreateVdevLayout;
+
+  getTypeLabel(type: VDevType): string {
+    return vdevTypeLabels.get(type) || type;
+  }
+
+  ngOnInit(): void {
+    this.setPresentTypes();
+    this.selectType(this.presentTypes[0]);
+  }
+
+  selectType(type: VDevType): void {
+    this.selectedType = type;
+    const selectedCategory = this.data.topology[type];
+    this.layout = selectedCategory.layout;
+    this.vdevs = vdevsToManualSelectionVdevs(selectedCategory.vdevs);
+  }
+
+  private setPresentTypes(): void {
+    this.presentTypes = Object.keys(this.data.topology).filter((type) => {
+      return this.data.topology[type as VDevType].vdevs.length > 0;
+    }) as VDevType[];
+  }
+}

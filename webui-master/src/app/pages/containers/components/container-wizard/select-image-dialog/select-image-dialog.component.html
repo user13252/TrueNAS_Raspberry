@@ -1,0 +1,78 @@
+<tn-dialog-shell testId="container-form" [title]="'Select Image' | translate">
+  <form [formGroup]="filterForm">
+    <tn-form-section [heading]="'Filters' | translate">
+      <tn-form-field [label]="'Search Images' | translate">
+        <tn-input
+          testId="search-query"
+          formControlName="searchQuery"
+        ></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'OS' | translate">
+        <tn-select
+          testId="os"
+          formControlName="os"
+          [options]="(osOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Variant' | translate">
+        <tn-select
+          testId="variant"
+          formControlName="variant"
+          [options]="(variantOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Release' | translate">
+        <tn-select
+          testId="release"
+          formControlName="release"
+          [options]="(releaseOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    </tn-form-section>
+
+    <div class="table-wrapper">
+      <tn-table
+        testId="table-images-table"
+        [dataSource]="filteredImages()"
+        [displayedColumns]="columns"
+        [loading]="isLoading()"
+        [emptyMessage]="emptyMessage()"
+      >
+        <ng-container [tnColumnDef]="'label'">
+          <ng-template tnHeaderCellDef>{{ 'Label' | translate }}</ng-template>
+          <ng-template let-row tnCellDef>{{ row.label }}</ng-template>
+        </ng-container>
+
+        <ng-container [tnColumnDef]="'os'">
+          <ng-template tnHeaderCellDef>{{ 'OS' | translate }}</ng-template>
+          <ng-template let-row tnCellDef>{{ row.os }}</ng-template>
+        </ng-container>
+
+        <ng-container [tnColumnDef]="'release'">
+          <ng-template tnHeaderCellDef>{{ 'Release' | translate }}</ng-template>
+          <ng-template let-row tnCellDef>{{ row.release }}</ng-template>
+        </ng-container>
+
+        <ng-container [tnColumnDef]="'archs'">
+          <ng-template tnHeaderCellDef>{{ 'Archs' | translate }}</ng-template>
+          <ng-template let-row tnCellDef>{{ row.archs }}</ng-template>
+        </ng-container>
+
+        <ng-container [tnColumnDef]="'variant'">
+          <ng-template tnHeaderCellDef>{{ 'Variant' | translate }}</ng-template>
+          <ng-template let-row tnCellDef>{{ row.variant }}</ng-template>
+        </ng-container>
+
+        <ng-container [tnColumnDef]="'actions'">
+          <ng-template tnHeaderCellDef></ng-template>
+          <ng-template let-row tnCellDef>
+            <tn-button variant="outline" [testId]="['select-image', row.label]" [label]="'Select' | translate" (onClick)="selectImage(row)"></tn-button>
+          </ng-template>
+        </ng-container>
+      </tn-table>
+    </div>
+  </form>
+</tn-dialog-shell>

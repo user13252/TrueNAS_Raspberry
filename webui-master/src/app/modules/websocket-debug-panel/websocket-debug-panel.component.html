@@ -1,0 +1,49 @@
+@if (isPanelOpen(); as isOpen) {
+  <div
+    class="websocket-debug-panel"
+    [class.open]="isOpen"
+    [style.width.px]="panelWidth">
+
+    <div class="resize-handle" (mousedown)="onResizeStart($event)"></div>
+
+    <div class="panel-content">
+      <div class="panel-header">
+        <h2>WebSocket Debug Panel</h2>
+        <div class="header-actions">
+          <span class="keyboard-hint">Ctrl+Shift+X</span>
+          <tn-icon-button
+            name="close"
+            library="mdi"
+            class="toggle-button"
+            testId="debug-panel-toggle"
+            [attr.aria-label]="isOpen ? 'Close debug panel' : 'Open debug panel'"
+            (click)="togglePanel()"
+          ></tn-icon-button>
+        </div>
+      </div>
+
+      <tn-tabs
+        class="panel-tabs"
+        [selectedIndex]="selectedTabIndex()"
+        (selectedIndexChange)="onTabChange($event)">
+        <tn-tab [label]="'Messages' | translate"></tn-tab>
+        <tn-tab [label]="'Mock Configurations' | translate"></tn-tab>
+        <tn-tab [label]="'Enclosure Mock' | translate"></tn-tab>
+        <tn-tab [label]="'Alert Classes' | translate"></tn-tab>
+
+        <tn-tab-panel>
+          <ix-websocket-tab></ix-websocket-tab>
+        </tn-tab-panel>
+        <tn-tab-panel>
+          <ix-mock-configurations-tab></ix-mock-configurations-tab>
+        </tn-tab-panel>
+        <tn-tab-panel>
+          <ix-enclosure-mock-tab></ix-enclosure-mock-tab>
+        </tn-tab-panel>
+        <tn-tab-panel>
+          <ix-alert-classes-tab></ix-alert-classes-tab>
+        </tn-tab-panel>
+      </tn-tabs>
+    </div>
+  </div>
+}

@@ -1,0 +1,70 @@
+@if(isDirectoryServicesDisabled()) {
+  <div class="everything-disabled">
+    <tn-empty
+      icon="account-box"
+      iconLibrary="mdi"
+      iconSize="56px"
+      [title]="'Directory services are disabled.' | translate"
+      [description]="'Configure directory services to see details.' | translate"
+    ></tn-empty>
+    <div class="actions">
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        [testId]="'configure-active-directory'"
+        [label]="'Configure Directory Services' | translate"
+        [ixUiSearch]="searchableElements.elements.configureDirectoryServices"
+        (onClick)="openDirectoryServicesForm()"
+      ></tn-button>
+    </div>
+  </div>
+} @else {
+  <div
+    class="services"
+    [ixUiSearch]="searchableElements.elements.directoryServices"
+  >
+    @if (activeCard(); as card) {
+      <tn-card
+        padding="small"
+        [title]="card.title"
+        [secondaryAction]="settingsAction()"
+        [headerMenu]="cardMenu()"
+        [headerMenuTriggerTestId]="menuTriggerTestId"
+        [ixUiSearch]="searchableElements.elements.settings"
+      >
+        <tn-list>
+          @for (item of card.items; track item) {
+            <tn-list-item class="card-list-item">
+              <span class="label">{{ item.label | translate }}:</span>
+              <span class="value">{{ item.value || ('None' | translate) }}</span>
+            </tn-list-item>
+          }
+        </tn-list>
+      </tn-card>
+    }
+  </div>
+}
+
+<cdk-accordion-item
+  #expansionPanel="cdkAccordionItem"
+  class="advanced-settings"
+  [class.expanded]="expansionPanel.expanded"
+>
+  <h3 class="header">
+    {{ 'Advanced Settings' | translate }}
+
+    @if (!expansionPanel.expanded) {
+      <tn-button
+        [testId]="'show-advanced-settings'"
+        [label]="'Show' | translate"
+        (onClick)="onAdvancedSettingsOpened(expansionPanel)"
+      ></tn-button>
+    }
+  </h3>
+
+  @if (expansionPanel.expanded) {
+    <div class="advanced-settings-cards">
+      <ix-kerberos-realms-list [paginator]="false" [inCard]="true"></ix-kerberos-realms-list>
+      <ix-kerberos-keytabs-list [paginator]="false" [inCard]="true" [showSyncButton]="isActiveDirectoryEnabled()"></ix-kerberos-keytabs-list>
+    </div>
+  }
+</cdk-accordion-item>

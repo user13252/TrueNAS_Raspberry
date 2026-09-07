@@ -1,0 +1,643 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import {
+  TnButtonHarness, TnFormFieldHarness, TnInputHarness, TnRadioGroupHarness, TnSelectHarness,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { provideTnFormFieldErrors } from 'app/core/providers/tn-form-field-errors.provider';
+import { mockApi, mockCall } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { IscsiAuthMethod, IscsiTargetMode } from 'app/enums/iscsi.enum';
+import { LicenseFeature } from 'app/enums/license-feature.enum';
+import {
+  IscsiAuthAccess, IscsiInitiatorGroup, IscsiPortal, IscsiTarget,
+} from 'app/interfaces/iscsi.interface';
+import { Option } from 'app/interfaces/option.interface';
+import { SystemInfo } from 'app/interfaces/system-info.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import {
+  IxIpInputWithNetmaskComponent,
+} from 'app/modules/forms/ix-forms/components/ix-ip-input-with-netmask/ix-ip-input-with-netmask.component';
+import { IxListHarness } from 'app/modules/forms/ix-forms/components/ix-list/ix-list.harness';
+import { ixFormTestingProviders } from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  FcMpioInfoBannerComponent,
+} from 'app/pages/sharing/iscsi/fibre-channel-ports/fc-mpio-info-banner/fc-mpio-info-banner.component';
+import { TargetFormComponent } from 'app/pages/sharing/iscsi/target/target-form/target-form.component';
+import { FibreChannelService } from 'app/services/fibre-channel.service';
+import { selectSystemInfo } from 'app/store/system-info/system-info.selectors';
+
+describe('TargetFormComponent', () => {
+  let spectator: Spectator<TargetFormComponent>;
+  let loader: HarnessLoader;
+  let api: ApiService;
+
+  const existingTarget = {
+    id: 123,
+    name: 'name_test',
+    alias: 'alias_test',
+    mode: IscsiTargetMode.Iscsi,
+    groups: [{
+      portal: 1,
+      initiator: 4,
+      authmethod: IscsiAuthMethod.ChapMutual,
+      auth: 66,
+    },
+    {
+      portal: 2,
+      initiator: 3,
+      authmethod: IscsiAuthMethod.ChapMutual,
+      auth: 55,
+    }],
+    auth_networks: ['192.168.10.0/24', '192.168.0.0/24'],
+  } as IscsiTarget;
+
+  // The factory default for FibreChannelService.validatePhysicalPortUniqueness. Shared so the one
+  // test that overrides it can restore this exact value instead of a second copy that could drift.
+  const permissiveFcPortValidation = (): { valid: boolean; duplicates: string[] } => ({
+    valid: true,
+    duplicates: [],
+  });
+
+  const getTnInput = (name: string): Promise<TnInputHarness> => loader.getHarness(
+    TnInputHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+
+  const getTnSelect = (name: string): Promise<TnSelectHarness> => loader.getHarness(
+    TnSelectHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+
+  // `IxFormHarness` indexes ix-* controls only, so the migrated radio group is driven directly.
+  // Filtered by ancestor rather than by name: `RadioGroupHarnessFilters` offers only
+  // `ariaLabel`/`testId`, and inside a `tn-form-field` the group takes its name via
+  // `aria-labelledby` and writes no `aria-label` to match on. There is exactly one such group here.
+  const getModeGroup = (): Promise<TnRadioGroupHarness> => loader.getHarness(
+    TnRadioGroupHarness.with({ ancestor: 'tn-form-field' }),
+  );
+
+  const setMode = async (label: string): Promise<void> => {
+    await (await getModeGroup()).select(label);
+  };
+
+  // Fills the four group selects (portal / initiator / authmethod / auth) for the single
+  // group item the mode-switching tests create.
+  const fillGroupSelects = async (values: {
+    portal?: string;
+    initiator?: string;
+    authmethod?: string;
+    auth?: string;
+  }): Promise<void> => {
+    if (values.portal !== undefined) {
+      await (await getTnSelect('portal')).selectOption(values.portal);
+    }
+    if (values.initiator !== undefined) {
+      await (await getTnSelect('initiator')).selectOption(values.initiator);
+    }
+    if (values.authmethod !== undefined) {
+      await (await getTnSelect('authmethod')).selectOption(values.authmethod);
+    }
+    if (values.auth !== undefined) {
+      await (await getTnSelect('auth')).selectOption(values.auth);
+    }
+  };
+
+  const createComponent = createComponentFactory({
+    component: TargetFormComponent,
+    imports: [
+      ReactiveFormsModule,
+      IxIpInputWithNetmaskComponent,
+      FcMpioInfoBannerComponent,
+    ],
+    providers: [
+      provideMockStore({
+        selectors: [
+          {
+            selector: selectSystemInfo,
+            value: {
+              version: 'TrueNAS-SCALE-22.12',
+              license: {
+                features: [{ name: LicenseFeature.FibreChannel, start_date: null, expires_at: null }],
+              },
+            } as SystemInfo,
+          },
+        ],
+      }),
+      mockProvider(DialogService),
+      mockProvider(FibreChannelService, {
+        loadTargetPorts: jest.fn(() => of([])),
+        linkFiberChannelPortsToTarget: jest.fn(() => of(null)),
+        validatePhysicalPortUniqueness: jest.fn(permissiveFcPortValidation),
+      }),
+      ...ixFormTestingProviders(),
+      mockApi([
+        mockCall('tn_connect.config'),
+        mockCall('fc.fc_host.query', []),
+        mockCall('fcport.port_choices', {}),
+        mockCall('iscsi.target.create'),
+        mockCall('iscsi.target.update', { id: 123 } as IscsiTarget),
+        mockCall('iscsi.target.validate_name', null),
+        mockCall('fc.capable', true),
+        mockCall('iscsi.portal.query', [{
+          comment: 'comment_1',
+          id: 1,
+          tag: 11,
+          listen: [{ ip: '1.1.1.1' }],
+        }, {
+          comment: 'comment_2',
+          id: 2,
+          tag: 22,
+          listen: [{ ip: '2.2.2.2' }],
+        }] as IscsiPortal[]),
+        mockCall('iscsi.initiator.query', [{
+          id: 3,
+          comment: 'comment_3',
+          initiators: ['initiator_1'],
+        }, {
+          id: 4,
+          comment: 'comment_4',
+          initiators: ['initiator_2'],
+        }] as IscsiInitiatorGroup[]),
+        mockCall('iscsi.auth.query', [{
+          id: 5,
+          tag: 55,
+          peersecret: 'peersecret_1',
+          peeruser: 'peeruser_1',
+          secret: 'secret_1',
+          user: 'user_1',
+        }, {
+          id: 6,
+          tag: 66,
+          peersecret: 'peersecret_2',
+          peeruser: 'peeruser_2',
+          secret: 'secret_2',
+          user: 'user_2',
+        }] as IscsiAuthAccess[]),
+      ]),
+      mockAuth(),
+      provideTnFormFieldErrors(),
+    ],
+  });
+
+  describe('adds new target', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      jest.spyOn(console, 'warn').mockImplementation();
+      api = spectator.inject(ApiService);
+    });
+
+    it('add new target when form is submitted', async () => {
+      // Click Add buttons to create FormArray items:
+      // addButtons[0] = Add button for groups (click twice for 2 groups)
+      // addButtons[1] = Add button for auth_networks (click twice for 2 networks)
+      const addButtons = await loader.getAllHarnesses(TnButtonHarness.with({ label: 'Add' }));
+      await addButtons[0].click();
+      await addButtons[0].click();
+      await addButtons[1].click();
+      await addButtons[1].click();
+
+      // Use patchValue to set nested FormArray values (simpler than harness for complex nested structures)
+      spectator.component.form.patchValue({
+        name: 'name_new',
+        alias: 'alias_new',
+        mode: IscsiTargetMode.Iscsi,
+        groups: [
+          {
+            portal: 11,
+            initiator: 12,
+            authmethod: IscsiAuthMethod.ChapMutual,
+            auth: 13,
+          },
+          {
+            portal: 21,
+            initiator: 22,
+            authmethod: IscsiAuthMethod.Chap,
+            auth: 23,
+          },
+        ],
+        auth_networks: ['10.0.0.0/8', '11.0.0.0/8'],
+      });
+
+      const closed = jest.fn();
+      spectator.component.closed.subscribe(closed);
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('iscsi.target.create', [{
+        name: 'name_new',
+        alias: 'alias_new',
+        mode: 'ISCSI',
+        groups: [
+          {
+            portal: 11,
+            initiator: 12,
+            authmethod: IscsiAuthMethod.ChapMutual,
+            auth: 13,
+          },
+          {
+            portal: 21,
+            initiator: 22,
+            authmethod: IscsiAuthMethod.Chap,
+            auth: 23,
+          },
+        ],
+        auth_networks: ['10.0.0.0/8', '11.0.0.0/8'],
+      }]);
+      expect(closed).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('edit new target', () => {
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          targetData: existingTarget,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      jest.spyOn(console, 'warn').mockImplementation();
+      api = spectator.inject(ApiService);
+    });
+
+    // Reads the group back, rather than only the form model it writes to: binding the control to
+    // each standalone tn-radio instead of once on the group leaves the deselected option rendering
+    // stale, and every other assertion here would still pass in that state.
+    it('renders the saved mode as the checked option, and re-renders on switch', async () => {
+      const modeGroup = await getModeGroup();
+      expect(await modeGroup.getOptionLabels()).toEqual(['iSCSI', 'Fibre Channel', 'Both']);
+      expect(await modeGroup.getCheckedLabel()).toBe('iSCSI');
+
+      await setMode('Fibre Channel');
+
+      expect(await modeGroup.getCheckedLabel()).toBe('Fibre Channel');
+    });
+
+    it('edits existing target when form opened for edit is submitted', async () => {
+      await (await getTnInput('name')).setValue('name_new');
+      await (await getTnInput('alias')).setValue('alias_new');
+      await setMode('Fibre Channel');
+
+      const closed = jest.fn();
+      spectator.component.closed.subscribe(closed);
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenLastCalledWith(
+        'iscsi.target.update',
+        [
+          123,
+          {
+            name: 'name_new',
+            alias: 'alias_new',
+            mode: IscsiTargetMode.Fc,
+            groups: [], // Groups are cleared when mode is FC
+            auth_networks: ['192.168.10.0/24', '192.168.0.0/24'],
+          },
+        ],
+      );
+      expect(spectator.inject(FibreChannelService).linkFiberChannelPortsToTarget).toHaveBeenCalledWith(
+        123,
+        [],
+      );
+      expect(closed).toHaveBeenCalledWith(true);
+    });
+
+    it('loads and shows the \'portal\', \'initiator\' and \'auth\'', () => {
+      let portal;
+      let initiator;
+      let auth: Option[] = [];
+
+      spectator.component.portals$.subscribe((options) => portal = options);
+      spectator.component.initiators$.subscribe((options) => initiator = options);
+      spectator.component.auths$.subscribe((options) => auth = options);
+
+      expect(api.call).toHaveBeenNthCalledWith(1, 'fc.capable');
+      expect(api.call).toHaveBeenNthCalledWith(2, 'iscsi.portal.query', []);
+      expect(api.call).toHaveBeenNthCalledWith(3, 'iscsi.initiator.query', []);
+      expect(api.call).toHaveBeenNthCalledWith(4, 'iscsi.auth.query', []);
+
+      expect(spectator.component.hasFibreChannel()).toBe(true);
+
+      expect(portal).toEqual([
+        { label: '1 (comment_1)', value: 1 },
+        { label: '2 (comment_2)', value: 2 },
+      ]);
+
+      expect(initiator).toEqual([
+        { label: '3 (initiator_1)', value: 3 },
+        { label: '4 (initiator_2)', value: 4 },
+      ]);
+
+      expect(auth).toEqual([
+        { label: '55', value: 55 },
+        { label: '66', value: 66 },
+      ]);
+    });
+  });
+
+  // `validatePhysicalPortUniqueness` is one jest.fn shared by every test in this file (it is built
+  // once in the factory's providers), so this block restores the permissive default in afterEach.
+  describe('FC port uniqueness gate', () => {
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          targetData: existingTarget,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      jest.spyOn(console, 'warn').mockImplementation();
+    });
+
+    afterEach(() => {
+      (spectator.inject(FibreChannelService).validatePhysicalPortUniqueness as jest.Mock)
+        .mockImplementation(permissiveFcPortValidation);
+    });
+
+    it('blocks the host Save while two FC ports share a physical port', async () => {
+      (spectator.inject(FibreChannelService).validatePhysicalPortUniqueness as jest.Mock)
+        .mockImplementation(() => ({ valid: false, duplicates: ['fc0'] }));
+
+      await setMode('Fibre Channel');
+
+      expect(spectator.component.canSubmit()).toBe(false);
+    });
+  });
+
+  describe('validation error handling', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      api = spectator.inject(ApiService);
+      jest.spyOn(api, 'call').mockImplementation((method) => {
+        if (method === 'iscsi.target.validate_name') {
+          return of('Target with this name already exists');
+        }
+        return of(null);
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      jest.spyOn(console, 'warn').mockImplementation();
+    });
+
+    it('should display an error message for invalid target name', async () => {
+      await (await getTnInput('name')).setValue('name_test');
+
+      const nameField = await loader.getHarness(TnFormFieldHarness.with({ label: 'Target Name' }));
+      expect(await nameField.getErrorMessage()).toBe('Target with this name already exists');
+    });
+  });
+
+  describe('MPIO info banner conditional display', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      jest.spyOn(console, 'warn').mockImplementation();
+    });
+
+    it('should not display banner when there are 0 FC ports', async () => {
+      await setMode('Fibre Channel');
+      spectator.detectChanges();
+
+      const banner = spectator.query('ix-fc-mpio-info-banner');
+      expect(banner).not.toExist();
+    });
+  });
+
+  describe('groups visibility based on mode', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      jest.spyOn(console, 'warn').mockImplementation();
+    });
+
+    it('shows groups section when mode is iSCSI', async () => {
+      await setMode('iSCSI');
+
+      const groupsList = spectator.query('ix-list[formArrayName="groups"]');
+      expect(groupsList).toExist();
+    });
+
+    it('shows groups section when mode is BOTH', async () => {
+      await setMode('Both');
+
+      const groupsList = spectator.query('ix-list[formArrayName="groups"]');
+      expect(groupsList).toExist();
+    });
+
+    it('hides groups section when mode is FC', async () => {
+      await setMode('Fibre Channel');
+
+      const groupsList = spectator.query('ix-list[formArrayName="groups"]');
+      expect(groupsList).not.toExist();
+    });
+  });
+
+  describe('groups in API calls based on mode', () => {
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          targetData: existingTarget,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      jest.spyOn(console, 'warn').mockImplementation();
+      api = spectator.inject(ApiService);
+    });
+
+    it('sends empty groups array when submitting with FC mode', async () => {
+      await setMode('Fibre Channel');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenLastCalledWith(
+        'iscsi.target.update',
+        [
+          123,
+          expect.objectContaining({
+            mode: IscsiTargetMode.Fc,
+            groups: [],
+          }),
+        ],
+      );
+    });
+
+    it('sends groups array when submitting with iSCSI mode', () => {
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenLastCalledWith(
+        'iscsi.target.update',
+        [
+          123,
+          expect.objectContaining({
+            mode: IscsiTargetMode.Iscsi,
+            groups: existingTarget.groups,
+          }),
+        ],
+      );
+    });
+
+    it('sends groups array when submitting with BOTH mode', async () => {
+      await setMode('Both');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenLastCalledWith(
+        'iscsi.target.update',
+        [
+          123,
+          expect.objectContaining({
+            mode: IscsiTargetMode.Both,
+            groups: existingTarget.groups,
+          }),
+        ],
+      );
+    });
+  });
+
+  describe('mode switching UX preserves groups in memory', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      jest.spyOn(console, 'warn').mockImplementation();
+      api = spectator.inject(ApiService);
+    });
+
+    it('preserves groups when switching from iSCSI to FC and back to iSCSI', async () => {
+      // Start with iSCSI mode and add a group
+      await (await getTnInput('name')).setValue('test-target');
+      await setMode('iSCSI');
+
+      const groupsList = await loader.getHarness(IxListHarness.with({ label: 'Add groups' }));
+      await groupsList.pressAddButton();
+
+      // Fill in the group details
+      await fillGroupSelects({
+        portal: '1 (comment_1)',
+        initiator: '3 (initiator_1)',
+        authmethod: 'Mutual CHAP',
+        auth: '55',
+      });
+
+      // Verify groups section is visible
+      let groupsSection = spectator.query('ix-list[formArrayName="groups"]');
+      expect(groupsSection).toExist();
+
+      // Verify groups are populated in the form model
+      expect(spectator.component.form.controls.groups).toHaveLength(1);
+      expect(spectator.component.form.controls.groups.at(0).getRawValue()).toEqual({
+        portal: 1,
+        initiator: 3,
+        authmethod: IscsiAuthMethod.ChapMutual,
+        auth: 55,
+      });
+
+      // Switch to FC mode - groups should be hidden but preserved
+      await setMode('Fibre Channel');
+
+      groupsSection = spectator.query('ix-list[formArrayName="groups"]');
+      expect(groupsSection).not.toExist();
+
+      // Switch back to iSCSI mode - groups should reappear with same values
+      await setMode('iSCSI');
+
+      groupsSection = spectator.query('ix-list[formArrayName="groups"]');
+      expect(groupsSection).toExist();
+
+      // Verify the groups still have the same values
+      expect(spectator.component.form.controls.groups).toHaveLength(1);
+      expect(spectator.component.form.controls.groups.at(0).getRawValue()).toEqual({
+        portal: 1,
+        initiator: 3,
+        authmethod: IscsiAuthMethod.ChapMutual,
+        auth: 55,
+      });
+    });
+
+    it('submits correct API payload after mode switching: iSCSI with groups → FC (no groups) → iSCSI with groups', async () => {
+      // Start with iSCSI mode and add a group
+      await (await getTnInput('name')).setValue('test-target');
+      await setMode('iSCSI');
+
+      const groupsList = await loader.getHarness(IxListHarness.with({ label: 'Add groups' }));
+      await groupsList.pressAddButton();
+
+      await fillGroupSelects({
+        portal: '1 (comment_1)',
+        initiator: '3 (initiator_1)',
+        authmethod: 'Mutual CHAP',
+        auth: '55',
+      });
+
+      // Switch to FC mode and submit - should send empty groups array
+      await setMode('Fibre Channel');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenLastCalledWith(
+        'iscsi.target.create',
+        [expect.objectContaining({
+          mode: IscsiTargetMode.Fc,
+          groups: [],
+        })],
+      );
+
+      // Reset form for next submission
+      jest.clearAllMocks();
+      spectator.component.form.markAsPristine();
+
+      // Switch back to iSCSI and submit - should send groups array
+      await setMode('iSCSI');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenLastCalledWith(
+        'iscsi.target.create',
+        [expect.objectContaining({
+          mode: IscsiTargetMode.Iscsi,
+          groups: [{
+            portal: 1,
+            initiator: 3,
+            authmethod: IscsiAuthMethod.ChapMutual,
+            auth: 55,
+          }],
+        })],
+      );
+    });
+
+    it('preserves groups when switching from BOTH to FC and back to BOTH', async () => {
+      await (await getTnInput('name')).setValue('test-target');
+      await setMode('Both');
+
+      const groupsList = await loader.getHarness(IxListHarness.with({ label: 'Add groups' }));
+      await groupsList.pressAddButton();
+
+      await fillGroupSelects({
+        portal: '2 (comment_2)',
+        initiator: '4 (initiator_2)',
+        authmethod: 'CHAP',
+      });
+
+      // Switch to FC mode
+      await setMode('Fibre Channel');
+
+      let groupsSection = spectator.query('ix-list[formArrayName="groups"]');
+      expect(groupsSection).not.toExist();
+
+      // Switch back to BOTH mode
+      await setMode('Both');
+
+      groupsSection = spectator.query('ix-list[formArrayName="groups"]');
+      expect(groupsSection).toExist();
+
+      // Verify groups are preserved
+      expect(spectator.component.form.controls.groups).toHaveLength(1);
+      expect(spectator.component.form.controls.groups.at(0).getRawValue()).toMatchObject({
+        portal: 2,
+        initiator: 4,
+        authmethod: IscsiAuthMethod.Chap,
+      });
+    });
+  });
+});

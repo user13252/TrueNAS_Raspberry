@@ -1,0 +1,40 @@
+<tn-card class="card" padding="small" [title]="'Ports' | translate">
+  <ng-template tnCardFooterActions>
+    <ix-add-port-menu
+      [subsystemPorts]="subsystem().ports"
+      [ixUiSearch]="searchableElements.elements.addPort"
+      (portSelected)="onPortAdded($event)"
+    ></ix-add-port-menu>
+  </ng-template>
+
+  @if (!portRows().length) {
+    <tn-banner
+      type="warning"
+      [heading]="helptext.noPortsWarningHeading | translate"
+      [message]="helptext.noPortsWarning | translate"
+    ></tn-banner>
+  } @else {
+    <ul class="port-list">
+      @for (row of portRows(); track row.port.id) {
+        <li>
+          <span class="port">
+            <ix-port-description [port]="row.port"></ix-port-description>
+
+            <span class="port-actions">
+              <tn-icon-button
+                *ixRequiresRoles="requiredRoles"
+                name="link-variant-off"
+                library="mdi"
+                iconClass="icon"
+                [ariaLabel]="'Remove port from the subsystem' | translate"
+                [tooltip]="'Remove port from the subsystem' | translate"
+                [testId]="row.testId"
+                (onClick)="onRemoveAssociation(row.port)"
+              ></tn-icon-button>
+            </span>
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</tn-card>

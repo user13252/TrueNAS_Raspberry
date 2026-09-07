@@ -1,0 +1,37 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew()"
+  [addTitle]="'Add Port' | translate"
+  [editTitle]="'Edit Port' | translate"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="onFormClosed()"
+>
+  <tn-form-section>
+    <tn-form-field [label]="'Transport Type' | translate" [required]="true">
+      <tn-select
+        formControlName="addr_trtype"
+        [options]="(types$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field [label]="'Port' | translate">
+      <tn-input
+        formControlName="addr_trsvcid"
+        [inputType]="isFibreChannel ? InputType.PlainText : InputType.Number"
+        [placeholder]="portPlaceholder"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Address' | translate"
+      [hint]="isTcp ? (helptext.onlyStaticIpsShown | translate) : ''"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="addr_traddr"
+        [options]="(addresses$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

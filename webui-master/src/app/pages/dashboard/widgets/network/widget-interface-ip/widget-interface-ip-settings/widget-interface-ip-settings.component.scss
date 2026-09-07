@@ -1,0 +1,18 @@
+@import 'scss-imports/cssvars';
+
+.half-width {
+  width: 50%;
+
+  @media (max-width: $breakpoint-xs) {
+    width: 100%;
+  }
+}
+
+tn-form-field {
+  display: block;
+  margin-bottom: 1rem;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}

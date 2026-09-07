@@ -1,0 +1,44 @@
+.bulk-selected {
+  align-items: center;
+  align-self: flex-end;
+  display: inline-flex;
+  font-size: 16px;
+  gap: 4px;
+  height: 36px;
+}
+
+.bulk-actions-container {
+  align-items: flex-end;
+  display: flex;
+  gap: 12px;
+}
+
+.bulk-button-wrapper {
+  display: flex;
+  flex-direction: column;
+
+  label {
+    color: var(--fg2);
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+}
+
+.bulk-actions-button {
+  align-items: center;
+  display: inline-flex;
+  position: relative;
+
+  .bulk-actions-caret {
+    pointer-events: none;
+    position: absolute;
+    right: 12px;
+  }
+
+  // TEMP: tn-button has no trailing-icon slot, so the dropdown caret is overlaid
+  // and the (outline) button padded to make room. Remove once tn-button ships a
+  // trailing-icon input.
+  ::ng-deep tn-button button {
+    padding-right: 36px;
+  }
+}

@@ -1,0 +1,118 @@
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, input, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  InputType, TnButtonComponent, TnFormFieldComponent, TnFormSectionComponent, TnInputComponent,
+  TnSelectComponent, TnStepperNextDirective, TnStepperPreviousDirective,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { map, startWith } from 'rxjs/operators';
+import {
+  CertificateDigestAlgorithm,
+  certificateDigestAlgorithmLabels,
+  certificateKeyLengths,
+} from 'app/enums/certificate-digest-algorithm.enum';
+import { CertificateKeyType, certificateKeyTypeLabels } from 'app/enums/certificate-key-type.enum';
+import { choicesToOptions } from 'app/helpers/operators/options.operators';
+import { mapToOptions } from 'app/helpers/options.helper';
+import { helptextSystemCertificates } from 'app/helptext/system/certificates';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { SummaryProvider, SummarySection } from 'app/modules/summary/summary.interface';
+import { ApiService } from 'app/modules/websocket/api.service';
+
+@Component({
+  selector: 'ix-csr-options',
+  templateUrl: './csr-options.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    ReactiveFormsModule,
+    TnSelectComponent,
+    TnFormFieldComponent,
+    TnFormSectionComponent,
+    TnInputComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    TnStepperPreviousDirective,
+    TnStepperNextDirective,
+    TranslateModule,
+  ],
+})
+export class CsrOptionsComponent implements SummaryProvider {
+  private formBuilder = inject(FormBuilder);
+  private translate = inject(TranslateService);
+  private api = inject(ApiService);
+
+  hasLifetime = input(false);
+
+  protected readonly InputType = InputType;
+
+  form = this.formBuilder.nonNullable.group({
+    key_type: [CertificateKeyType.Rsa],
+    key_length: [2048],
+    ec_curve: ['BrainpoolP384R1'],
+    digest_algorithm: [CertificateDigestAlgorithm.Sha256],
+    lifetime: [3650, [Validators.required, Validators.min(0)]],
+  });
+
+  // Drives the stepper's linear gating (replaces mat's [stepControl]).
+  readonly completed = toSignal(
+    this.form.statusChanges.pipe(startWith(this.form.status), map(() => this.form.valid)),
+    { initialValue: this.form.valid },
+  );
+
+  readonly helptext = helptextSystemCertificates;
+
+  get isRsa(): boolean {
+    return this.form.value.key_type === CertificateKeyType.Rsa;
+  }
+
+  readonly keyTypes$ = of(mapToOptions(certificateKeyTypeLabels, this.translate));
+  readonly digestAlgorithms$ = of(mapToOptions(certificateDigestAlgorithmLabels, this.translate));
+  readonly keyLengths$ = of(certificateKeyLengths);
+  readonly ecCurves$ = this.api.call('certificate.ec_curve_choices').pipe(choicesToOptions());
+
+  getSummary(): SummarySection {
+    const values = this.form.getRawValue();
+
+    const summary: SummarySection = [];
+
+    summary.push(
+      {
+        label: this.translate.instant('Key Type'),
+        value: certificateKeyTypeLabels.get(values.key_type) || values.key_type,
+      },
+      this.isRsa
+        ? { label: this.translate.instant('Key Length'), value: String(values.key_length) }
+        : { label: this.translate.instant('EC Curve'), value: String(values.ec_curve) },
+      { label: this.translate.instant('Digest Algorithm'), value: values.digest_algorithm },
+    );
+
+    if (this.hasLifetime()) {
+      summary.push({ label: this.translate.instant('Lifetime'), value: String(values.lifetime) });
+    }
+
+    return summary;
+  }
+
+  getPayload(): CsrOptionsComponent['form']['value'] {
+    const payload: CsrOptionsComponent['form']['value'] = {
+      key_type: this.form.value.key_type,
+      digest_algorithm: this.form.value.digest_algorithm,
+    };
+
+    if (this.isRsa) {
+      payload.key_length = this.form.value.key_length;
+    } else {
+      payload.ec_curve = this.form.value.ec_curve;
+    }
+
+    if (this.hasLifetime()) {
+      payload.lifetime = this.form.value.lifetime;
+    }
+
+    return payload;
+  }
+}

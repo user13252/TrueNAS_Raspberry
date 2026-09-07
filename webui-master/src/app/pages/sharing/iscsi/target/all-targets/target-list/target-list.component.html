@@ -1,0 +1,85 @@
+<tn-card
+  [padContent]="false"
+  [title]="'Targets' | translate"
+  [ixUiSearch]="searchableElements.elements.list"
+>
+  <ng-template tnCardHeaderActions>
+    <div class="actions">
+      <ix-basic-search [query]="searchQuery()" (queryChange)="onListFiltered($event)"></ix-basic-search>
+
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        color="primary"
+        [testId]="'add-target'"
+        [ixUiSearch]="searchableElements.elements.add"
+        [label]="'Add' | translate"
+        (onClick)="doAdd()"
+      ></tn-button>
+    </div>
+  </ng-template>
+
+  <tn-table
+    class="table"
+    [testId]="'table-table'"
+    [dataSource]="rows()"
+    [displayedColumns]="displayedColumns()"
+    [trackBy]="trackByTargetId"
+    [loading]="isLoading()"
+    [emptyMessage]="emptyService.titleForType(emptyType())"
+    [emptyDescription]="emptyService.descriptionForType(emptyType())"
+    [emptyIcon]="emptyService.iconForType(emptyType())"
+    [clickable]="true"
+    [activeRow]="dataProvider().expandedRow"
+    (rowClick)="onRowClick($event)"
+    (sortChange)="onSortChange($event)"
+  >
+    <ng-container [tnColumnDef]="'name'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Name' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span
+          tnTestIdType="text"
+          [tnTestId]="[('Name' | translate), uniqueRowTag(row), 'row-text']"
+        >{{ row.name }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'alias'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Alias' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span
+          tnTestIdType="text"
+          [tnTestId]="[('Alias' | translate), uniqueRowTag(row), 'row-text']"
+        >{{ row.alias }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'mode'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Mode' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span
+          tnTestIdType="text"
+          [tnTestId]="[('Mode' | translate), uniqueRowTag(row), 'row-text']"
+        >{{ modeLabel(row) }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'actions'" [width]="'60px'">
+      <ng-template tnHeaderCellDef></ng-template>
+      <ng-template let-row tnCellDef>
+        <span class="view-details-column">
+          <tn-icon-button
+            name="chevron-right"
+            library="mdi"
+            [ariaLabel]="('View Details' | translate) + ' ' + row.name"
+            [ariaExpanded]="dataProvider().expandedRow === row"
+            [tooltip]="'View Details' | translate"
+            [testId]="[uniqueRowTag(row), 'mdi-chevron-right', 'row-action']"
+            (onClick)="$event.stopPropagation(); onRowClick(row)"
+          ></tn-icon-button>
+        </span>
+      </ng-template>
+    </ng-container>
+  </tn-table>
+
+  <tn-table-pager [dataProvider]="dataProvider()"></tn-table-pager>
+</tn-card>

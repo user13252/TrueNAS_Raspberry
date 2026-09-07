@@ -1,0 +1,34 @@
+@import 'scss-imports/variables';
+
+.root-container {
+  display: flex;
+  gap: 16px;
+
+  @media (max-width: $breakpoint-sm) {
+    display: block;
+  }
+
+  .main-container {
+    width: 100%;
+  }
+
+  .sidebar {
+    width: 60%;
+
+    @media (max-width: $breakpoint-sm) {
+      margin-top: 16px;
+      width: 100%;
+    }
+  }
+
+  .details-container {
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+  }
+}
+
+ix-inventory {
+  display: block;
+  margin-top: 16px;
+}

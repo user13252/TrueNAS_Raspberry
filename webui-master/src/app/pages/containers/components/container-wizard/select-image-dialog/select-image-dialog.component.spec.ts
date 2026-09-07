@@ -1,0 +1,151 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import {
+  createComponentFactory,
+  mockProvider,
+  Spectator,
+} from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnDialogHarness, TnInputHarness, TnTableHarness } from '@truenas/ui-components';
+import {
+  mockCall,
+  mockApi,
+} from 'app/core/testing/utils/mock-api.utils';
+import { ContainerRemote, ContainerType } from 'app/enums/container.enum';
+import { ContainerImageRegistryResponse } from 'app/interfaces/container.interface';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { SelectImageDialog } from 'app/pages/containers/components/container-wizard/select-image-dialog/select-image-dialog.component';
+
+const imageChoices: ContainerImageRegistryResponse[] = [
+  {
+    name: 'almalinux',
+    versions: ['8'],
+  },
+  {
+    name: 'alpine',
+    versions: ['3.18'],
+  },
+];
+
+describe('SelectImageDialogComponent', () => {
+  let spectator: Spectator<SelectImageDialog>;
+  let loader: HarnessLoader;
+
+  const createComponent = createComponentFactory({
+    component: SelectImageDialog,
+    imports: [ReactiveFormsModule],
+    providers: [
+      mockApi([mockCall('container.image.query_registry', imageChoices)]),
+      mockProvider(DialogRef),
+      {
+        provide: DIALOG_DATA,
+        useValue: {
+          remote: ContainerRemote.LinuxContainers,
+          type: ContainerType.Container,
+        },
+      },
+    ],
+  });
+
+  describe('dialog without data provider', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('shows the header', async () => {
+      const dialog = await loader.getHarness(TnDialogHarness);
+      expect(await dialog.getTitle()).toBe('Select Image');
+    });
+
+    it('loads image choices', () => {
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith(
+        'container.image.query_registry',
+        [],
+      );
+    });
+
+    it('shows the headers', async () => {
+      const table = await loader.getHarness(TnTableHarness);
+      expect(await table.getHeaderTexts()).toEqual([
+        'Label',
+        'OS',
+        'Release',
+        'Archs',
+        'Variant',
+        '',
+      ]);
+    });
+
+    it('shows the rows', async () => {
+      const table = await loader.getHarness(TnTableHarness);
+      expect(await table.getAllRowTexts()).toEqual([
+        ['almalinux', 'Linux', '8', 'amd64', 'default', 'Select'],
+        ['alpine', 'Alpine', '3.18', 'amd64', 'default', 'Select'],
+      ]);
+    });
+
+    it('shows the rows when search string is entered', async () => {
+      const searchInput = await loader.getHarness(TnInputHarness);
+      await searchInput.setValue('ALPINE');
+
+      const table = await loader.getHarness(TnTableHarness);
+      expect(await table.getAllRowTexts()).toEqual([
+        ['alpine', 'Alpine', '3.18', 'amd64', 'default', 'Select'],
+      ]);
+    });
+
+    it('closes the dialog with the selected image when Select button is pressed', async () => {
+      const selectButtons = await loader.getAllHarnesses(
+        TnButtonHarness.with({ label: 'Select' }),
+      );
+
+      expect(selectButtons).toHaveLength(2);
+
+      await selectButtons[0].click();
+      expect(spectator.inject(DialogRef).close).toHaveBeenCalledWith({
+        id: 'almalinux:8',
+        archs: ['amd64'],
+        description: 'almalinux container image',
+        label: 'almalinux',
+        os: 'Linux',
+        release: '8',
+        variant: 'default',
+        instance_types: [ContainerType.Container],
+        secureboot: null,
+      });
+
+      await selectButtons[1].click();
+      expect(spectator.inject(DialogRef).close).toHaveBeenCalledWith({
+        id: 'alpine:3.18',
+        archs: ['amd64'],
+        description: 'alpine container image',
+        label: 'alpine',
+        os: 'Alpine',
+        release: '3.18',
+        variant: 'default',
+        instance_types: [ContainerType.Container],
+        secureboot: null,
+      });
+    });
+
+    it('shows empty state when no images match search', async () => {
+      const searchInput = await loader.getHarness(TnInputHarness);
+      await searchInput.setValue('nonexistent');
+
+      const table = await loader.getHarness(TnTableHarness);
+      expect(await table.getRowCount()).toBe(0);
+    });
+
+    it('filters images case-insensitively', async () => {
+      const searchInput = await loader.getHarness(TnInputHarness);
+      await searchInput.setValue('AlMaLiNuX');
+
+      const table = await loader.getHarness(TnTableHarness);
+      expect(await table.getAllRowTexts()).toEqual([
+        ['almalinux', 'Linux', '8', 'amd64', 'default', 'Select'],
+      ]);
+    });
+  });
+});

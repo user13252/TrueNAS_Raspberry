@@ -1,0 +1,48 @@
+<tn-dialog-shell testId="restart-smb" [title]="'Restart SMB Service' | translate">
+  <div>
+    <p>{{ helptext.restartMessage | translate }}</p>
+    <p><strong>{{ helptext.restartPrompt | translate }}</strong></p>
+    <p>{{ helptext.restartCaution | translate }}</p>
+    <a
+      class="learn-more-link"
+      role="button"
+      tabindex="0"
+      tnTestIdType="link"
+      [tnTestId]="'learn-more'"
+      [attr.aria-expanded]="showLearnMore()"
+      (click)="toggleLearnMore()"
+      (keydown.enter)="toggleLearnMore()"
+    >
+      {{ 'Learn more' | translate }}
+      <tn-icon library="mdi" customSize="18px" [name]="showLearnMore() ? 'chevron-up' : 'chevron-down'"></tn-icon>
+    </a>
+    @if (showLearnMore()) {
+      <div class="learn-more-content">
+        <p>{{ helptext.restartLearnMore | translate }}</p>
+        <p>{{ helptext.restartLearnMoreExamples | translate }}</p>
+        <ul>
+          <li>{{ helptext.restartExampleTimeMachine | translate }}</li>
+          <li>{{ helptext.restartExampleHostsAllowDeny | translate }}</li>
+          <li>{{ helptext.restartExamplePath | translate }}</li>
+        </ul>
+        <p>{{ helptext.restartLearnMoreOtherCases | translate }}</p>
+      </div>
+    }
+  </div>
+
+<div tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="do-not-restart"
+    [label]="'No' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    testId="restart-service"
+    [label]="'Restart Service' | translate"
+    (onClick)="dialogRef.close(true)"
+  ></tn-button>
+</div>
+</tn-dialog-shell>

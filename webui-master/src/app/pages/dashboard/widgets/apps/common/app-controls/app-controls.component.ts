@@ -1,0 +1,103 @@
+import { Component, ChangeDetectionStrategy, DestroyRef, input, computed, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnIconButtonComponent, TnMenuComponent, TnMenuItem, TnMenuTriggerDirective,
+} from '@truenas/ui-components';
+import ipRegex from 'ip-regex';
+import { AppState } from 'app/enums/app-state.enum';
+import { LoadingState } from 'app/helpers/operators/to-loading-state.helper';
+import { WINDOW } from 'app/helpers/window.helper';
+import { App } from 'app/interfaces/app.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { WithLoadingStateDirective } from 'app/modules/loader/directives/with-loading-state/with-loading-state.directive';
+import { normalizeTestIdString } from 'app/modules/test-id/normalize-test-id.utils';
+import { ignoreTranslation } from 'app/modules/translate/translate.helper';
+import { ApplicationsService } from 'app/pages/apps/services/applications.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { RedirectService } from 'app/services/redirect.service';
+
+@Component({
+  selector: 'ix-app-controls',
+  templateUrl: './app-controls.component.html',
+  styleUrls: ['./app-controls.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    WithLoadingStateDirective,
+    TnIconButtonComponent,
+    TnMenuComponent,
+    TnMenuTriggerDirective,
+    TranslateModule,
+  ],
+})
+export class AppControlsComponent {
+  private translate = inject(TranslateService);
+  private redirect = inject(RedirectService);
+  private dialogService = inject(DialogService);
+  private appService = inject(ApplicationsService);
+  private errorHandler = inject(ErrorHandlerService);
+  private router = inject(Router);
+  private window = inject<Window>(WINDOW);
+  private destroyRef = inject(DestroyRef);
+
+  app = input.required<LoadingState<App>>();
+  appState = AppState;
+
+  portalEntries = computed(() => Object.entries(this.app()?.value?.portals).map(([label, url]) => ({ label, url })));
+
+  mainPortal = computed(() => {
+    const entries = this.portalEntries();
+    const webUi = entries.find((entry) => entry.label.toLowerCase().includes('web ui'));
+    return webUi ?? entries[0] ?? null;
+  });
+
+  otherPortals = computed(() => {
+    const main = this.mainPortal();
+    return this.portalEntries().filter((entry) => entry !== main);
+  });
+
+  // Test IDs preserve the values previously produced by [ixTest]="['apps-web-portal', portal.label]".
+  portalMenuItems = computed<TnMenuItem[]>(() => {
+    return this.otherPortals().map((portal) => ({
+      id: portal.label,
+      label: portal.label,
+      testId: `button-apps-web-portal-${normalizeTestIdString(portal.label)}`,
+      action: () => this.openPortal(portal.url),
+    }));
+  });
+
+  onRestartApp(app: App): void {
+    this.dialogService.jobDialog(
+      this.appService.restartApplication(app.name),
+      { title: this.translate.instant('Restarting App'), description: ignoreTranslation(app.name), canMinimize: true },
+    )
+      .afterClosed()
+      .pipe(
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+  }
+
+  openAppDetails(app: App): void {
+    this.router.navigate(['/apps', 'installed', app.metadata.train, app.id]);
+  }
+
+  openPortal(url: string): void {
+    try {
+      const portalUrl = new URL(url);
+
+      if (portalUrl.hostname === '0.0.0.0') {
+        const hostname = this.window.location.hostname.replace(/^\[|\]$/g, '');
+        const isIpv6 = ipRegex.v6().test(hostname);
+        portalUrl.hostname = isIpv6 ? `[${hostname}]` : hostname;
+      }
+
+      this.redirect.openWindow(portalUrl.href);
+    } catch (error: unknown) {
+      console.error('Invalid portal URL:', url, error);
+      this.redirect.openWindow(url);
+    }
+  }
+}

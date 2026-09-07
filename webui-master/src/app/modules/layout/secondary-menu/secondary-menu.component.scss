@@ -1,0 +1,46 @@
+:host {
+  .slide-in-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .slidein-nav-link {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    // The old mat-list-item supplied this via MDC's default content padding.
+    padding-left: 16px;
+  }
+
+  .submenu-text {
+    flex: 1;
+  }
+
+  // Inline badge dot styling for submenu
+  .submenu-badge-dot {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    margin-left: 6px;
+    vertical-align: middle;
+
+    tn-icon {
+      font-size: 16px;
+      height: 16px;
+      width: 16px;
+    }
+
+    &.critical tn-icon {
+      color: var(--red) !important;
+    }
+
+    &.warning tn-icon {
+      color: var(--orange) !important;
+    }
+
+    &.info tn-icon {
+      color: var(--primary) !important;
+    }
+  }
+}

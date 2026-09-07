@@ -1,0 +1,18 @@
+@if (isLoading()) {
+  <ngx-skeleton-loader class="loader"></ngx-skeleton-loader>
+} @else if (hasDevicesToAdd()) {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    variant="filled"
+    color="primary"
+    [testId]="'add-gpu-device'"
+    [disabled]="isContainerActive()"
+    [label]="'Add' | translate"
+    [tnTooltip]="isContainerActive() ? (helptext.deviceRequiresStoppedTooltip | translate) : ''"
+    [tnMenuTriggerFor]="addDeviceMenu"
+  ></tn-button>
+
+  <tn-menu #addDeviceMenu [items]="menuItems()"></tn-menu>
+} @else {
+  <span class="no-devices-available">{{ 'No GPU devices available' | translate }}</span>
+}

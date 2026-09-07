@@ -1,0 +1,40 @@
+@let status = tcStatus();
+@if (status) {
+  @if (status.status === TrueCommandStatus.Connecting) {
+    <tn-icon-button
+      id="tc-connecting"
+      class="topbar-button-right truecommand-button"
+      name="tn-truecommand-logo-mark"
+      size="lg"
+      testId="truecommand-indicator"
+      [dense]="true"
+      [tooltip]="tooltip()"
+      [ariaLabel]="tooltip()"
+      (onClick)="stopTrueCommandConnecting()"
+    >
+      <ng-container *ngTemplateOutlet="logoBadge"></ng-container>
+    </tn-icon-button>
+  } @else {
+    <tn-icon-button
+      class="topbar-button-right truecommand-button"
+      name="tn-truecommand-logo-mark"
+      size="lg"
+      testId="truecommand-indicator"
+      [dense]="true"
+      [ngClass]="[status.status]"
+      [tooltip]="tooltip()"
+      [ariaLabel]="tooltip()"
+      [ixUiSearch]="searchableElements.elements.trueCommand"
+      (onClick)="handleClick()"
+    >
+      <ng-container *ngTemplateOutlet="logoBadge"></ng-container>
+    </tn-icon-button>
+  }
+}
+
+<ng-template #logoBadge>
+  @let badge = statusBadge();
+  @if (badge) {
+    <ix-status-badge [badge]="badge"></ix-status-badge>
+  }
+</ng-template>

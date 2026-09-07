@@ -1,0 +1,29 @@
+<tn-dialog-shell testId="custom-transfers" [title]="'Custom Transfers' | translate">
+<form class="ix-form-container">
+  <tn-form-field [label]="helptext.transfersLabel | translate" [tooltip]="helptext.transfersTooltip | translate">
+    <tn-input
+      testId="transfers"
+      [inputType]="InputType.Number"
+      [formControl]="transfers"
+      [required]="true"
+    ></tn-input>
+  </tn-form-field>
+
+  </form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close()"
+  ></tn-button>
+
+  <tn-button
+    color="primary"
+    testId="save"
+    [label]="'Save' | translate"
+    [disabled]="transfers.invalid"
+    (onClick)="onSave()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

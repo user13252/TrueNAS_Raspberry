@@ -1,0 +1,48 @@
+<ix-page-header>
+  @if (isHaLicensed()) {
+    <div class="controller-toggle">
+      <span class="controller-toggle__label" [id]="controllerToggleLabelId">{{ 'Controller' | translate }}</span>
+      <tn-button-toggle-group
+        [formControl]="controllerTypeControl"
+        [ariaLabelledby]="controllerToggleLabelId"
+      >
+        @for (option of controllerTypeOptions; track option.value) {
+          <tn-button-toggle [value]="option.value">{{ option.label }}</tn-button-toggle>
+        }
+      </tn-button-toggle-group>
+    </div>
+  }
+
+  <tn-button
+    testId="audit-settings"
+    fragment="audit-card"
+    [routerLink]="['/system/advanced']"
+    [label]="'Audit Settings' | translate"
+  ></tn-button>
+</ix-page-header>
+
+<ix-master-detail-view
+  #masterDetailView="masterDetailViewContext"
+  [selectedItem]="dataProvider.expandedRow"
+  [ixUiSearch]="searchableElements.elements.audit"
+  (mobileDetailsClosed)="dataProvider.expandedRow = null"
+>
+  <ix-audit-list
+    master
+    [dataProvider]="dataProvider"
+    (rowSelected)="dataProvider.expandedRow = $event"
+    (toggleShowMobileDetails)="masterDetailView.toggleShowMobileDetails($event)"
+  ></ix-audit-list>
+
+  <ng-container detail-header>
+    {{ 'Log Details' | translate }}
+  </ng-container>
+
+  <ng-container detail>
+    @if (dataProvider.expandedRow) {
+      <ix-log-details-panel
+        [log]="dataProvider.expandedRow"
+      ></ix-log-details-panel>
+    }
+  </ng-container>
+</ix-master-detail-view>

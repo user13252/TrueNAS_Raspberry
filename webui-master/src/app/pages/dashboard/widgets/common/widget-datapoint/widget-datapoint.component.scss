@@ -1,0 +1,64 @@
+@import 'scss-imports/cssvars';
+@import '../../../dashboard-variables';
+
+:host {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.card {
+  display: block;
+  height: 100%;
+  width: 100%;
+
+  .card-content {
+    height: 100%;
+    width: 100%;
+
+    .header {
+      padding-bottom: 0;
+      padding-right: 12px;
+    }
+
+    .container {
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: calc($widget-group-height * 0.3125);
+      justify-content: center;
+      line-height: normal;
+      margin: 12px 0;
+      overflow: hidden;
+      padding: 0 12px;
+      text-align: center;
+      width: 100%;
+
+      @media (max-width: $breakpoint-xs) {
+        padding: 0 5px;
+      }
+
+      > div {
+        word-break: break-word;
+        word-wrap: break-word;
+      }
+
+      &.full {
+        height: calc($widget-group-height * 0.8);
+      }
+
+      .sub-text {
+        display: block;
+        font-size: smaller;
+        opacity: 0.5;
+        transform: scale(0.75);
+      }
+    }
+  }
+}
+
+// Replicates the legacy global "mat-card-content > div" padding from _material-reduction.scss.
+.card-content > div {
+  padding: 16px;
+}

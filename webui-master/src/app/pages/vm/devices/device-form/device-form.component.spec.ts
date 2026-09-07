@@ -1,0 +1,1480 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule, FormGroup } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnFormFieldHarness, TnRadioHarness } from '@truenas/ui-components';
+import { NEVER, Observable, Subject, of, throwError } from 'rxjs';
+import { provideTnFormFieldErrors } from 'app/core/providers/tn-form-field-errors.provider';
+import { MockApiService } from 'app/core/testing/classes/mock-api.service';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { JsonRpcErrorCode, ApiErrorName } from 'app/enums/api.enum';
+import {
+  VmDeviceType, VmDiskMode, VmDisplayType, VmNicType,
+} from 'app/enums/vm.enum';
+import { transformApiCallErrorMessage } from 'app/helpers/api.helper';
+import { AdvancedConfig } from 'app/interfaces/advanced-config.interface';
+import { ApiErrorDetails } from 'app/interfaces/api-error.interface';
+import { DialogWithSecondaryCheckboxResult } from 'app/interfaces/dialog.interface';
+import { VirtualMachine } from 'app/interfaces/virtual-machine.interface';
+import {
+  VmDevice,
+  VmDiskDevice,
+  VmDisplayDevice,
+  VmPassthroughDeviceChoice,
+  VmPciPassthroughDevice,
+  VmUsbPassthroughDevice,
+  VmRawFileDevice,
+  VmUsbPassthroughDeviceChoice,
+} from 'app/interfaces/vm-device.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import {
+  fillControlValues, getControlValues, indexFormControls, IxFormBasicValueType,
+} from 'app/modules/forms/ix-forms/testing/control-harnesses.helpers';
+import { TnFormControlHarness } from 'app/modules/forms/ix-forms/testing/tn-form-control.harness';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { DeviceFormComponent, DeviceFormData } from 'app/pages/vm/devices/device-form/device-form.component';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { ApiCallError } from 'app/services/errors/error.classes';
+import { FilesystemService } from 'app/services/filesystem.service';
+import { VmService } from 'app/services/vm.service';
+
+const threeGibibytes = 3 * (2 ** 30);
+const tenGibibytes = 10 * (2 ** 30);
+
+describe('DeviceFormComponent', () => {
+  let spectator: Spectator<DeviceFormComponent>;
+  let loader: HarnessLoader;
+  let closedSpy: jest.Mock;
+
+  /**
+   * Stands in for the `<tn-side-panel>` footer Save, which is what actually submits this form —
+   * it renders no Save of its own. Mirrors the host: gate on `canSubmit()`, then `submit()`.
+   */
+  const saveButton = {
+    async click(): Promise<void> {
+      // The real footer renders Save as [disabled]="!form.canSubmit()", so a test that saves an
+      // unsubmittable form would be asserting a flow the user cannot reach. Thrown rather than
+      // expect()ed because this runs outside a test block (jest/no-standalone-expect).
+      if (!spectator.component.canSubmit()) {
+        throw new Error('Save clicked while canSubmit() is false — the panel footer would have disabled it.');
+      }
+
+      spectator.component.submit();
+      spectator.detectChanges();
+      await spectator.fixture.whenStable();
+      spectator.detectChanges();
+    },
+  };
+  let api: ApiService;
+
+  /**
+   * The form mixes `ix-*` controls (explorer, combobox, and the two byte-formatted size inputs)
+   * with `tn-*` ones; `indexFormControls` indexes both by label, so the label-keyed call sites
+   * below reach either kind through one lookup.
+   *
+   * Re-indexed per value rather than once per call because the fields are branch-switched on the
+   * device type: filling `Type` changes which controls exist before the next value is filled.
+   */
+  async function fillForm(values: Record<string, unknown>): Promise<void> {
+    for (const [label, value] of Object.entries(values)) {
+      await fillControlValues(await indexFormControls(loader), { [label]: value });
+      spectator.detectChanges();
+    }
+  }
+
+  /**
+   * Keyed by the label each control actually renders, so a missing key means the field is not on
+   * screen — `expect(values).not.toHaveProperty(label)` is an assertion about the DOM, not about
+   * this spec's bookkeeping.
+   */
+  async function getValues(): Promise<Record<string, IxFormBasicValueType>> {
+    return getControlValues(await indexFormControls(loader));
+  }
+
+  /**
+   * Asserts a field is genuinely absent from the DOM, across both control kinds this form mixes.
+   * Goes through the same index `fillForm` fills by — not `TnFormFieldHarness.with({ label })`,
+   * which only ever matches a `tn-form-field`'s own label and so would pass vacuously for an
+   * `ix-*` field (`Size`) or for a self-naming `tn-checkbox` in a label-less field
+   * (`Web Interface`), whether or not either is on screen.
+   *
+   * Stronger than a bare `expect(await getValues()).not.toHaveProperty(label)`: `getValues()` also
+   * drops any control whose value the harness cannot read, so a present-but-unreadable field would
+   * vanish from the values map and pass. The index keeps it.
+   */
+  async function expectNoField(label: string): Promise<void> {
+    expect(Object.keys(await indexFormControls(loader))).not.toContain(label);
+  }
+
+  const createComponent = createComponentFactory({
+    component: DeviceFormComponent,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    providers: [
+      // Mirrors main.ts: tn-form-field resolves validator messages through this app-wide
+      // resolver, so without it the spec would assert the library's English fallback.
+      provideTnFormFieldErrors(),
+      mockApi([
+        mockCall('vm.device.create'),
+        mockCall('vm.device.update'),
+        mockCall('vm.get_display_devices', [
+          { attributes: { dtype: VmDeviceType.Display, type: VmDisplayType.Spice } },
+          { attributes: { dtype: VmDeviceType.Display, type: VmDisplayType.Vnc } },
+        ] as VmDisplayDevice[]),
+        mockCall('vm.device.bind_choices', {
+          '0.0.0.0': '0.0.0.0',
+          '::': '::',
+        }),
+        mockCall('vm.resolution_choices', {
+          '640x480': '640x480',
+          '800x600': '800x600',
+          '1024x768': '1024x768',
+        }),
+        mockCall('vm.device.usb_passthrough_choices', {
+          usb_device_1: {
+            capability: { product: 'prod_1', vendor: 'vendor_1' },
+            description: 'prod_1 by vendor_1',
+          } as VmUsbPassthroughDeviceChoice,
+          usb_device_2: {
+            capability: { product: 'prod_2', vendor: 'vendor_2' },
+            description: 'prod_2 by vendor_2',
+          } as VmUsbPassthroughDeviceChoice,
+        }),
+        mockCall('vm.device.passthrough_device_choices', {
+          pci_0000_00_1c_0: {
+            reset_mechanism_defined: true,
+          } as VmPassthroughDeviceChoice,
+          pci_0000_00_1c_5: {
+            reset_mechanism_defined: false,
+          } as VmPassthroughDeviceChoice,
+        }),
+        mockCall('vm.random_mac', '00:a0:98:30:09:90'),
+        mockCall('vm.device.nic_attach_choices', {
+          BRIDGE: ['enp0s3'],
+          MACVLAN: ['enp0s4'],
+        }),
+        mockCall('vm.device.disk_choices', {
+          '/dev/zvol/bassein/zvol1': 'bassein/zvol1',
+          '/dev/zvol/bassein/zvol+with+spaces': 'bassein/zvol with spaces',
+        }),
+        mockCall('vm.device.query', [
+          { vm: 2, attributes: { dtype: VmDeviceType.Disk, path: '/dev/zvol/bassein/zvol1' } },
+        ] as VmDiskDevice[]),
+        mockCall('vm.query', [
+          { id: 1, name: 'test-vm' },
+          { id: 2, name: 'other-vm' },
+        ] as VirtualMachine[]),
+        mockCall('vm.device.usb_controller_choices', {
+          'piix3-uhci': 'piix3-uhci',
+          'pci-ohci': 'pci-ohci',
+        }),
+        mockCall('system.advanced.config', {
+          isolated_gpu_pci_ids: ['pci_0000_00_1c_0'],
+        } as AdvancedConfig),
+        mockCall('pool.filesystem_choices', ['bassein', 'bassein/datasets']),
+      ]),
+      mockAuth(),
+      mockProvider(DialogService, {
+        confirm: jest.fn(() => of(true)),
+      }),
+      mockProvider(FilesystemService),
+      mockProvider(VmService, {
+        hasVirtualizationSupport$: of(true),
+      }),
+      // we can only detect whether or not validation errors are being handled
+      // correctly if we mock the `FormErrorHandlerService`
+      mockProvider(FormErrorHandlerService),
+    ],
+  });
+
+  /**
+   * Opens the form the way `FormSidePanelService` does — hand it its `deviceFormData` and listen
+   * on `closed` — which is the only way it is ever opened, so every describe below starts here.
+   * `factory` is for the two blocks that need different API mocks than the shared ones above.
+   */
+  function setup(deviceFormData: DeviceFormData, factory = createComponent): void {
+    spectator = factory({ props: { deviceFormData } });
+    closedSpy = jest.fn();
+    spectator.component.closed.subscribe(closedSpy);
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    api = spectator.inject(ApiService);
+  }
+
+  // The form is opened only through `FormSidePanelService`, so this whole surface is driven by
+  // the host rather than by anything in the template: nothing here would fail to compile if an
+  // input were renamed or `canSubmit`/`closed` were dropped — the panel would just open an
+  // empty form, or render a Save that never enables.
+  describe('side-panel host contract', () => {
+    beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+    it('renders no Save of its own — the panel footer owns it', async () => {
+      expect(await loader.getAllHarnesses(TnButtonHarness.with({ label: 'Save' }))).toHaveLength(0);
+    });
+
+    it('gates the panel Save on canSubmit()', async () => {
+      // CD-ROM defaults its path to /mnt, so the form starts out submittable...
+      expect(spectator.component.canSubmit()).toBe(true);
+
+      // ...but switching to Disk leaves a required, empty Zvol path behind.
+      await fillForm({ Type: 'Disk' });
+      expect(spectator.component.canSubmit()).toBe(false);
+
+      await fillForm({ Zvol: 'bassein/zvol1' });
+      expect(spectator.component.canSubmit()).toBe(true);
+    });
+
+    it('gates the panel Save on the standalone controls too, not just the type-specific form', () => {
+      expect(spectator.component.canSubmit()).toBe(true);
+
+      // Device Type lives outside `typeSpecificForm` but is required, so clearing it must
+      // disable Save rather than leaving it enabled over an invalid form.
+      spectator.component.typeControl.setValue(null);
+      expect(spectator.component.canSubmit()).toBe(false);
+    });
+
+    it('takes its VM context from the deviceFormData input', async () => {
+      await fillForm({ Type: 'CD-ROM', 'CD-ROM Path': '/mnt/cdrom' });
+      await saveButton.click();
+
+      expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [
+        expect.objectContaining({ vm: 45 }),
+      ]);
+    });
+
+    it('emits closed(true) after a successful save', async () => {
+      await fillForm({ Type: 'CD-ROM', 'CD-ROM Path': '/mnt/cdrom' });
+      await saveButton.click();
+
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('does not emit closed when the save fails', async () => {
+      jest.spyOn(spectator.inject(ApiService), 'call')
+        .mockReturnValue(throwError(() => new Error('Device could not be created')));
+
+      await fillForm({ Type: 'CD-ROM', 'CD-ROM Path': '/mnt/cdrom' });
+      await saveButton.click();
+
+      expect(closedSpy).not.toHaveBeenCalled();
+    });
+
+    it('reports unsaved changes once the form is dirty', async () => {
+      expect(spectator.component.hasUnsavedChanges()).toBe(false);
+
+      await fillForm({ Type: 'CD-ROM', 'CD-ROM Path': '/mnt/cdrom' });
+
+      expect(spectator.component.hasUnsavedChanges()).toBe(true);
+    });
+
+    it('still answers hasUnsavedChanges() with no device type selected', () => {
+      // `typeSpecificForm` is keyed off the type and resolves to undefined once it is cleared.
+      // The host calls this from its close guard, so a throw here would leave the panel stuck open.
+      // Left pristine so the answer depends on the cleared-type branch rather than
+      // short-circuiting on a dirty control before it.
+      spectator.component.typeControl.setValue(null);
+
+      expect(() => spectator.component.hasUnsavedChanges()).not.toThrow();
+      expect(spectator.component.hasUnsavedChanges()).toBe(false);
+    });
+
+    it('ignores an implicit (Enter-key) submit while canSubmit() is false', () => {
+      // The footer Save is disabled over an invalid form, but Enter in a field reaches the
+      // <form> regardless — it has to honour the same gate or it submits behind the disabled button.
+      spectator.component.typeControl.setValue(null);
+
+      spectator.query('form').dispatchEvent(new Event('submit'));
+
+      expect(api.call).not.toHaveBeenCalledWith('vm.device.create', expect.anything());
+    });
+  });
+
+  describe('CD-ROM', () => {
+    const existingCdRom = {
+      id: 5,
+      attributes: {
+        dtype: VmDeviceType.Cdrom,
+        path: '/mnt/bassein/cdrom',
+      },
+      order: 4,
+      vm: 1,
+    } as VmDevice;
+
+    describe('add new', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      // The side-panel host reads `isBusy()` OPTIONALLY (`form()?.isBusy?.()`) to render its
+      // progress bar and dim overlay, so dropping the method would silently lose the save
+      // loader rather than fail to compile.
+      it('reports busy to the side-panel host while a save is in flight', async () => {
+        await fillForm({
+          Type: 'CD-ROM',
+          'CD-ROM Path': '/mnt/cdrom',
+        });
+        expect(spectator.component.isBusy()).toBe(false);
+
+        jest.spyOn(api, 'call').mockReturnValue(NEVER);
+        spectator.component.submit();
+
+        expect(spectator.component.isBusy()).toBe(true);
+      });
+
+      it('adds a new CD-ROM device', async () => {
+        await fillForm({
+          Type: 'CD-ROM',
+          'CD-ROM Path': '/mnt/cdrom',
+          'Device Order': 1002,
+        });
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            path: '/mnt/cdrom',
+            dtype: VmDeviceType.Cdrom,
+          },
+          order: 1002,
+          vm: 45,
+        }]);
+        expect(closedSpy).toHaveBeenCalledWith(true);
+      });
+    });
+
+    describe('edit', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, device: existingCdRom, vmName: 'test-vm' }));
+
+      it('shows values for an existing CD-ROM device', async () => {
+        const values = await getValues();
+        expect(values).toEqual({
+          'CD-ROM Path': '/mnt/bassein/cdrom',
+          'Device Order': '4',
+        });
+      });
+
+      it('updates an existing CD-ROM device', async () => {
+        await fillForm({
+          'CD-ROM Path': '/mnt/newcdrom',
+        });
+        spectator.component.cdromForm.markAsDirty();
+        spectator.detectChanges();
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.update', [5, {
+          attributes: {
+            path: '/mnt/newcdrom',
+            dtype: VmDeviceType.Cdrom,
+          },
+          order: 4,
+          vm: 45,
+        }]);
+      });
+    });
+  });
+
+  describe('NIC', () => {
+    const existingNic = {
+      id: 2,
+      attributes: {
+        type: 'E1000',
+        mac: '00:a0:98:53:a5:ac',
+        nic_attach: 'enp0s3',
+        trust_guest_rx_filters: false,
+        dtype: VmDeviceType.Nic,
+      },
+      order: 1002,
+      vm: 1,
+    } as VmDevice;
+
+    describe('adds new', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('adds a new NIC device', async () => {
+        await fillForm(
+          {
+            Type: 'NIC',
+            'Adapter Type': 'VirtIO',
+            'NIC To Attach': 'enp0s4',
+            'Device Order': 1006,
+            'Trust Guest Filters': true,
+          },
+        );
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            mac: '00:a0:98:30:09:90',
+            nic_attach: 'enp0s4',
+            type: VmNicType.Virtio,
+            trust_guest_rx_filters: true,
+            dtype: VmDeviceType.Nic,
+          },
+          order: 1006,
+          vm: 45,
+        }]);
+      });
+
+      it('generate a new MAC when Type is selected', async () => {
+        await fillForm({
+          Type: 'NIC',
+        });
+
+        const values = await getValues();
+        expect(values).toMatchObject({
+          'MAC Address': '00:a0:98:30:09:90',
+        });
+        expect(api.call).toHaveBeenLastCalledWith('vm.random_mac');
+      });
+
+      // Middleware validates custom MACs as colon-separated only; the dash, unseparated and
+      // Cisco dotted forms saved fine before and then failed at VM start.
+      it.each([
+        ['dash-separated', '10-66-6a-1f-f1-b1'],
+        ['unseparated', '10666a1ff1b1'],
+        ['Cisco dotted', '1066.6a1f.f1b1'],
+      ])('refuses to save a %s MAC address', async (_, mac) => {
+        await fillForm({
+          Type: 'NIC',
+          'Adapter Type': 'VirtIO',
+          'NIC To Attach': 'enp0s4',
+          'MAC Address': mac,
+        });
+
+        expect(spectator.component.canSubmit()).toBe(false);
+        const macField = await loader.getHarness(TnFormFieldHarness.with({ label: 'MAC Address' }));
+        expect(await macField.getErrorMessage())
+          .toBe('MAC address must be colon-separated, for example 00:a0:98:1b:2c:3d');
+      });
+
+      it('accepts a colon-separated MAC address', async () => {
+        await fillForm({
+          Type: 'NIC',
+          'Adapter Type': 'VirtIO',
+          'NIC To Attach': 'enp0s4',
+          'MAC Address': '10:66:6a:1f:f1:b1',
+        });
+
+        expect(spectator.component.canSubmit()).toBe(true);
+      });
+
+      it('generates a new MAC when Generate button is pressed', async () => {
+        await fillForm({
+          Type: 'NIC',
+        });
+        spectator.inject(MockApiService).call.mockClear();
+
+        const generateButton = await loader.getHarness(TnButtonHarness.with({ label: 'Generate' }));
+        await generateButton.click();
+
+        const values = await getValues();
+        expect(values).toMatchObject({
+          'MAC Address': '00:a0:98:30:09:90',
+        });
+        expect(api.call).toHaveBeenLastCalledWith('vm.random_mac');
+      });
+    });
+
+    describe('edits', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, device: existingNic }));
+
+      it('shows values for an existing NIC device', async () => {
+        const values = await getValues();
+        expect(values).toEqual({
+          'Adapter Type': 'Intel e82585 (e1000)',
+          'Device Order': '1002',
+          'MAC Address': '00:a0:98:53:a5:ac',
+          'NIC To Attach': 'enp0s3',
+          'Trust Guest Filters': false,
+        });
+      });
+    });
+  });
+
+  describe('Disk', () => {
+    const existingDisk = {
+      id: 3,
+      attributes: {
+        dtype: VmDeviceType.Disk,
+        path: '/dev/zvol/bassein/zvol1',
+        type: VmDiskMode.Ahci,
+        physical_sectorsize: 4096,
+        logical_sectorsize: 4096,
+      },
+      order: 1001,
+      vm: 45,
+    } as VmDiskDevice;
+
+    describe('adds disk', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('adds a new disk', async () => {
+        await fillForm(
+          {
+            Type: 'Disk',
+            Zvol: 'bassein/zvol1',
+            Mode: 'VirtIO',
+            'Disk Sector Size': '512',
+            'Device Order': '1002',
+          },
+        );
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            logical_sectorsize: 512,
+            physical_sectorsize: 512,
+            path: '/dev/zvol/bassein/zvol1',
+            type: VmDiskMode.Virtio,
+            dtype: VmDeviceType.Disk,
+          },
+          order: 1002,
+          vm: 45,
+        }]);
+      });
+    });
+
+    describe('edits disk', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, device: existingDisk, vmName: 'test-vm' }));
+
+      it('shows values for an existing Disk', async () => {
+        const values = await getValues();
+        expect(values).toEqual({
+          Zvol: 'bassein/zvol1',
+          'Disk Sector Size': '4096',
+          Mode: VmDiskMode.Ahci,
+          'Device Order': '1001',
+        });
+      });
+
+      it('updates an existing Disk', async () => {
+        await fillForm({
+          Mode: 'AHCI',
+          'Disk Sector Size': 'Default',
+        });
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.update', [3, {
+          attributes: {
+            logical_sectorsize: null,
+            physical_sectorsize: null,
+            path: '/dev/zvol/bassein/zvol1',
+            type: VmDiskMode.Ahci,
+            dtype: VmDeviceType.Disk,
+          },
+          order: 1001,
+          vm: 45,
+        }]);
+      });
+
+      it('does not show radio toggle when editing existing disk', async () => {
+        const radios = await loader.getAllHarnesses(TnRadioHarness);
+        expect(radios).toHaveLength(0);
+      });
+    });
+
+    describe('adds disk with create new zvol', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('shows radio toggle when adding new disk device', async () => {
+        await fillForm({ Type: 'Disk' });
+        const radios = await loader.getAllHarnesses(TnRadioHarness);
+        expect(radios).toHaveLength(2);
+      });
+
+      it('defaults to Use existing disk image', async () => {
+        await fillForm({ Type: 'Disk' });
+        const existingRadio = await loader.getHarness(TnRadioHarness.with({ label: 'Use existing disk image' }));
+        expect(await existingRadio.isChecked()).toBe(true);
+      });
+
+      it('shows Zvol Location and Size when Create new is selected', async () => {
+        await fillForm({ Type: 'Disk' });
+        const newRadio = await loader.getHarness(TnRadioHarness.with({ label: 'Create new disk image' }));
+        await newRadio.check();
+        spectator.detectChanges();
+
+        const values = await getValues();
+        expect(values).toHaveProperty('Zvol Location');
+        expect(values).toHaveProperty('Size');
+        expect(values).not.toHaveProperty('Zvol');
+        await expectNoField('Zvol');
+      });
+
+      it('shows Zvol select when Use existing is selected', async () => {
+        await fillForm({ Type: 'Disk' });
+        const existingRadio = await loader.getHarness(TnRadioHarness.with({ label: 'Use existing disk image' }));
+        await existingRadio.check();
+        spectator.detectChanges();
+
+        const values = await getValues();
+        expect(values).toHaveProperty('Zvol');
+        expect(values).not.toHaveProperty('Zvol Location');
+        await expectNoField('Zvol Location');
+        expect(values).not.toHaveProperty('Size');
+        await expectNoField('Size');
+      });
+
+      it('submits with create_zvol when Create new is selected', async () => {
+        await fillForm({ Type: 'Disk' });
+        const newRadio = await loader.getHarness(TnRadioHarness.with({ label: 'Create new disk image' }));
+        await newRadio.check();
+        spectator.detectChanges();
+
+        await fillForm({
+          'Zvol Location': 'bassein',
+          Size: '10 GiB',
+          Mode: 'VirtIO',
+          'Disk Sector Size': '512',
+        });
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [
+          expect.objectContaining({
+            vm: 45,
+            attributes: expect.objectContaining({
+              dtype: VmDeviceType.Disk,
+              create_zvol: true,
+              zvol_name: expect.stringMatching(/^bassein\/test-vm-/),
+              zvol_volsize: 10 * (2 ** 30),
+              type: VmDiskMode.Virtio,
+              logical_sectorsize: 512,
+              physical_sectorsize: 512,
+            }),
+          }),
+        ]);
+      });
+    });
+  });
+
+  describe('Raw File', () => {
+    const existingRawFile = {
+      id: 6,
+      attributes: {
+        dtype: VmDeviceType.Raw,
+        path: '/mnt/bassein/raw',
+        type: VmDiskMode.Ahci,
+        size: threeGibibytes,
+        logical_sectorsize: null,
+        physical_sectorsize: null,
+        boot: false,
+      },
+      order: 5,
+      vm: 45,
+    } as VmRawFileDevice;
+
+    describe('adds raw file', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('adds a new Raw File device', async () => {
+        await fillForm(
+          {
+            Type: 'Raw File',
+            'Raw File': '/mnt/bassein/newraw',
+            'Disk Sector Size': '512',
+            Mode: 'AHCI',
+            'Raw Filesize': '3 GiB',
+            'Device Order': '6',
+          },
+        );
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            logical_sectorsize: 512,
+            physical_sectorsize: 512,
+            path: '/mnt/bassein/newraw',
+            size: threeGibibytes,
+            type: VmDiskMode.Ahci,
+            dtype: VmDeviceType.Raw,
+          },
+          order: 6,
+          vm: 45,
+        }]);
+      });
+    });
+
+    describe('edits raw file', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, device: existingRawFile, vmName: 'test-vm' }));
+
+      it('shows values for an existing Raw File device', async () => {
+        const values = await getValues();
+
+        expect(values).toEqual({
+          'Raw File': '/mnt/bassein/raw',
+          'Disk Sector Size': 'Default',
+          Mode: 'AHCI',
+          'Raw Filesize': '3 GiB',
+          'Device Order': '5',
+        });
+      });
+
+      it('updates an existing Raw File device', async () => {
+        await fillForm({
+          'Raw Filesize': '10 GiB',
+        });
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.update', [6, {
+          attributes: {
+            path: '/mnt/bassein/raw',
+            logical_sectorsize: null,
+            physical_sectorsize: null,
+            size: tenGibibytes,
+            type: VmDiskMode.Ahci,
+            dtype: VmDeviceType.Raw,
+            exists: true,
+          },
+          order: 5,
+          vm: 45,
+        }]);
+      });
+
+      it('sets exists field to true when editing existing raw file device', () => {
+        expect(spectator.component.rawFileForm.value.exists).toBe(true);
+      });
+
+      it('still submits null when size box contains whitespace', async () => {
+        await fillForm({
+          'Raw Filesize': '   \n\t',
+        });
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.update', [6, {
+          attributes: {
+            path: '/mnt/bassein/raw',
+            logical_sectorsize: null,
+            physical_sectorsize: null,
+            size: null,
+            type: VmDiskMode.Ahci,
+            dtype: VmDeviceType.Raw,
+            exists: true,
+          },
+          order: 5,
+          vm: 45,
+        }]);
+      });
+    });
+
+    describe('adds raw file with existing file', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('includes exists: true when selecting existing file from path input', async () => {
+        await fillForm(
+          {
+            Type: 'Raw File',
+            'Raw File': '/mnt/bassein/existingfile.raw',
+            'Disk Sector Size': 'Default',
+            Mode: 'AHCI',
+            'Device Order': '7',
+          },
+        );
+
+        // Manually trigger path change to simulate file selection
+        spectator.component.rawFileForm.patchValue({ path: '/mnt/bassein/existingfile.raw' });
+        spectator.detectChanges();
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            logical_sectorsize: null,
+            physical_sectorsize: null,
+            path: '/mnt/bassein/existingfile.raw',
+            size: null,
+            type: VmDiskMode.Ahci,
+            dtype: VmDeviceType.Raw,
+            exists: true,
+          },
+          order: 7,
+          vm: 45,
+        }]);
+      });
+    });
+
+    describe('adds raw file with size (new file creation)', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('does not include exists field when creating new file with size specified', async () => {
+        await fillForm(
+          {
+            Type: 'Raw File',
+            'Raw File': '/mnt/bassein/newfile.raw',
+            'Disk Sector Size': 'Default',
+            Mode: 'AHCI',
+            'Raw Filesize': '10 GiB',
+            'Device Order': '8',
+          },
+        );
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            logical_sectorsize: null,
+            physical_sectorsize: null,
+            path: '/mnt/bassein/newfile.raw',
+            size: tenGibibytes,
+            type: VmDiskMode.Ahci,
+            dtype: VmDeviceType.Raw,
+            // exists should NOT be present
+          },
+          order: 8,
+          vm: 45,
+        }]);
+
+        // Verify exists is not in the attributes
+        const callArgs = (api.call as jest.Mock).mock.calls[
+          (api.call as jest.Mock).mock.calls.length - 1
+        ][1][0];
+        expect(callArgs.attributes).not.toHaveProperty('exists');
+      });
+    });
+
+    describe('gracefully handles errors', () => {
+      const errorDetails: ApiErrorDetails = {
+        errname: ApiErrorName.Validation,
+        error: 400,
+        extra: [['something', 'Path must exist when "exists" is set', 0]],
+        reason: 'something',
+        trace: { class: 'something', formatted: 'something', frames: [] },
+        message: null,
+      };
+      const otherErrorDetails = { ...errorDetails, extra: [['something', 'other message', 0]] };
+      const apiErrorToGetTransformed = new ApiCallError({ code: JsonRpcErrorCode.InvalidParams, message: 'something', data: errorDetails });
+      const transformedApiError = transformApiCallErrorMessage(
+        apiErrorToGetTransformed,
+        'Path must exist when "exists" is set',
+        'The specified file path does not exist. Please select an existing file or specify a file size to create a new file.',
+      );
+
+      const apiErrorWontGetTransformed = new ApiCallError({ code: JsonRpcErrorCode.InvalidParams, message: 'something', data: otherErrorDetails });
+      const mockApiCall = (err: ApiCallError, fallback: jest.Mock) => (method: string) => {
+        if (method === 'vm.device.create') {
+          return throwError(() => err);
+        }
+
+        return fallback(method);
+      };
+
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('properly transforms and displays an error', async () => {
+        const spy = spectator.inject(MockApiService);
+        spy.call.mockImplementation(mockApiCall(apiErrorToGetTransformed, spy.call));
+
+        await fillForm(
+          {
+            Type: 'Raw File',
+            'Raw File': '/mnt/bassein/newfile.raw',
+            'Disk Sector Size': 'Default',
+            Mode: 'AHCI',
+            'Raw Filesize': null,
+            'Device Order': '8',
+          },
+        );
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            logical_sectorsize: null,
+            physical_sectorsize: null,
+            path: '/mnt/bassein/newfile.raw',
+            size: null,
+            type: VmDiskMode.Ahci,
+            dtype: VmDeviceType.Raw,
+            exists: true,
+          },
+          order: 8,
+          vm: 45,
+        }]);
+
+        // we can't actually detect any form changes, but detecting whether or not
+        // `handleValidationErrors` was called is sufficient to ensure that the errors
+        // *are* actually being handled.
+        // see `change-password-form.component.spec.ts`.
+        expect(spectator.inject(FormErrorHandlerService).handleValidationErrors)
+          .toHaveBeenCalledWith(transformedApiError, expect.any(FormGroup));
+      });
+
+      it('still handles an error that is not transformed', async () => {
+        const spy = spectator.inject(MockApiService);
+        spy.call.mockImplementation(mockApiCall(apiErrorWontGetTransformed, spy.call));
+
+        await fillForm(
+          {
+            Type: 'Raw File',
+            'Raw File': '/mnt/bassein/newfile.raw',
+            'Disk Sector Size': 'Default',
+            Mode: 'AHCI',
+            'Raw Filesize': null,
+            'Device Order': '8',
+          },
+        );
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            logical_sectorsize: null,
+            physical_sectorsize: null,
+            path: '/mnt/bassein/newfile.raw',
+            size: null,
+            type: VmDiskMode.Ahci,
+            dtype: VmDeviceType.Raw,
+            exists: true,
+          },
+          order: 8,
+          vm: 45,
+        }]);
+
+        expect(spectator.inject(FormErrorHandlerService).handleValidationErrors)
+          .toHaveBeenCalledWith(apiErrorWontGetTransformed, expect.any(FormGroup));
+      });
+
+      it('handles errors *not* in the raw file form', async () => {
+        const spy = spectator.inject(MockApiService);
+        spy.call.mockImplementation(mockApiCall(apiErrorWontGetTransformed, spy.call));
+
+        await fillForm({
+          Type: 'CD-ROM',
+          'CD-ROM Path': '/mnt/cdrom',
+          'Device Order': 1002,
+        });
+
+        await saveButton.click();
+
+        expect(spectator.inject(FormErrorHandlerService).handleValidationErrors)
+          .toHaveBeenCalledWith(apiErrorWontGetTransformed, expect.any(FormGroup));
+      });
+    });
+  });
+
+  describe('PCI Passthrough Device', () => {
+    const existingPassthrough = {
+      id: 4,
+      attributes: {
+        dtype: VmDeviceType.Pci,
+        pptdev: 'pci_0000_00_1c_0',
+      },
+      order: 5,
+      vm: 45,
+    } as VmPciPassthroughDevice;
+
+    describe('adds PCI Passthrough Device', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('adds a new PCI Passthrough device', async () => {
+        await fillForm(
+          {
+            Type: 'PCI Passthrough Device',
+            'PCI Passthrough Device': 'pci_0000_00_1c_0',
+            'Device Order': '6',
+          },
+        );
+        await saveButton.click();
+
+        expect(spectator.inject(DialogService).confirm).not.toHaveBeenCalled();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            pptdev: 'pci_0000_00_1c_0',
+            dtype: VmDeviceType.Pci,
+          },
+          order: 6,
+          vm: 45,
+        }]);
+      });
+    });
+
+    describe('edits PCI Passthrough Device', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, device: existingPassthrough, vmName: 'test-vm' }));
+
+      it('shows values for an existing PCI Passthrough device', async () => {
+        const values = await getValues();
+        expect(values).toEqual({
+          'PCI Passthrough Device': 'pci_0000_00_1c_0',
+          'Device Order': '5',
+        });
+      });
+
+      it('updates an existing PCI Passthrough device', async () => {
+        await fillForm({
+          'PCI Passthrough Device': 'pci_0000_00_1c_5',
+        });
+        await saveButton.click();
+
+        expect(spectator.inject(DialogService).confirm).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Warning',
+            message: 'PCI device does not have a reset mechanism defined and you may experience inconsistent/degraded behavior when starting/stopping the VM.',
+          }),
+        );
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.update', [4, {
+          attributes: {
+            pptdev: 'pci_0000_00_1c_5',
+            dtype: VmDeviceType.Pci,
+          },
+          order: 5,
+          vm: 45,
+        }]);
+      });
+
+      it('stays busy while the reset mechanism warning is open, so Save cannot fire twice', async () => {
+        const confirmation$ = new Subject<boolean>();
+        // `confirm` is overloaded; `spyOn` resolves to the secondary-checkbox signature, so the
+        // boolean subject this test drives has to be cast past it.
+        jest.spyOn(spectator.inject(DialogService), 'confirm')
+          .mockReturnValue(confirmation$ as unknown as Observable<DialogWithSecondaryCheckboxResult>);
+
+        await fillForm({
+          'PCI Passthrough Device': 'pci_0000_00_1c_5',
+        });
+        await saveButton.click();
+
+        expect(spectator.component.isBusy()).toBe(true);
+        expect(spectator.component.canSubmit()).toBe(false);
+
+        confirmation$.next(false);
+        confirmation$.complete();
+
+        expect(spectator.component.isBusy()).toBe(false);
+        expect(spectator.component.canSubmit()).toBe(true);
+        expect(api.call).not.toHaveBeenCalledWith('vm.device.update', expect.anything());
+      });
+
+      it('reports a failed pre-flight call and releases the busy state', async () => {
+        const preflightError = new Error('Failed to load advanced config');
+        jest.spyOn(api, 'call').mockImplementation((method) => {
+          return method === 'system.advanced.config' ? throwError(() => preflightError) : of({});
+        });
+
+        await saveButton.click();
+
+        expect(spectator.inject(ErrorHandlerService).showErrorModal).toHaveBeenCalledWith(preflightError);
+        expect(spectator.component.isBusy()).toBe(false);
+        expect(spectator.component.canSubmit()).toBe(true);
+        expect(api.call).not.toHaveBeenCalledWith('vm.device.update', expect.anything());
+      });
+    });
+  });
+
+  describe('Display', () => {
+    const existingSpiceDisplay = {
+      id: 1,
+      attributes: {
+        dtype: VmDeviceType.Display,
+        bind: '0.0.0.0',
+        password: '12345678910',
+        web: true,
+        web_port: 5901,
+        type: VmDisplayType.Spice,
+        resolution: '1024x768',
+        port: 5900,
+      },
+      order: 1002,
+      vm: 45,
+    } as VmDisplayDevice;
+
+    const existingVncDisplay = {
+      id: 2,
+      attributes: {
+        dtype: VmDeviceType.Display,
+        bind: '192.168.1.100',
+        password: 'vncpass',
+        web: false,
+        web_port: null,
+        type: VmDisplayType.Vnc,
+        resolution: '1920x1080',
+        port: 5901,
+      },
+      order: 1003,
+      vm: 45,
+    } as VmDisplayDevice;
+
+    describe('edits SPICE display', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, device: existingSpiceDisplay, vmName: 'test-vm' }));
+
+      it('shows values for an existing Display device', async () => {
+        const values = await getValues();
+        expect(values).toEqual({
+          Bind: '0.0.0.0',
+          'Device Order': '1002',
+          Password: '12345678910',
+          'Port (optional)': '5900',
+          Resolution: '1024x768',
+          'Web Interface': true,
+          'Web Port': '5901',
+        });
+      });
+
+      it('shows web_port field only when Web Interface is enabled', async () => {
+        // Initially web is true, so web_port should be visible
+        let values = await getValues();
+        expect(values).toHaveProperty('Web Port', '5901');
+
+        // Disable Web Interface
+        await fillForm({ 'Web Interface': false });
+        spectator.detectChanges();
+
+        // Web Port field should no longer be in the form values
+        values = await getValues();
+        expect(values).not.toHaveProperty('Web Port');
+        await expectNoField('Web Port');
+
+        // Re-enable Web Interface
+        await fillForm({ 'Web Interface': true });
+        spectator.detectChanges();
+
+        // Web Port field should be visible again (though value may be cleared)
+        values = await getValues();
+        expect(values).toHaveProperty('Web Port');
+      });
+    });
+
+    describe('edits display to 46', () => {
+      beforeEach(() => setup({ virtualMachineId: 46 }));
+
+      it('hides Display type option when VM already has 2 or more displays (proxy for having 1 display of each type)', async () => {
+        spectator.inject(MockApiService).mockCall('vm.get_display_devices', [
+          { attributes: { dtype: VmDeviceType.Display, type: VmDisplayType.Spice } },
+          { attributes: { dtype: VmDeviceType.Display, type: VmDisplayType.Vnc } },
+        ] as VmDisplayDevice[]);
+        const typeField = await loader.getHarness(TnFormControlHarness.with({ label: 'Type' }));
+        expect(api.call).toHaveBeenCalledWith('vm.get_display_devices', [46]);
+        expect(await typeField.getSelectOptions()).not.toContain('Display');
+      });
+    });
+
+    describe('edits VNC display', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, device: existingVncDisplay, vmName: 'test-vm' }));
+
+      it('shows values for an existing VNC display device', async () => {
+        const values = await getValues();
+        expect(values).toMatchObject({
+          'Device Order': '1003',
+          Password: 'vncpass',
+          'Port (optional)': '5901',
+        });
+
+        // Verify Web Interface is disabled for VNC
+        expect(values).not.toHaveProperty('Web Interface');
+        await expectNoField('Web Interface');
+        expect(values).not.toHaveProperty('Web Port');
+        await expectNoField('Web Port');
+      });
+
+      it('updates an existing VNC display device', async () => {
+        await fillForm({
+          Bind: '0.0.0.0',
+          Password: 'newpass',
+        });
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.update', [2, {
+          attributes: {
+            dtype: VmDeviceType.Display,
+            type: VmDisplayType.Vnc,
+            bind: '0.0.0.0',
+            password: 'newpass',
+            resolution: '1920x1080',
+            port: 5901,
+            web: false,
+            web_port: null,
+          },
+          order: 1003,
+          vm: 45,
+        }]);
+      });
+
+      it('validates VNC password length (8 character limit)', async () => {
+        await fillForm({
+          Password: '123456789', // 9 characters - should be invalid for VNC
+        });
+
+        expect(spectator.component.displayForm.controls.password.invalid).toBe(true);
+        expect(spectator.component.displayForm.controls.password.hasError('maxlength')).toBe(true);
+      });
+    });
+
+    describe('adds new display devices', () => {
+      const createComponentForAdding = createComponentFactory({
+        component: DeviceFormComponent,
+        imports: [
+          ReactiveFormsModule,
+        ],
+        providers: [
+          mockApi([
+            mockCall('vm.device.create'),
+            mockCall('vm.device.update'),
+            mockCall('vm.get_display_devices', []), // No existing display devices
+            mockCall('vm.device.bind_choices', {
+              '0.0.0.0': '0.0.0.0',
+              '::': '::',
+            }),
+            mockCall('vm.resolution_choices', {
+              '640x480': '640x480',
+              '800x600': '800x600',
+              '1024x768': '1024x768',
+              '1920x1080': '1920x1080',
+            }),
+            mockCall('vm.device.usb_passthrough_choices', {}),
+            mockCall('vm.device.passthrough_device_choices', {}),
+            mockCall('vm.random_mac', '00:a0:98:30:09:90'),
+            mockCall('vm.device.nic_attach_choices', {}),
+            mockCall('vm.device.disk_choices', {}),
+            mockCall('vm.device.usb_controller_choices', {}),
+            mockCall('system.advanced.config', {} as AdvancedConfig),
+          ]),
+          mockAuth(),
+          mockProvider(DialogService),
+          mockProvider(FilesystemService),
+          mockProvider(VmService, {
+            hasVirtualizationSupport$: of(true),
+          }),
+        ],
+      });
+
+      beforeEach(() => setup({ virtualMachineId: 45 }, createComponentForAdding));
+
+      it('adds a new SPICE display device', async () => {
+        await fillForm({
+          Type: 'Display',
+          'Display Type': 'SPICE',
+          Bind: '0.0.0.0',
+          Password: 'spicepass',
+          Resolution: '1024x768',
+          'Web Interface': true,
+          'Device Order': 1004,
+        });
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            dtype: VmDeviceType.Display,
+            type: VmDisplayType.Spice,
+            bind: '0.0.0.0',
+            password: 'spicepass',
+            resolution: '1024x768',
+            port: null,
+            web: true,
+            web_port: null,
+          },
+          order: 1004,
+          vm: 45,
+        }]);
+      });
+
+      it('adds a new VNC display device', async () => {
+        await fillForm({
+          Type: 'Display',
+          'Display Type': 'VNC',
+          Bind: '0.0.0.0',
+          Password: 'vncpass',
+          Resolution: '1920x1080',
+          'Device Order': 1005,
+        });
+
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            dtype: VmDeviceType.Display,
+            type: VmDisplayType.Vnc,
+            bind: '0.0.0.0',
+            password: 'vncpass',
+            resolution: '1920x1080',
+            port: null,
+            web: false,
+            web_port: null,
+          },
+          order: 1005,
+          vm: 45,
+        }]);
+      });
+    });
+
+    describe('display type switching', () => {
+      const createComponentForSwitching = createComponentFactory({
+        component: DeviceFormComponent,
+        imports: [
+          ReactiveFormsModule,
+        ],
+        providers: [
+          mockApi([
+            mockCall('vm.device.create'),
+            mockCall('vm.device.update'),
+            mockCall('vm.get_display_devices', []), // No existing display devices
+            mockCall('vm.device.bind_choices', {
+              '0.0.0.0': '0.0.0.0',
+              '::': '::',
+            }),
+            mockCall('vm.resolution_choices', {
+              '640x480': '640x480',
+              '800x600': '800x600',
+              '1024x768': '1024x768',
+              '1920x1080': '1920x1080',
+            }),
+            mockCall('vm.device.usb_passthrough_choices', {}),
+            mockCall('vm.device.passthrough_device_choices', {}),
+            mockCall('vm.random_mac', '00:a0:98:30:09:90'),
+            mockCall('vm.device.nic_attach_choices', {}),
+            mockCall('vm.device.disk_choices', {}),
+            mockCall('vm.device.usb_controller_choices', {}),
+            mockCall('system.advanced.config', {} as AdvancedConfig),
+          ]),
+          mockAuth(),
+          mockProvider(DialogService),
+          mockProvider(FilesystemService),
+          mockProvider(VmService, {
+            hasVirtualizationSupport$: of(true),
+          }),
+        ],
+      });
+
+      beforeEach(() => setup({ virtualMachineId: 45 }, createComponentForSwitching));
+
+      it('disables web interface when switching from SPICE to VNC', async () => {
+        await fillForm({
+          Type: 'Display',
+          'Display Type': 'SPICE',
+          'Web Interface': true,
+        });
+
+        // Switch to VNC
+        await fillForm({ 'Display Type': 'VNC' });
+        spectator.detectChanges();
+
+        // Web Interface should be disabled and hidden
+        expect(spectator.component.displayForm.controls.web.value).toBe(false);
+        expect(spectator.component.displayForm.controls.web.disabled).toBe(true);
+
+        const values = await getValues();
+        expect(values).not.toHaveProperty('Web Interface');
+        await expectNoField('Web Interface');
+      });
+
+      it('enables web interface when switching from VNC to SPICE', async () => {
+        await fillForm({
+          Type: 'Display',
+          'Display Type': 'VNC',
+        });
+
+        // Switch to SPICE
+        await fillForm({ 'Display Type': 'SPICE' });
+        spectator.detectChanges();
+
+        // Web Interface should be enabled and visible
+        expect(spectator.component.displayForm.controls.web.enabled).toBe(true);
+
+        const values = await getValues();
+        expect(values).toHaveProperty('Web Interface');
+      });
+    });
+  });
+
+  describe('USB Passthrough Device', () => {
+    const existingUsb = {
+      id: 1,
+      attributes: {
+        dtype: VmDeviceType.Usb,
+        controller_type: 'pci-ohci',
+        device: 'usb_device_2',
+      },
+      order: 7,
+      vm: 45,
+    } as VmUsbPassthroughDevice;
+
+    describe('adds USB Passthrough Device', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, vmName: 'test-vm' }));
+
+      it('adds a new USB Passthrough device', async () => {
+        await fillForm(
+          {
+            Type: 'USB Passthrough Device',
+            'Controller Type': 'pci-ohci',
+            Device: 'prod_2 by vendor_2',
+          },
+        );
+        await saveButton.click();
+
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.create', [{
+          attributes: {
+            controller_type: 'pci-ohci',
+            device: 'usb_device_2',
+            dtype: VmDeviceType.Usb,
+          },
+          order: null,
+          vm: 45,
+        }]);
+      });
+    });
+
+    describe('edits USB Passthrough Device', () => {
+      beforeEach(() => setup({ virtualMachineId: 45, device: existingUsb, vmName: 'test-vm' }));
+
+      it('shows values for an existing USB Passthrough device', async () => {
+        const values = await getValues();
+        expect(values).toEqual({
+          'Controller Type': 'pci-ohci',
+          Device: 'prod_2 by vendor_2',
+          'Device Order': '7',
+        });
+      });
+
+      it('updates an existing USB Passthrough when device is selected', async () => {
+        await fillForm({
+          'Controller Type': 'piix3-uhci',
+          Device: 'prod_1 by vendor_1',
+        });
+
+        await saveButton.click();
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.update', [1, {
+          attributes: {
+            controller_type: 'piix3-uhci',
+            device: 'usb_device_1',
+            dtype: VmDeviceType.Usb,
+          },
+          order: 7,
+          vm: 45,
+        }]);
+      });
+
+      it('updates an existing USB Passthrough when custom is selected', async () => {
+        await fillForm(
+          {
+            'Controller Type': 'piix3-uhci',
+            Device: 'Specify custom',
+            'Vendor ID': 'vendor_1',
+            'Product ID': 'product_1',
+          },
+        );
+
+        spectator.detectChanges();
+
+        await saveButton.click();
+        expect(api.call).toHaveBeenLastCalledWith('vm.device.update', [1, {
+          attributes: {
+            controller_type: 'piix3-uhci',
+            device: null,
+            usb: {
+              vendor_id: 'vendor_1',
+              product_id: 'product_1',
+            },
+            dtype: VmDeviceType.Usb,
+          },
+          order: 7,
+          vm: 45,
+        }]);
+      });
+    });
+  });
+});

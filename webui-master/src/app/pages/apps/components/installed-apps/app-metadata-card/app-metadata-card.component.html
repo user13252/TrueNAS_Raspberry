@@ -1,0 +1,20 @@
+<tn-card class="card" padding="small" elevation="none">
+  <div tnCardHeader class="card-header">
+    <h3 class="detail-card-title">{{ 'Application Metadata' | translate }}</h3>
+    @if (app()) {
+      <tn-icon-button
+        name="open-in-new"
+        library="mdi"
+        testId="expand-metadata"
+        [tooltip]="'Expand' | translate"
+        [ariaLabel]="'Expand Application Metadata' | translate"
+        (onClick)="openInDialog()"
+      ></tn-icon-button>
+    }
+  </div>
+  <ix-app-metadata-list
+    [appMetadata]="appMetadata()"
+    [expandable]="true"
+    [maxHeight]="maxHeight()"
+  ></ix-app-metadata-list>
+</tn-card>

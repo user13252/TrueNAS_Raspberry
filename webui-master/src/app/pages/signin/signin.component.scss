@@ -1,0 +1,161 @@
+@import 'scss-imports/cssvars';
+@import 'mixins/tn-card';
+
+.session-form-hold {
+  margin: 0 auto;
+  max-width: 480px;
+  position: relative;
+  width: 100%;
+}
+
+.login-form {
+  min-height: 100vh; // Fallback for browsers without dvh support
+  min-height: 100dvh;
+}
+
+.page-wrap {
+  align-items: center;
+  background-color: var(--bg1);
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.copyright {
+  color: var(--alt-fg1);
+  font-size: 85%;
+  margin-bottom: 18px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+tn-card {
+  @include tn-card-webui-palette;
+}
+
+// TEMP: until @truenas/ui-components ships a full-width input on tn-button.
+// Covers the submit buttons of both child forms.
+:host ::ng-deep .submit-button button {
+  width: 100%;
+}
+
+ix-disconnected-message {
+  padding-bottom: 18px;
+}
+
+.card-bottom {
+  overflow: auto;
+  // 18px bottom replaces the legacy mat-card's bottom inset on the main card.
+  padding: 0 16px 18px;
+}
+
+.form-container {
+  padding: 20px 32px 8px;
+}
+
+.logo-wrapper {
+  align-items: center;
+  background-color: var(--bg2);
+
+  // Fallback for browsers that don't support image-set
+  background-image: url('assets/images/signin/login-background-960w.jpg');
+  background-image: image-set(url('assets/images/signin/login-background-480w.avif') 1x,
+  url('assets/images/signin/login-background-960w.avif') 2x,
+  url('assets/images/signin/login-background-1440w.avif') 3x);
+  background-size: cover;
+  border-bottom: solid 1px var(--lines);
+  display: flex;
+  justify-content: center;
+  min-height: 200px;
+
+  padding: 40px 0;
+  position: relative;
+  text-align: center;
+
+  .logo {
+    --tn-icon-color: var(--tn-white);
+
+    height: auto;
+    max-width: 80%;
+    position: relative;
+    width: 256px;
+    z-index: 2;
+  }
+}
+
+.logo-with-animation-wrapper {
+  align-items: center;
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  justify-content: center;
+
+  >div {
+    animation: loading 2s linear infinite;
+    opacity: 0.3;
+    width: 100px;
+
+    tn-icon {
+      fill: var(--fg1);
+    }
+  }
+}
+
+@media (max-width: 600px) {
+  .page-wrap {
+    bottom: 0;
+    height: 100vh;
+    height: 100dvh;
+    left: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 100vw;
+  }
+
+  tn-card {
+    // Grid so the card's inner wrapper stretches to fill the full viewport height.
+    display: grid;
+    min-height: 100vh;
+    min-height: 100dvh;
+    top: 0;
+  }
+
+  .card-bottom {
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Not sure how to workaround browser bug.
+  *  Apparently 100vw is actually viewport width + scrollbar width
+  *  if vertical scrollbar is present
+  */
+  .page-wrap>* {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .session-progress {
+    position: fixed;
+    top: 0;
+  }
+
+  .logo-wrapper {
+    min-height: 150px;
+    padding: 24px 0;
+  }
+}
+
+.logging-in {
+  box-sizing: border-box;
+  color: var(--fg2);
+  // 55px = legacy 37px + the removed mat-card's 18px bottom inset.
+  padding: 49px 16px 55px;
+  text-align: center;
+  width: 100%;
+}

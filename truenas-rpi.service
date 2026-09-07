@@ -1,0 +1,18 @@
+[Unit]
+Description=TrueNAS Scale RPi Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/truenas-rpi
+ExecStart=/usr/bin/python3 /opt/truenas-rpi/run.py
+Restart=always
+RestartSec=5
+Environment=TRUENAS_CONFIG=/opt/truenas-rpi/config.json
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

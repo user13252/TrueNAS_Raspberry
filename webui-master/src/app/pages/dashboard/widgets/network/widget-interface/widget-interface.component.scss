@@ -1,0 +1,311 @@
+@import 'scss-imports/variables';
+
+:host ::ng-deep ix-with-loading-state-error {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  font-size: 20px;
+  height: 100%;
+  padding: 16px;
+  place-content: center center;
+  text-align: center;
+  width: 100%;
+}
+
+.card {
+  box-sizing: border-box;
+  display: block;
+  height: 100%;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  .header {
+    padding-bottom: 0;
+    padding-right: 12px;
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+
+  h3 {
+    font-size: 24px;
+  }
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden;
+
+  &.empty {
+    align-items: center;
+    place-content: center center;
+    text-align: center;
+
+    tn-icon {
+      height: 48px;
+      width: 48px;
+    }
+
+    &.full {
+      padding: 0 16px 48px;
+    }
+  }
+
+  &.full {
+    padding: 0 0 0 16px;
+
+    .info-header {
+      padding-left: 0;
+    }
+  }
+
+  &.half,
+  &.quarter {
+    padding: 0;
+
+    .info-body,
+    .nic-info {
+      padding: 0;
+    }
+
+    .primary {
+      display: flex;
+      flex-direction: column-reverse;
+      padding: 0 16px 24px;
+
+      @media (max-width: $breakpoint-xs) {
+        padding: 0;
+      }
+    }
+
+    .in-out {
+      flex: none;
+      margin: auto;
+
+      &.loading {
+        flex: 1;
+      }
+
+      .info-list-item {
+        display: grid;
+        font-size: 16px;
+        grid-template-columns: minmax(50px, 50%) minmax(100px, 50%);
+
+        span:first-child {
+          font-weight: bold;
+          text-align: right;
+          white-space: normal;
+          word-break: break-word;
+          word-wrap: break-word;
+        }
+      }
+    }
+
+    .info-list-item.state {
+      flex-direction: row-reverse;
+      gap: 4px;
+      margin-top: 12px;
+      opacity: 0.75;
+      place-content: center center;
+    }
+  }
+
+  &.half {
+    flex-direction: row;
+
+    @media (max-width: $breakpoint-xs) {
+      display: block;
+
+      .info-header-title {
+        max-width: 55%;
+      }
+
+      .info-list-item.state {
+        display: none;
+      }
+
+      .info-column {
+        position: absolute;
+        right: 0;
+        top: 10px;
+      }
+    }
+
+    .nic-info {
+      flex: 1 1 35%;
+      max-width: 35%;
+
+      @media (max-width: $breakpoint-xs) {
+        flex: 1;
+        max-width: 100%;
+      }
+    }
+
+    .nic-chart {
+      align-items: center;
+      display: flex;
+      flex: 1 1 65%;
+      justify-content: center;
+      max-width: 65%;
+
+      @media (max-width: $breakpoint-xs) {
+        flex: 1;
+        max-width: 100%;
+      }
+
+      .skeleton {
+        display: block;
+        flex-grow: 1;
+      }
+    }
+  }
+
+  .chart {
+    align-items: center;
+    display: flex;
+    flex: 0 0 55%;
+    margin: 0;
+    overflow: hidden;
+    padding-left: 24px;
+    padding-right: 35px;
+    position: relative;
+
+    .skeleton {
+      display: block;
+      flex-grow: 1;
+    }
+  }
+}
+
+.nic-chart {
+  flex: 1 1 1e-9px;
+}
+
+.nic-info {
+  align-items: stretch;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  font-size: 12px;
+  max-width: 100%;
+  padding: 0 8px;
+  place-content: stretch flex-start;
+
+  @media (max-width: $breakpoint-xs) {
+    padding: 0;
+  }
+
+  .divider {
+    background-color: var(--lines);
+    margin: 5px 0;
+    width: 1px;
+  }
+}
+
+.info-body {
+  align-items: center;
+  display: flex;
+  flex: 1 1 1e-9px;
+  flex-direction: row;
+  padding-bottom: 10px;
+  place-content: center space-between;
+}
+
+.info-list-item {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  line-height: 20px;
+  min-width: 0;
+  place-content: center flex-start;
+  width: 100%;
+
+  @media (max-width: $breakpoint-xs) {
+    gap: 4px;
+  }
+}
+
+.info-column {
+  &.primary {
+    flex: 1;
+    padding-right: 16px;
+
+    @media (max-width: $breakpoint-xs) {
+      padding-right: 6px;
+    }
+  }
+
+  &.secondary {
+    align-items: flex-start;
+    border-left: solid 1px var(--lines);
+    display: flex;
+    flex: 1 1 100%;
+    flex-direction: column;
+    font-size: 12px;
+    max-width: 65%;
+    padding-bottom: 0;
+    padding-left: 16px;
+    place-content: flex-start space-between;
+
+    .skeleton {
+      width: 50%;
+    }
+  }
+}
+
+.info-header {
+  padding: 8px 16px;
+}
+
+.info-header-title {
+  font-size: 24px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-wrapper {
+  cursor: default;
+  display: inline-flex;
+  height: 20px;
+  justify-content: center;
+  margin-right: 6px;
+  min-width: 20px;
+  text-align: center;
+  user-select: none;
+  width: 20px;
+
+  @media (max-width: $breakpoint-xs) {
+    display: none;
+  }
+
+  &.up {
+    color: var(--green);
+  }
+
+  &.down {
+    color: var(--red);
+  }
+}
+
+.in-out {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+// Replicates the legacy global "mat-card-content > div" padding from _material-reduction.scss.
+.card-content > div {
+  padding: 16px;
+}

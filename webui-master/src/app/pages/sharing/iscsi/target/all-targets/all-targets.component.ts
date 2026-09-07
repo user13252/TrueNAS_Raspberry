@@ -1,0 +1,112 @@
+import { ChangeDetectionStrategy, Component, OnInit, signal, inject, viewChild, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnButtonComponent, TnDialog } from '@truenas/ui-components';
+import {
+  filter,
+  tap,
+} from 'rxjs';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { IscsiTarget } from 'app/interfaces/iscsi.interface';
+import { MasterDetailViewComponent } from 'app/modules/master-detail-view/master-detail-view.component';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { AsyncDataProvider } from 'app/modules/tn-table/classes/async-data-provider/async-data-provider';
+import { TargetDetailsComponent } from 'app/pages/sharing/iscsi/target/all-targets/target-details/target-details.component';
+import { TargetListComponent } from 'app/pages/sharing/iscsi/target/all-targets/target-list/target-list.component';
+import { DeleteTargetDialog } from 'app/pages/sharing/iscsi/target/delete-target-dialog/delete-target-dialog.component';
+import { TargetFormComponent } from 'app/pages/sharing/iscsi/target/target-form/target-form.component';
+import { IscsiService } from 'app/services/iscsi.service';
+
+@Component({
+  selector: 'ix-all-targets',
+  styleUrls: ['./all-targets.component.scss'],
+  templateUrl: './all-targets.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TranslateModule,
+    TargetListComponent,
+    MasterDetailViewComponent,
+    TargetDetailsComponent,
+    RequiresRolesDirective,
+    TnButtonComponent,
+  ],
+})
+export class AllTargetsComponent implements OnInit {
+  private iscsiService = inject(IscsiService);
+  private tnDialog = inject(TnDialog);
+  private formPanel = inject(FormSidePanelService);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly masterDetailView = viewChild.required(MasterDetailViewComponent);
+  protected dataProvider: AsyncDataProvider<IscsiTarget>;
+  targets = signal<IscsiTarget[] | null>(null);
+
+  protected readonly requiredRoles = [
+    Role.SharingIscsiTargetWrite,
+    Role.SharingIscsiWrite,
+    Role.SharingWrite,
+  ];
+
+  ngOnInit(): void {
+    const targets$ = this.iscsiService.getTargets().pipe(
+      tap((targets) => {
+        this.targets.set(targets);
+        const firstTarget = targets[targets.length - 1];
+        if (!this.dataProvider.expandedRow && firstTarget && !this.masterDetailView().isMobileView()) {
+          this.dataProvider.expandedRow = firstTarget;
+        }
+      }),
+    );
+
+    this.iscsiService.listenForDataRefresh()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((newTarget) => {
+        if (newTarget) {
+          this.dataProvider.expandedRow = newTarget;
+        }
+
+        this.dataProvider.load();
+      });
+
+    this.dataProvider = new AsyncDataProvider(targets$);
+  }
+
+  isMobileView(): boolean {
+    return this.masterDetailView().isMobileView();
+  }
+
+  onMobileDetailsClosed(): void {
+    // we only want to clear the current `expandedRow` if we're *actually* in mobile view.
+    //
+    // this statement was previously running when the `ix-master-detail-view` in the template
+    // manually nullified the `expandedRow`, even on desktop.
+    // for this component we need to check and make sure that we're actually in mobile view before clearing anything.
+    if (this.isMobileView()) {
+      this.dataProvider.expandedRow = null;
+    }
+  }
+
+  deleteTarget(target: IscsiTarget): void {
+    this.tnDialog
+      .open(DeleteTargetDialog, { data: target, width: '600px' })
+      .closed
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.dataProvider.load();
+        this.dataProvider.expandedRow = null;
+      });
+  }
+
+  editTarget(target: IscsiTarget): void {
+    // The updated target's expand + reload is driven by `iscsiService.refreshData(...)` (emitted
+    // from the form's onSuccess) which the `listenForDataRefresh` subscription handles by reloading
+    // the dataProvider — so no explicit reload here (it would double-load).
+    this.formPanel.open(TargetFormComponent, {
+      title: this.translate.instant('Edit ISCSI Target'),
+      wide: true,
+      inputs: { targetData: target },
+    });
+  }
+}

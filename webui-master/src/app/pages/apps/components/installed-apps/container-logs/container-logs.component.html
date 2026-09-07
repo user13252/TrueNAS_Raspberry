@@ -1,0 +1,62 @@
+<ix-page-header>
+  <tn-form-field [tooltip]="'Automatically scroll to the latest log entry' | translate">
+    <tn-checkbox
+      testId="auto-scroll"
+      [formControl]="autoScrollControl"
+      [label]="'Auto Scroll' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+
+  <div class="font-size-control">
+    <span id="container-logs-font-size-label" class="font-size-label">{{ 'Set font size' | translate }}</span>
+    <tn-slider
+      class="font-size-slider"
+      testId="set-font-size"
+      labelType="none"
+      [min]="minFontSize"
+      [max]="maxFontSize"
+      [step]="1"
+    >
+      <input
+        tnSliderThumb
+        aria-labelledby="container-logs-font-size-label"
+        [formControl]="fontSizeControl"
+      />
+    </tn-slider>
+  </div>
+
+  <tn-button
+    testId="reconnect"
+    [label]="'Reconnect' | translate"
+    (onClick)="reconnect()"
+  ></tn-button>
+</ix-page-header>
+
+<div class="logs-wrapper">
+  <div class="meta-data">
+    <label>{{ 'Application Name' | translate }}:</label>
+    <span class="name">{{ appName }}</span>
+    <label>{{ 'Container ID' | translate }}:</label>
+    <span class="name">{{ containerId }}</span>
+  </div>
+  <div
+    #logContainer
+    class="logs"
+    [style.font-size]="fontSize() + 'px'"
+  >
+    @if (isLoading()) {
+      <tn-spinner class="spinner" [diameter]="40"></tn-spinner>
+    } @else {
+      @for (podLog of logs(); track podLog) {
+        <div class="log-row">
+          <span class="timestamp">{{ podLog.timestamp }}</span>
+          <span class="log-data">{{ podLog.data }}</span>
+        </div>
+      } @empty {
+        <div class="log-row">
+          <span class="no-logs">{{ 'No logs yet' | translate }}</span>
+        </div>
+      }
+    }
+  </div>
+</div>

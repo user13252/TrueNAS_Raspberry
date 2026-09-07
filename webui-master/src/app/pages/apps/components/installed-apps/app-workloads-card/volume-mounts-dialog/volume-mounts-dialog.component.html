@@ -1,0 +1,36 @@
+<tn-dialog-shell [title]="'{service} Volume Mounts' | translate: { service: containerDetails.service_name }">
+
+<div>
+  <div class="table-container">
+    <table tnTestIdType="table" [tnTestId]="'volume-mounts'">
+      <tr tnTestIdType="row" [tnTestId]="['volume-mounts', 'header']">
+        <th>{{ 'Type' | translate }}</th>
+        <th>{{ 'Source' | translate }}</th>
+        <th>{{ 'Destination' | translate }}</th>
+        <th>{{ 'Mode' | translate }}</th>
+      </tr>
+
+      @for (mount of containerDetails.volume_mounts; track mount.destination) {
+        <tr tnTestIdType="row" [tnTestId]="['volume-mounts', mount.destination]">
+          <td>{{ mount.type }}</td>
+          <td class="path">{{ mount.source }}</td>
+          <td class="path">{{ mount.destination }}</td>
+          <td>{{ mount.mode }}</td>
+        </tr>
+      } @empty {
+        <tr tnTestIdType="row" [tnTestId]="'no-volume-mounts'">
+          <td colspan="4">{{ 'No volume mounts' | translate }}</td>
+        </tr>
+      }
+    </table>
+  </div>
+
+</div>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    testId="close-button"
+    [label]="'Ok' | translate"
+    (onClick)="dialogRef.close()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

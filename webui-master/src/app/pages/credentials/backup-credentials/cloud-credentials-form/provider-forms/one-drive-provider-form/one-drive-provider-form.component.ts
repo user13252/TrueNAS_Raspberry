@@ -1,0 +1,147 @@
+import { AsyncPipe } from '@angular/common';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, ViewChild, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnFormFieldComponent, TnFormSectionComponent, TnInputComponent, TnSelectComponent, InputType,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { OneDriveType } from 'app/enums/cloudsync-provider.enum';
+import {
+  CloudSyncOneDriveDrive,
+} from 'app/interfaces/cloudsync-credential.interface';
+import { Option } from 'app/interfaces/option.interface';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  OauthProviderComponent,
+} from 'app/pages/credentials/backup-credentials/cloud-credentials-form/oauth-provider/oauth-provider.component';
+import {
+  BaseProviderFormComponent,
+} from 'app/pages/credentials/backup-credentials/cloud-credentials-form/provider-forms/base-provider-form';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-one-drive-provider-form',
+  templateUrl: './one-drive-provider-form.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TranslateModule,
+    ReactiveFormsModule,
+    AsyncPipe,
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TnSelectComponent,
+    OauthProviderComponent,
+  ],
+})
+export class OneDriveProviderFormComponent extends BaseProviderFormComponent implements OnInit, AfterViewInit {
+  protected readonly InputType = InputType;
+
+  private errorHandler = inject(ErrorHandlerService);
+  private formBuilder = inject(NonNullableFormBuilder);
+  private api = inject(ApiService);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+
+  @ViewChild(OauthProviderComponent, { static: true }) oauthComponent: OauthProviderComponent;
+
+  form = this.formBuilder.group({
+    token: ['', Validators.required],
+    drives: [''],
+    drive_type: [OneDriveType.Personal],
+    drive_id: ['', Validators.required],
+  });
+
+  readonly driveTypes$ = of([
+    {
+      label: 'PERSONAL',
+      value: OneDriveType.Personal,
+    },
+    {
+      label: 'BUSINESS',
+      value: OneDriveType.Business,
+    },
+    {
+      label: 'DOCUMENT_LIBRARY',
+      value: OneDriveType.DocumentLibrary,
+    },
+  ]);
+
+  drives$ = of<Option[]>([]);
+
+  private drives: CloudSyncOneDriveDrive[] = [];
+
+  ngOnInit(): void {
+    this.setupDriveSelect();
+  }
+
+  ngAfterViewInit(): void {
+    this.formPatcher$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((values) => {
+      this.form.patchValue(values);
+      this.oauthComponent.form.patchValue(values);
+    });
+  }
+
+  onOauthAuthenticated(attributes: Record<string, unknown>): void {
+    this.form.patchValue(attributes);
+    this.loadDrives();
+  }
+
+  override getSubmitAttributes(): OauthProviderComponent['form']['value'] & this['form']['value'] {
+    const { drives, ...oneDriveValues } = this.form.value;
+    return {
+      ...this.oauthComponent?.form?.value,
+      ...oneDriveValues,
+    };
+  }
+
+  private setupDriveSelect(): void {
+    this.form.controls.drives.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((driveId) => {
+      const selectedDrive = this.drives.find((drive) => drive.drive_id === driveId);
+      if (!selectedDrive) {
+        return;
+      }
+
+      this.form.patchValue({
+        drive_type: selectedDrive.drive_type,
+        drive_id: selectedDrive.drive_id,
+      });
+    });
+  }
+
+  private loadDrives(): void {
+    // This triggers loading indicator on the select.
+    this.drives$ = of();
+
+    this.api.call('cloudsync.onedrive_list_drives', [{
+      client_id: this.oauthComponent.form.getRawValue().client_id,
+      client_secret: this.oauthComponent.form.getRawValue().client_secret,
+      token: this.form.getRawValue().token,
+    }])
+      .pipe(
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((drives) => {
+        this.drives = drives;
+        this.drives$ = of(
+          drives.map((drive) => {
+            let label = [
+              drive.name,
+              drive.description,
+            ].filter(Boolean).join(' - ');
+
+            if (!label) {
+              label = `${drive.drive_type} - ${drive.drive_id}`;
+            }
+
+            return { label, value: drive.drive_id };
+          }),
+        );
+
+        this.cdr.detectChanges();
+      });
+  }
+}

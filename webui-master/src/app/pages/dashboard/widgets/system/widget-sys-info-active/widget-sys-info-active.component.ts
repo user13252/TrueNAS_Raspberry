@@ -1,0 +1,120 @@
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, ChangeDetectionStrategy, input, computed, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { Store } from '@ngrx/store';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  tnIconMarker, TnButtonComponent, TnCardComponent, TnIconButtonComponent, TnIconComponent,
+  TnListComponent, TnListItemComponent, TnTooltipDirective,
+} from '@truenas/ui-components';
+import { NgxSkeletonLoaderModule } from 'ngx-skeleton-loader';
+import { filter, map } from 'rxjs';
+import { getLabelForContractType } from 'app/interfaces/system-info.interface';
+import { CopyButtonComponent } from 'app/modules/buttons/copy-button/copy-button.component';
+import { selectUpdateJobForActiveNode } from 'app/modules/jobs/store/job.selectors';
+import { LocaleService } from 'app/modules/language/locale.service';
+import { UseEnterpriseMarketingLinkComponent } from 'app/modules/use-enterprise-marketing-link/use-enterprise-marketing-link.component';
+import { WidgetResourcesService } from 'app/pages/dashboard/services/widget-resources.service';
+import { SlotSize } from 'app/pages/dashboard/types/widget.interface';
+import { ProductImageComponent } from 'app/pages/dashboard/widgets/system/common/product-image/product-image.component';
+import { UptimePipe } from 'app/pages/dashboard/widgets/system/common/uptime.pipe';
+import {
+  formatLicenseExpiration,
+  getLicenseExpiration,
+} from 'app/pages/dashboard/widgets/system/common/widget-sys-info.utils';
+import { AppState } from 'app/store';
+import { selectIsHaLicensed } from 'app/store/ha-info/ha-info.selectors';
+import {
+  selectHasEnclosureSupport, selectIsEnterprise, selectIsIxHardware,
+} from 'app/store/system-info/system-info.selectors';
+
+@Component({
+  selector: 'ix-widget-sys-info-active',
+  templateUrl: './widget-sys-info-active.component.html',
+  styleUrls: ['../common/widget-sys-info.scss', './widget-sys-info-active.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnCardComponent,
+    TnButtonComponent,
+    TnIconButtonComponent,
+    TnListComponent,
+    TnListItemComponent,
+    TnIconComponent,
+    TnTooltipDirective,
+    ProductImageComponent,
+    NgxSkeletonLoaderModule,
+    NgTemplateOutlet,
+    CopyButtonComponent,
+    TranslateModule,
+    UptimePipe,
+    UseEnterpriseMarketingLinkComponent,
+  ],
+})
+export class WidgetSysInfoActiveComponent {
+  private router = inject(Router);
+  private resources = inject(WidgetResourcesService);
+  private store$ = inject<Store<AppState>>(Store);
+  private localeService = inject(LocaleService);
+
+  size = input.required<SlotSize>();
+
+  isIxHardware = toSignal(this.store$.select(selectIsIxHardware));
+  isEnterprise = toSignal(this.store$.select(selectIsEnterprise));
+  isHaLicensed = toSignal(this.store$.select(selectIsHaLicensed));
+  hasEnclosureSupport = toSignal(this.store$.select(selectHasEnclosureSupport));
+  isUpdateRunning = toSignal(this.store$.select(selectUpdateJobForActiveNode));
+  protected readonly getLabelForContractType = getLabelForContractType;
+
+  updateAvailable = toSignal(this.resources.updateAvailable$);
+  systemInfo = toSignal(this.resources.dashboardSystemInfo$.pipe(
+    map((state) => state.value),
+    filter((value) => !!value),
+  ));
+
+  startTime = Date.now();
+
+  realElapsedSeconds = toSignal(this.resources.refreshInterval$.pipe(
+    map(() => {
+      return Math.floor((Date.now() - this.startTime) / 1000);
+    }),
+  ), { requireSync: true });
+
+  version = computed(() => this.systemInfo().version);
+  uptime = computed(() => this.systemInfo().uptime_seconds + this.realElapsedSeconds());
+  datetime = computed(() => {
+    this.realElapsedSeconds();
+    const [, timeValue] = this.localeService.getDateAndTime();
+    return `${timeValue.split(':')[0]}:${timeValue.split(':')[1]}`;
+  });
+
+  licenseExpirationDate = computed(
+    () => formatLicenseExpiration(getLicenseExpiration(this.systemInfo()?.license), this.localeService),
+  );
+
+  isLoaded = computed(() => this.systemInfo());
+
+  constructor() {
+    this.resources.refreshDashboardSystemInfo();
+  }
+
+  isFirstRender = true;
+
+  // eslint-disable-next-line sonarjs/no-invariant-returns
+  rendered(): string {
+    if (!this.isFirstRender) {
+      return '';
+    }
+
+    this.isFirstRender = false;
+    performance.mark('Dashboard End');
+    performance.measure('Dashboard Init', 'Dashboard Start', 'Dashboard End');
+    return '';
+  }
+
+  protected readonly tnIconMarker = tnIconMarker;
+
+  protected goToReports(): void {
+    this.router.navigate(['/reportsdashboard', 'system']);
+  }
+}

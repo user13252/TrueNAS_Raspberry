@@ -1,0 +1,113 @@
+<tn-card class="card" [ixUiSearch]="searchableElements.elements.zfsHealth">
+  <h3 tnCardHeader class="tn-card__title">
+    {{ 'Storage Health' | translate }}
+    <ix-pool-card-icon [type]="iconType()" [tooltip]="iconTooltip()"></ix-pool-card-icon>
+  </h3>
+
+  <ng-template tnCardFooterActions>
+    @if (!wasScanInitiated()) {
+      <tn-button
+        *ixRequiresRoles="[Role.PoolScrubWrite]"
+        [testId]="'scrub'"
+        [ixUiSearch]="searchableElements.elements.scrubNow"
+        [label]="'Scrub Now' | translate"
+        (onClick)="onStartScrub()"
+      ></tn-button>
+    } @else {
+      @if (!isScrub()) {
+        <tn-button
+          [disabled]="true"
+          [testId]="'scrub-disabled'"
+          [label]="'Scrub' | translate"
+        ></tn-button>
+      }
+    }
+  </ng-template>
+
+  <div class="card-content">
+    <div class="details-item">
+      <ix-pool-card-icon [type]="iconType()" [tooltip]="iconTooltip()"></ix-pool-card-icon>
+      <div class="label status">
+        {{ getErrorText() }}
+      </div>
+      @if (hasErrors()) {
+        <!-- A link-styled action, not a navigation: a <button> carries the role, focusability and
+             Enter/Space handling natively. `tnTestIdType="link"` keeps the pre-migration test id. -->
+        <button
+          type="button"
+          class="link-button"
+          tnTestIdType="link"
+          [tnTestId]="'view-errors'"
+          (click)="goToVdevsPage()"
+        >
+          {{ 'View' | translate }}
+        </button>
+      }
+    </div>
+
+    <div
+      class="details-item"
+      [ixUiSearch]="searchableElements.elements.scheduledScrub"
+    >
+      <ix-tooltip
+        class="scrub-tooltip"
+        [message]="helptextVolumes.scrubTooltip | translate"
+      ></ix-tooltip>
+      <div class="label">
+        {{ 'Scheduled Scrub' | translate }}:
+      </div>
+
+      @if (scrub()?.enabled) {
+        <div class="value">
+          {{ scrub().schedule | scheduleDescription }}
+        </div>
+        <button
+          type="button"
+          class="link-button"
+          tnTestIdType="link"
+          [tnTestId]="'configure-scrub'"
+          (click)="onConfigureScrub()"
+        >
+          {{ 'Configure' | translate }}
+        </button>
+      }
+      @else {
+        <div class="value">
+          {{ 'Not Set' | translate }}
+        </div>
+        <button
+          type="button"
+          class="link-button"
+          tnTestIdType="link"
+          [tnTestId]="'configure-scrub'"
+          (click)="onConfigureScrub()"
+        >
+          {{ 'Schedule' | translate }}
+        </button>
+      }
+    </div>
+
+    @if (pool().autotrim.value === AutoTrimValue.On) {
+      <div class="details-item" [ixUiSearch]="searchableElements.elements.autoTrim">
+        <span class="blank-spacer"></span>
+        <div class="label">{{ 'Auto TRIM' | translate }}:</div>
+        <div class="value">{{ 'On' | translate }}</div>
+      </div>
+    }
+
+    @if (scan()?.function) {
+      @if (wasScanInitiated()) {
+        <ix-active-pool-scan
+          [scan]="scan()"
+          [pool]="pool()"
+        ></ix-active-pool-scan>
+      } @else {
+        <ix-last-pool-scan [scan]="scan()"></ix-last-pool-scan>
+      }
+    }
+
+    @if (pool().dedup_table_size > 0 || pool().topology?.dedup?.length > 0) {
+      <ix-deduplication-stats [pool]="pool()"></ix-deduplication-stats>
+    }
+  </div>
+</tn-card>

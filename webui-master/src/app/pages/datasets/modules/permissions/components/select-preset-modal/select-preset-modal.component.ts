@@ -1,0 +1,124 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, signal, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  FormControl, FormGroup, Validators, ReactiveFormsModule,
+} from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnFormFieldComponent, TnRadioComponent,
+  TnSelectComponent, TnTooltipDirective,
+} from '@truenas/ui-components';
+import { helptextAcl } from 'app/helptext/storage/volumes/datasets/dataset-acl';
+import { AclTemplateByPath } from 'app/interfaces/acl.interface';
+import { Option } from 'app/interfaces/option.interface';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { IxValidatorsService } from 'app/modules/forms/ix-forms/services/ix-validators.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  SelectPresetModalConfig,
+} from 'app/pages/datasets/modules/permissions/interfaces/select-preset-modal-config.interface';
+import { DatasetAclEditorStore } from 'app/pages/datasets/modules/permissions/stores/dataset-acl-editor.store';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-select-preset-modal',
+  templateUrl: 'select-preset-modal.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    ReactiveFormsModule,
+    TnRadioComponent,
+    TnTooltipDirective,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+export class SelectPresetModalComponent implements OnInit {
+  protected dialogRef = inject<DialogRef>(DialogRef);
+  private api = inject(ApiService);
+  private errorHandler = inject(ErrorHandlerService);
+  private loader = inject(LoaderService);
+  private aclEditorStore = inject(DatasetAclEditorStore);
+  private validatorsService = inject(IxValidatorsService);
+  private destroyRef = inject(DestroyRef);
+  data = inject<SelectPresetModalConfig>(DIALOG_DATA);
+
+  form = new FormGroup({
+    presetName: new FormControl('', this.validatorsService.validateOnCondition(
+      (control) => control.parent?.get('usePreset')?.value,
+      Validators.required,
+    )),
+    usePreset: new FormControl(true),
+  });
+
+  protected readonly presetOptions = signal<Option[]>([]);
+  presets: AclTemplateByPath[] = [];
+
+  // Hold raw i18n keys and translate in the template so labels stay reactive to language changes.
+  readonly usePresetOptions: { label: string; value: boolean; tooltip?: string }[] = [
+    {
+      label: helptextAcl.typeDialog.selectPreset,
+      tooltip: helptextAcl.typeDialog.selectPresetTooltip,
+      value: true,
+    },
+    {
+      label: helptextAcl.typeDialog.createCustom,
+      value: false,
+    },
+  ];
+
+  readonly helptext = helptextAcl.typeDialog;
+
+  ngOnInit(): void {
+    this.setFormRelations();
+    this.loadOptions();
+  }
+
+  private setFormRelations(): void {
+    this.form.controls.usePreset.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.form.controls.presetName.updateValueAndValidity();
+    });
+  }
+
+  private loadOptions(): void {
+    this.api.call('filesystem.acltemplate.by_path', [{
+      path: this.data.datasetPath,
+      'format-options': {
+        resolve_names: true,
+      },
+    }])
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((presets) => {
+        this.presets = presets;
+        this.presetOptions.set(presets.map((preset) => ({
+          label: preset.name,
+          value: preset.name,
+        })));
+      });
+  }
+
+  onContinuePressed(): void {
+    const { usePreset, presetName } = this.form.value;
+    if (this.data.allowCustom && !usePreset) {
+      this.dialogRef.close();
+      return;
+    }
+
+    const selectedPreset = this.presets.find((preset) => preset.name === presetName);
+    if (!selectedPreset) {
+      throw new Error(`Preset ${presetName} not found`);
+    }
+
+    this.aclEditorStore.usePreset(selectedPreset);
+    this.dialogRef.close();
+  }
+}

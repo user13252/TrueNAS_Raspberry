@@ -1,0 +1,28 @@
+@import 'scss-imports/variables';
+
+.form-card {
+  margin: 24px 0.333333rem;
+  max-width: 100%;
+  width: 100%;
+}
+
+.class-row {
+  display: grid;
+  grid-gap: 20px;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 0 30px;
+
+  &:not(:last-child) {
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: $breakpoint-tablet) {
+    display: block;
+  }
+
+  .class-label {
+    align-items: center;
+    display: flex;
+    margin-top: 25px;
+  }
+}

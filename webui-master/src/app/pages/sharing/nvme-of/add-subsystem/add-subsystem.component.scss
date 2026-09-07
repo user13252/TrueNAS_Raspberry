@@ -1,0 +1,38 @@
+.name-input {
+  display: block;
+  margin-top: 0;
+
+  // Restore the 12px gap the legacy `ix-input` carried below itself (its `margin-bottom: 12px`)
+  // before the NQN details table. `tn-form-field` has no such outer margin, and this wizard's
+  // `<tn-side-panel>` host adds none, so without this the NQN row rides up against the input.
+  margin-bottom: 12px;
+}
+
+.nqn-input {
+  width: auto;
+}
+
+.step-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.last-step-buttons {
+  margin-top: 30px;
+}
+
+.hosts-block,
+.namespaces-block,
+.ports-block {
+  display: block;
+  margin-bottom: 25px;
+  margin-top: 10px;
+}
+
+.namespaces-block {
+  margin-top: 25px;
+}
+
+.hosts-block {
+  margin-top: 15px;
+}

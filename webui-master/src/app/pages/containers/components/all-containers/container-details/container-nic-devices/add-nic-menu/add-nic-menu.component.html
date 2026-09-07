@@ -1,0 +1,18 @@
+@if (isLoadingDevices()) {
+  <ngx-skeleton-loader class="loader"></ngx-skeleton-loader>
+} @else if (hasNicsToAdd()) {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    variant="filled"
+    color="primary"
+    [testId]="'add-nic'"
+    [disabled]="isContainerActive()"
+    [label]="'Add' | translate"
+    [tnTooltip]="isContainerActive() ? (helptext.deviceRequiresStoppedTooltip | translate) : ''"
+    [tnMenuTriggerFor]="addNicMenu"
+  ></tn-button>
+
+  <tn-menu #addNicMenu [items]="menuItems()"></tn-menu>
+} @else {
+  <span class="no-devices-available">{{ 'No NIC devices available' | translate }}</span>
+}

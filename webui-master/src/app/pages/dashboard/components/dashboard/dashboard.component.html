@@ -1,0 +1,107 @@
+<ix-page-header [pageTitle]="'Dashboard' | translate" [loading]="!!isLoading()">
+  @if (!isEditing()) {
+    <tn-button
+      color="primary"
+      [testId]="'configure-dashboard'"
+      [label]="'Configure' | translate"
+      [ixUiSearch]="searchableElements.elements.configure"
+      [disabled]="isLoading()"
+      (onClick)="onConfigure()"
+    ></tn-button>
+  }
+</ix-page-header>
+
+@if (isEditing()) {
+  <div class="edit-mode-buttons">
+    @if (customLayout()) {
+      <tn-button
+        [testId]="'reset'"
+        [label]="'Reset' | translate"
+        [disabled]="isLoading()"
+        [tnTooltip]="'Restore default set of cards' | translate"
+        (onClick)="onReset()"
+      ></tn-button>
+    }
+
+    <tn-button
+      class="add-button"
+      [testId]="'add-group'"
+      [label]="'Add' | translate"
+      [disabled]="isLoading()"
+      (onClick)="onAddGroup()"
+    ></tn-button>
+    <tn-button
+      color="primary"
+      [testId]="'save'"
+      [label]="'Save' | translate"
+      [disabled]="isLoading()"
+      (onClick)="onSave()"
+    ></tn-button>
+    <tn-button
+      [testId]="'cancel'"
+      [label]="'Cancel' | translate"
+      [disabled]="isLoading()"
+      (onClick)="onCancelConfigure()"
+    ></tn-button>
+  </div>
+}
+
+@if (isLoadingFirstTime()) {
+  <ngx-skeleton-loader
+    class="groups loading"
+    [count]="6"
+    [theme]="{ background: 'var(--alt-bg2)', opacity: 0.25, margin: 0 }"
+  ></ngx-skeleton-loader>
+} @else {
+  <div
+    class="groups"
+    cdkDropList
+    cdkDropListOrientation="mixed"
+    [ixUiSearch]="searchableElements.elements.dashboard"
+    (cdkDropListDropped)="onGroupsReordered($event)"
+  >
+    @if (renderedGroups().length > 0) {
+      @for (group of renderedGroups(); track group; let i = $index) {
+        <div
+          class="group-slot"
+          cdkDrag
+          cdkDragPreviewContainer="parent"
+          animateOutClass="group-remove"
+          [animateOut]="isGroupRemoving(group)"
+          [animateOutDuration]="300"
+          (animateOutComplete)="onGroupRemovalComplete(group)"
+        >
+          <div
+            class="group-container"
+            [class.editing]="isEditing()"
+          >
+            <ix-widget-group-controls
+              class="controls"
+              [index]="i"
+              [totalGroups]="renderedGroups().length"
+              [disableFocusableElements]="!isEditing()"
+              (moveUp)="onMoveGroup(i, -1)"
+              (moveDown)="onMoveGroup(i, 1)"
+              (edit)="onEditGroup(i)"
+              (delete)="onDeleteGroup(group)"
+            ></ix-widget-group-controls>
+
+            <ix-widget-group
+              class="group"
+              [disableFocusableElements]="isEditing()"
+              [group]="group"
+            ></ix-widget-group>
+          </div>
+        </div>
+      }
+    } @else {
+      <tn-empty
+        size="default"
+        icon="view-dashboard"
+        iconLibrary="mdi"
+        [title]="'Your dashboard is currently empty!' | translate"
+        [description]="'Start adding cards to personalize it. Click on the &quot;Configure&quot; button to enter edit mode.' | translate"
+      ></tn-empty>
+    }
+  </div>
+}

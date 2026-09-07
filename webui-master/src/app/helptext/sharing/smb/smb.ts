@@ -1,0 +1,254 @@
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+
+export const helptextSharingSmb = {
+  rootLevelWarning: T(
+    'Configuring SMB exports of root-level datasets\
+ may lead to storage reconfiguration issues.\
+ Consider creating a dataset instead.',
+  ),
+
+  shareAclDescription: T('The SMB share ACL defines access rights for users of this SMB share up to, but not beyond, the access granted by filesystem ACLs.'),
+
+  pathLabel: T('Path'),
+  pathTooltip: T('Select pool, dataset, or directory to share.'),
+  nameLabel: T('Name'),
+
+  commentLabel: T('Description'),
+
+  enabledLabel: T('Enabled'),
+  auditLogTooltip: T(
+    'Controls whether audit messages will be generated for the share.\
+ <br><br> <b>Note</b>: Auditing may not be enabled if SMB1 support is enabled for the server.',
+  ),
+  watchListTooltip: T(
+    'List of groups for which to generate audit messages. At least one group must be specified in either Watch List or Ignore List when audit logging is enabled.',
+  ),
+  ignoreListTooltip: T(
+    'List of groups to ignore when auditing. At least one group must be specified in either Watch List or Ignore List when audit logging is enabled. If conflict arises between Watch List and Ignore List\
+ (based on user group membership), then Watch List will take precedence and ops will be audited.',
+  ),
+
+  homeLabel: T('Use as Home Share'),
+  homeTooltip: T(
+    'Legacy feature. <br><br>Allows the share to host user home\
+ directories. Each user is given a personal home directory when\
+ connecting to the share which is not accessible by other users. This\
+ allows for a personal, dynamic share. Only one share can be used\
+ as the home share.',
+  ),
+
+  purposeLabel: T('Purpose'),
+  purposeTooltip: T(
+    'Select a preset configuration for the share. This\
+ applies predetermined values and disables changing some share options.',
+  ),
+
+  timemachineLabel: T('Time Machine'),
+  timemachineTooltip: T('Enable Time Machine backups on this share.'),
+
+  timemachineQuotaLabel: T('Time Machine Quota'),
+  timemachineQuotaTooltip: T('Number of bytes'),
+
+  autoDatasetCreationLabel: T('Auto Dataset Creation'),
+  autoDatasetCreationTooltip: T('Create dataset automatically if it does not exist.'),
+  datasetNamingSchemaLabel: T('Dataset Naming Schema'),
+  datasetNamingSchemaTooltip: T('The naming schema to use when Auto Dataset Creation is specified.\
+ If you do not set a schema, the server uses %U (username) if it is not joined to Active Directory.\
+ If the server is joined to Active Directory it uses %D/%U (domain/username).'),
+  autoQuotaLabel: T('Auto Quota'),
+  autoQuotaTooltip: T('Set the specified ZFS quota (in gibibytes) on new datasets.\
+ If the value is zero, TrueNAS disables automatic quotas for the share.'),
+
+  afpLabel: T('Legacy AFP Compatibility'),
+  afpTooltip: T(
+    'This controls how the SMB share reads and writes data. Leave unset for the share to behave like a normal SMB share and set for the share to behave like the deprecated Apple Filing Protocol (AFP). This should only be set when this share originated as an AFP sharing configuration. This is not required for pure SMB shares or MacOS SMB clients.',
+  ),
+  afpWarningTitle: T('Warning'),
+  afpWarningMessage: T(
+    'This option controls how metadata and alternate data streams read write to disks. Only enable this when the share configuration was migrated from the deprecated Apple Filing Protocol (AFP). Do not attempt to force a previous AFP share to behave like a pure SMB share or file corruption can occur.',
+  ),
+  afpDialogButton: T('I understand'),
+
+  aclLabel: T('Enable ACL'),
+  aclTooltip: T('Enable ACL support for the SMB share.'),
+
+  readOnlyLabel: T('Export Read Only'),
+  readOnlyTooltip: T('Prohibits writes to this share.'),
+
+  browsableLabel: T('Browsable to Network Clients'),
+  browsableTooltip: T(
+    'Determine whether this share name is included\
+ when browsing shares. Home shares are only visible to the owner\
+ regardless of this setting.',
+  ),
+
+  recyclebinLabel: T('Export Recycle Bin'),
+  recyclebinTooltip: T('Select to enable. Deleted files from the same\
+ dataset move to a <b>Recycle Bin</b> in that dataset and do not take any\
+ additional space. Recycle bin is for access over SMB protocol only.\
+ The files are renamed to a per-user subdirectory within\
+ <b><i>.recycle</i></b> directory at either (1) root of SMB share\
+ (if path is same dataset as SMB share) or (2) at root of current\
+ dataset if we have nested datasets. Because of (2) there is no\
+ automatic deletion based on file size.'),
+
+  guestokLabel: T('Allow Guest Access'),
+  guestokTooltip: T(
+    'Legacy feature. <br><br>Privileges are the same as the guest account.\
+ Guest access is disabled by default in Windows 10 version 1709 and\
+ Windows Server version 1903. Additional client-side configuration is\
+ required to provide guest access to these clients.<br><br>\
+ <i>MacOS clients:</i> Attempting to connect as a user that does not\
+ exist in TrueNAS <i>does not</i> automatically connect as the guest\
+ account. The <b>Connect As:</b> <i>Guest</i> option must be\
+ specifically chosen in MacOS to log in as the guest account. See the\
+ <a href="https://support.apple.com/guide/mac-help/connect-mac-shared-computers-servers-mchlp1140/" target="_blank">Apple documentation</a>\
+ for more details.',
+  ),
+
+  abeLabel: T('Access Based Share Enumeration'),
+  abeTooltip: T(
+    'Restrict share visibility to users with read or write access\
+ to the share. See the <a href="https://www.samba.org/samba/docs/current/man-html/smb.conf.5.html"\
+ target=_blank>smb.conf</a> manual page.',
+  ),
+
+  hostsallowLabel: T('Hosts Allow'),
+  hostsAllowTooltip: T('A list of IP addresses or subnets that are allowed to access the SMB share.\
+ Separate entries by pressing <code>Enter</code>. The EXCEPT keyword may be used to limit a wildcard list.\
+ <br><br><b>Note:</b> Hostname lookups are disabled on the SMB server for performance reasons.\
+ <br><br><b>Examples:</b><br>\
+ • Single IPs: <code>192.168.0.200</code>, <code>150.203.</code><br>\
+ • CIDR notation: <code>150.203.15.0/255.255.255.0</code><br>\
+ • EXCEPT syntax: <code>150.203. EXCEPT 150.203.6.66</code>\
+ <br><br><b>Behavior:</b><br>\
+ • If neither <i>Hosts Allow</i> nor <i>Hosts Deny</i> contains an entry, SMB share access is allowed for any host.<br>\
+ • If there is a <i>Hosts Allow</i> list but no <i>Hosts Deny</i> list, only allow hosts on the <i>Hosts Allow</i> list.<br>\
+ • If there is both a <i>Hosts Allow</i> and <i>Hosts Deny</i> list, allow all hosts on the <i>Hosts Allow</i> list.<br>\
+ • Hosts not on either list are allowed.'),
+  hostsdenyLabel: T('Hosts Deny'),
+  hostsdenyTooltip: T(
+    'A list of IP addresses or subnets that are not allowed to access the SMB share.\
+ Separate entries by pressing <code>Enter</code>. The keyword <code>ALL</code> or the netmask\
+ <code>0.0.0.0/0</code> may be used to deny all by default.\
+ <br><br><b>Examples:</b><br>\
+ • Partial IPs: <code>150.203.4.</code><br>\
+ • Deny all: <code>ALL</code> or <code>0.0.0.0/0</code>\
+ <br><br><b>Behavior:</b><br>\
+ • If there is a <i>Hosts Deny</i> list but no <i>Hosts Allow</i> list, allow all hosts not on the <i>Hosts Deny</i> list.<br>\
+ • If there is both a <i>Hosts Allow</i> and <i>Hosts Deny</i> list, the <i>Hosts Allow</i> list takes precedence.',
+  ),
+
+  shadowcopyLabel: T('Enable Shadow Copies'),
+  shadowcopyTooltip: T(
+    'Export ZFS snapshots as\
+ <a href="https://docs.microsoft.com/en-us/windows/desktop/vss/shadow-copies-and-shadow-copy-sets"\
+ target=_blank>Shadow Copies</a> for VSS clients.',
+  ),
+
+  aaplNameManglingLabel: T('Use Apple-style Character Encoding'),
+  aaplNameManglingTooltip: T(
+    'By default, Samba uses a hashing algorithm for NTFS illegal\
+ characters. Enabling this option translates NTFS illegal characters to the Unicode private range.',
+  ),
+
+  extensionsWarning: T('Please enable Apple SMB2/3 protocol extension support above before saving.'),
+
+  streamsLabel: T('Enable Alternate Data Streams'),
+  streamsTooltip: T(
+    'Allows multiple\
+ <a href="http://www.ntfs.com/ntfs-multiple.htm">NTFS data streams</a>.\
+ Disabling this option causes macOS to write streams to files on the filesystem.',
+  ),
+
+  durablehandleLabel: T('Enable SMB2/3 Durable Handles'),
+  durablehandleTooltip: T(
+    'Allow using open file handles that can withstand short disconnections.\
+ Support for POSIX byte-range locks in Samba is also disabled. This option is not recommended when\
+ configuring multi-protocol or local access to files.',
+  ),
+
+  fsrvpLabel: T('Enable FSRVP'),
+  fsrvpTooltip: T(
+    'Enable support for the File Server Remote VSS Protocol\
+ (<a href="https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fsrvp" target="_blank">FSRVP</a>).\
+ This protocol allows RPC clients to manage snapshots for a specific SMB share.\
+ The share path must be a dataset mountpoint. Snapshots have the prefix\
+ <code>fss-</code> followed by a snapshot creation timestamp. A snapshot must have\
+ this prefix for an RPC user to delete it.',
+  ),
+
+  pathSuffixLabel: T('Path Suffix'),
+  pathSuffixTooltip: T(
+    'Appends a suffix to the share connection path.\
+ This is used to provide unique shares on a per-user, per-computer, or per-IP address basis.\
+ Suffixes can contain a macro. See the\
+ <a href="https://www.samba.org/samba/docs/current/man-html/smb.conf.5.html" target="_blank">smb.conf</a> manual page for\
+ a list of supported macros. The connectpath **must** be preset before a client connects.',
+  ),
+
+  auxsmbconfLabel: T('Additional Parameters String'),
+  auxsmbconfTooltip: T('String of additional smb4.conf parameters not covered by the system\'s API.'),
+
+  restartedSmbDialog: {
+    title: T('SMB Service'),
+    message: T('The SMB service has been restarted.'),
+  },
+
+  aePermTooltip: T(
+    'Predefined permission combinations:<br><i>Read</i>:\
+ Read access and Execute permission on the object (RX).<br><i>Change</i>: Read\
+ access, Execute permission, Write access, and Delete object (RXWD).<br><i>Full</i>:\
+ Read access, Execute permission, Write access, Delete object, change Permissions, and take Ownership (RXWDPO).<br><br>\
+ For more details, see <a href="https://www.samba.org/samba/docs/current/man-html/smbcacls.1.html" target="_blank">smbacls(1)</a>.',
+  ),
+  aeTypeTooltip: T(
+    'How permissions are applied to the share.\
+ <i>Allowed</i> denies all permissions by default except those that are manually defined.\
+ <i>Denied</i> allows all permissions by default except those that are manually defined.',
+  ),
+
+  formTitleAdd: T('Add SMB'),
+  formTitleEdit: T('Edit SMB'),
+
+  stripACLDialog: {
+    title: T('Warning'),
+    message: T(
+      'An ACL is detected on the selected path but <i>Enable ACL</i> is not selected for this share.\
+ ACLs should be stripped from the dataset prior to creating an SMB share.',
+    ),
+    button: T('Continue'),
+  },
+
+  manglingDialog: {
+    title: T('Warning'),
+    message: T(
+      'The <i>Use Apple-style character encoding</i> value has changed.\
+ This parameter affects how file names are read from and written to storage. Changes to\
+ this parameter after data is written can prevent accessing or deleting files containing\
+ mangled characters.',
+    ),
+    action: T('I Understand'),
+  },
+
+  gracePeriodLabel: T('Grace Period'),
+  gracePeriodTooltip: T('Time in seconds during which each file can be written after it is\
+ created or saved on the share. After the grace period is up, that file becomes read-only.\
+ The countdown starts individually for each file, and new files can still be written to the\
+ share after the grace period has passed.\
+ Must be between 60 seconds (1 minute) and 15552000 seconds (180 days).'),
+
+  restartMessage: T(
+    'Changes to the SMB share configuration may not fully apply to existing SMB client sessions until the SMB service restarts.',
+  ),
+  restartPrompt: T('Do you want to restart the SMB service now?'),
+  restartCaution: T('CAUTION: Restarting the SMB service causes a short service interruption for all connected SMB clients.'),
+  restartLearnMore: T(
+    'SMB clients maintain persistent connections to the server. When share settings change, connected clients may continue using cached configurations until they reconnect. Restarting the SMB service forces all clients to disconnect and reconnect, ensuring they receive the updated share configuration immediately.',
+  ),
+  restartLearnMoreExamples: T('Examples of changes that benefit from a restart include:'),
+  restartExampleTimeMachine: T('Time Machine settings - changes how the SMB server advertises itself to clients.'),
+  restartExampleHostsAllowDeny: T('Hosts Allow/Deny - more restrictive settings may not deny access to currently connected clients until they reconnect.'),
+  restartExamplePath: T('Path changes - clients will not see this change until they negotiate a new session.'),
+  restartLearnMoreOtherCases: T('Other configuration changes may also benefit from a restart.'),
+};

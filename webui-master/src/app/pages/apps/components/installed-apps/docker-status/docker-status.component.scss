@@ -1,0 +1,22 @@
+.status-wrapper {
+  align-items: center;
+  display: flex;
+
+  &:hover {
+    cursor: help;
+  }
+
+  tn-spinner {
+    margin-right: 4px;
+  }
+
+  tn-icon {
+    height: 20px;
+    margin-right: 4px;
+    width: 20px;
+
+    &.running {
+      color: var(--status-active);
+    }
+  }
+}

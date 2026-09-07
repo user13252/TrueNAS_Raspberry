@@ -1,0 +1,115 @@
+$component-header: 50px;
+
+.jobs-header {
+  align-items: baseline;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--lines);
+  display: flex;
+  height: $component-header;
+  margin-left: -24px;
+  margin-right: -24px;
+  padding: 12px 24px;
+  place-content: stretch space-between;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.badges {
+  column-gap: 8px;
+  display: flex;
+}
+
+.job-badge {
+  align-items: center;
+  background-color: var(--bg1);
+  border-radius: 16px;
+  column-gap: 4px;
+
+  display: flex;
+  flex-direction: row;
+  min-width: 48px;
+  padding: 0 8px;
+  place-content: center;
+  user-select: none;
+
+  .job-badge-count {
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  tn-icon {
+    height: 20px;
+    opacity: 0.65;
+    width: 20px;
+  }
+
+  .job-icon-failed {
+    color: var(--red);
+  }
+
+  .job-icon-waiting {
+    color: var(--accent);
+  }
+
+  .job-icon-running {
+    color: var(--primary);
+  }
+
+  .job-icon-success {
+    color: var(--green);
+  }
+}
+
+.jobs-list {
+  height: calc(100% - #{$component-header});
+  margin-left: -24px;
+  margin-right: -24px;
+  overflow-y: auto;
+  padding: 0;
+
+  ix-job-item {
+    &:not(:last-child) {
+      border-bottom: 1px solid var(--lines);
+    }
+
+    ::ng-deep .job-item {
+      padding: 8px 12px 8px 24px;
+    }
+  }
+}
+
+.no-jobs {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 0 0;
+
+  tn-icon {
+    color: var(--fg2);
+    height: 36px;
+    margin-bottom: 12px;
+    user-select: none;
+    width: 36px;
+  }
+
+  .message {
+    font-size: 1.25rem;
+    font-weight: normal;
+    opacity: 0.65;
+  }
+}
+
+.loading-indicator {
+  margin: 48px 0 24px;
+  padding: 0;
+}
+
+.list-divider {
+  margin: 16px 0;
+}
+
+.recent-header {
+  margin-bottom: 8px;
+}

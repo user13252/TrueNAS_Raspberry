@@ -1,0 +1,61 @@
+:host {
+  background-color: var(--contrast-lighter);
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+  width: 400px;
+}
+
+.calendar {
+  width: 100%;
+
+  // TEMP: tn-calendar bakes popup chrome — a drop shadow and its own padding — into its
+  // :host, which is right for the dropdown in advanced-search and wrong for an inline
+  // panel like this one. Drop this block once the library moves that chrome onto a
+  // wrapper; until then two call sites are working around the same assumption.
+  //
+  // The calendar's own `background` is deliberately left alone: the library colours a
+  // marked day relative to that surface, and against this panel's background instead the
+  // two are within 1.03 contrast, i.e. invisible.
+  tn-calendar {
+    box-shadow: none;
+    padding: 0;
+  }
+}
+
+.preview-header {
+  padding: 8px 12px;
+
+  h4 {
+    margin-bottom: 4px;
+  }
+}
+
+.crontab-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.crontab-explanation {
+  line-height: 18px;
+  margin-top: 6px;
+}
+
+.schedule-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 10px;
+
+  // Matches .preview-header's horizontal padding so this line sits under the crontab text.
+  .timezone-message {
+    margin-left: 12px;
+  }
+
+  .schedule-example-section {
+    flex: 1;
+    flex-basis: 0;
+  }
+}

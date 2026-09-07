@@ -1,0 +1,108 @@
+import { DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCheckboxComponent, TnDialogShellComponent, TnFormFieldComponent, TnFormSectionComponent,
+} from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { helptextSystemBootenv } from 'app/helptext/system/boot-env';
+import { DetailsDisk } from 'app/interfaces/disk.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { UnusedDiskSelectComponent } from 'app/modules/forms/custom-selects/unused-disk-select/unused-disk-select.component';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { FakeProgressBarComponent } from 'app/modules/loader/components/fake-progress-bar/fake-progress-bar.component';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+
+@Component({
+  selector: 'ix-boot-pool-attach-dialog',
+  templateUrl: './boot-pool-attach-dialog.component.html',
+  styleUrls: ['./boot-pool-attach-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    ReactiveFormsModule,
+    TnFormSectionComponent,
+    UnusedDiskSelectComponent,
+    TnCheckboxComponent,
+    TnFormFieldComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    RequiresRolesDirective,
+    FakeProgressBarComponent,
+    TranslateModule,
+  ],
+})
+export class BootPoolAttachDialog implements OnInit {
+  private fb = inject(FormBuilder);
+  private dialogService = inject(DialogService);
+  protected dialogRef = inject<DialogRef<unknown, BootPoolAttachDialog>>(DialogRef);
+  private translate = inject(TranslateService);
+  protected api = inject(ApiService);
+  private snackbar = inject(SnackbarService);
+  private errorHandler = inject(FormErrorHandlerService);
+  private destroyRef = inject(DestroyRef);
+
+  protected isFormLoading = signal(false);
+  protected helptextSystemBootenv = helptextSystemBootenv;
+
+  form = this.fb.nonNullable.group({
+    dev: ['', Validators.required],
+    expand: [false],
+  });
+
+  unusedDisks: DetailsDisk[] = [];
+
+  protected readonly Role = Role;
+
+  ngOnInit(): void {
+    this.setupWarningForExportedPools();
+  }
+
+  setupWarningForExportedPools(): void {
+    this.form.controls.dev.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(
+      this.warnForExportedPools.bind(this),
+    );
+  }
+
+  warnForExportedPools(diskName: string): void {
+    const unusedDisk = this.unusedDisks.find((disk) => disk.name === diskName);
+    if (!unusedDisk?.exported_zpool) {
+      return;
+    }
+    this.dialogService.warn(
+      this.translate.instant('Warning') + ': ' + unusedDisk.name,
+      this.translate.instant(
+        'This disk is part of the exported pool {pool}. Reusing this disk will make {pool} unable to import. You will lose any and all data in {pool}. Please make sure any sensitive data in {pool} is backed up before reusing/repurposing this disk.',
+        { pool: `'${unusedDisk.exported_zpool}'` },
+      ),
+    );
+  }
+
+  onSubmit(): void {
+    this.isFormLoading.set(true);
+
+    const { dev, expand } = this.form.getRawValue();
+    this.dialogService.jobDialog(
+      this.api.job('boot.attach', [dev, { expand }]),
+      { title: this.translate.instant('Attaching Disk to Boot Pool') },
+    )
+      .afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.isFormLoading.set(false);
+          this.snackbar.success(this.translate.instant('Device «{name}» was successfully attached.', { name: dev }));
+          this.dialogRef.close(true);
+        },
+        error: (error: unknown) => {
+          this.isFormLoading.set(false);
+          this.errorHandler.handleValidationErrors(error, this.form);
+        },
+      });
+  }
+}

@@ -1,0 +1,152 @@
+<ix-page-header [loading]="isLoading()"></ix-page-header>
+
+<div class="update-container">
+  <div>
+    <h2>
+      @if (isUpdateAvailable()) {
+        {{ 'Update Available' | translate }}
+      } @else {
+        {{ 'Installed Version' | translate }}
+      }
+    </h2>
+
+    <div class="update-available">
+      <div class="versions">
+        <h4 class="current-version">
+          <div class="label">
+            @if (standbySystemVersion()) {
+              {{ 'Current version (Active)' | translate }}:
+            } @else {
+              {{ 'Current version' | translate }}:
+            }
+          </div>
+          <div class="value">
+            <div class="current-version-number">
+              @if (systemVersion(); as systemVersion) {
+                <span>{{ systemVersion }}</span>
+              } @else {
+                <ngx-skeleton-loader class="inline-loader"></ngx-skeleton-loader>
+              }
+            </div>
+          </div>
+        </h4>
+
+        @if (standbySystemVersion(); as standbySystemVersion) {
+          <h4>
+            {{ 'Current version (Standby)' | translate }}:
+            <span>{{ standbySystemVersion }}</span>
+          </h4>
+        }
+
+        @if (shouldShowError()) {
+          <h4>
+            {{ errorMessage() }}
+          </h4>
+        }
+
+        @if (newVersion()) {
+          <h4>
+            {{ 'Update version' | translate }}:
+            <span>{{ newVersion().version }}</span>
+          </h4>
+        }
+      </div>
+
+      @if (isUpdateAvailable()) {
+        <tn-button
+          *ixRequiresRoles="requiredRoles"
+          color="primary"
+          [testId]="'install-updates'"
+          [label]="isUpdateInProgress() ? ('Installing Update...' | translate) : ('Install Update' | translate)"
+          [disabled]="isUpdateInProgress()"
+          (onClick)="onInstallUpdatePressed()"
+        ></tn-button>
+      }
+
+      @if (isSystemUpToDate()) {
+        <h4>
+          <b>{{ 'System is up to date!' | translate }}</b>
+          <tn-icon name="check-circle" library="mdi" class="up-to-date-icon" customSize="18px"></tn-icon>
+        </h4>
+      }
+    </div>
+
+    @if (isRebootRequired()) {
+      <h4 class="hint">{{ 'An update is already applied. Please restart the system.' | translate }}</h4>
+    }
+
+    @if (isNetworkActivityDisabled()) {
+      <h4 class="hint">{{ 'Network activity has been administratively disabled for update operation. Please use Manual Update.' | translate }}</h4>
+    }
+
+    @if ((changelog() || newVersion()?.release_notes_url) && !newVersion()?.release_notes) {
+      <div class="update-summary">
+        <h3>
+          {{ 'Update Summary for {version}' | translate: { version: newVersion().version } }}
+        </h3>
+
+        @if (changelog()) {
+          <h4>{{ 'Summary' | translate }}:</h4>
+
+          <div class="changelog" [innerHTML]="changelog()"></div>
+        }
+
+        @if (newVersion()?.release_notes_url) {
+          <a
+            class="release-notes-link"
+            target="_blank"
+            tnTestIdType="link" [tnTestId]="'view-release-notes'"
+            [href]="newVersion()?.release_notes_url"
+            [ixUiSearch]="searchableElements.elements.releaseNotes"
+          >
+            {{ 'View Release Notes' | translate }}
+          </a>
+        }
+      </div>
+    }
+
+    @if (newVersion()?.release_notes) {
+      <div class="release-notes-section">
+        <h3>{{ 'Release Notes for {version}' | translate: { version: newVersion().version } }}</h3>
+        <div class="release-notes-content">
+          <ix-dynamic-markdown
+            [content]="newVersion().release_notes"
+            [context]="releaseNotesContext()"
+          ></ix-dynamic-markdown>
+        </div>
+      </div>
+    }
+
+    <div class="other-options">
+      <h3>{{ 'Other Options' | translate }}</h3>
+
+      <div class="manual-update">
+        <div>
+          <h4>{{ 'Manual Update' | translate }}</h4>
+          <a
+            tnTestIdType="link" target="_blank"
+            [tnTestId]="'download-truenas'"
+            [attr.href]="manualUpdateUrl()"
+          >
+            {{ 'See the manual image installation guide' | translate }}
+          </a>
+        </div>
+
+        <tn-button
+          *ixRequiresRoles="requiredRoles"
+          [testId]="'install-manual-update'"
+          [label]="'Install' | translate"
+          (onClick)="manualUpdate()"
+        ></tn-button>
+      </div>
+    </div>
+  </div>
+
+  @if (profileChoices()) {
+    <ix-update-profile-card
+      [currentProfileId]="config().profile"
+      [profileChoices]="profileChoices()"
+      (profileSwitched)="onProfileSwitched()"
+    ></ix-update-profile-card>
+  }
+</div>

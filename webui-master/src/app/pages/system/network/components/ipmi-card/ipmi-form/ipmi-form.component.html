@@ -1,0 +1,78 @@
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  @if (remoteControllerOptions) {
+    <tn-form-section [heading]="helptext.ipmiRemoteController | translate">
+      <tn-form-field [label]="helptext.ipmiRemoteController | translate">
+        @for (option of (remoteControllerOptions | async) ?? []; track option.value) {
+          <tn-radio
+            name="apply_remote"
+            formControlName="apply_remote"
+            [value]="option.value"
+            [label]="option.label"
+          ></tn-radio>
+        }
+      </tn-form-field>
+    </tn-form-section>
+  }
+
+  <tn-form-section [heading]="helptext.ipmiConfiguration | translate">
+    <tn-form-field [tooltip]="helptext.dhcpTooltip | translate">
+      <tn-checkbox
+        formControlName="dhcp"
+        [label]="'DHCP' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'IPv4 Address' | translate"
+      [tooltip]="helptext.ipAddressTooltip | translate"
+    >
+      <tn-input name="ipaddress" formControlName="ipaddress"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'IPv4 Netmask' | translate"
+      [tooltip]="helptext.netmaskTooltip | translate"
+    >
+      <tn-input name="netmask" formControlName="netmask"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [label]="'IPv4 Default Gateway' | translate">
+      <tn-input name="gateway" formControlName="gateway"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="vlan_id_enable"
+        [label]="'Enable VLAN' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+    @if (vlanEnabled()) {
+      <tn-form-field
+        [label]="'VLAN ID' | translate"
+        [tooltip]="helptext.vlanTooltip | translate"
+      >
+        <tn-input
+          name="vlan_id"
+          formControlName="vlan_id"
+          [inputType]="InputType.Number"
+          [allowDecimals]="false"
+          [required]="true"
+        ></tn-input>
+      </tn-form-field>
+    }
+  </tn-form-section>
+
+  <tn-form-section [heading]="helptext.ipmiPasswordReset | translate">
+    <tn-form-field
+      [label]="'Password' | translate"
+      [tooltip]="helptext.passwordTooltip | translate"
+    >
+      <tn-input
+        name="password"
+        formControlName="password"
+        [inputType]="InputType.Password"
+      ></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+</form>

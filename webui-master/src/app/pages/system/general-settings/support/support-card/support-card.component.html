@@ -1,0 +1,152 @@
+<tn-card
+  class="system-card"
+  [ixUiSearch]="searchableElements.elements.support"
+>
+  <h3 tnCardHeader class="tn-card__title">{{ 'Support' | translate }}</h3>
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      [ixUiSearch]="searchableElements.elements.fileTicket"
+      [testId]="'file-ticket'"
+      [label]="ticketText | translate"
+      (onClick)="feedbackDialog()"
+    ></tn-button>
+    <ix-save-debug-button></ix-save-debug-button>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      [ixUiSearch]="searchableElements.elements.updateLicense"
+      [testId]="'set-license'"
+      [label]="licenseButtonText | translate"
+      (onClick)="updateLicense()"
+    ></tn-button>
+  </ng-template>
+
+  @if (systemInfo) {
+    <!-- HARDWARE IMAGE (for licensed systems with known hardware) -->
+    @if (hasLicense && productImageSrc()) {
+      <div class="product-image-wrapper">
+        <div
+          class="product-image"
+          [style.background-image]="'url(' + productImageSrc() + ')'"
+        ></div>
+      </div>
+    }
+
+    <!-- EXPIRATION WARNING BANNER -->
+    @if (hasLicense && isContractExpiringSoon()) {
+      <tn-banner
+        class="support-banner"
+        type="warning"
+        [heading]="'Your support contract expires in {n, plural, one {# day} other {# days}}' | translate: { n: licenseInfo.daysLeftInContract }"
+        [message]="'You will be unable to contact support after {date}. Contact your account team to renew.' | translate: { date: licenseInfo.expirationDateDisplay }"
+      >
+        <a
+          tnBannerAction
+          href="https://www.truenas.com/contact-us/"
+          target="_blank"
+          rel="noopener noreferrer"
+          [attr.aria-label]="'Contact us about renewing your support contract (opens in new window)' | translate"
+        >
+          {{ 'Contact Us' | translate }}
+        </a>
+      </tn-banner>
+    }
+
+    <!-- SUPPORT BANNER (varies by tier and status) -->
+    @if (hasLicense) {
+      @if (isProactiveSupportAvailable() && !isProactiveSupportEnabled()) {
+        <!-- Silver/Gold: Proactive support available but not yet enabled -->
+        <tn-banner
+          class="support-banner"
+          type="info"
+          [heading]="'Set up Proactive Support' | translate"
+          [message]="'Let the TrueNAS team monitor your system and contact you if issues are detected.' | translate"
+        >
+          <tn-button
+            *ixRequiresRoles="[Role.SupportWrite]"
+            tnBannerAction
+            color="primary"
+            variant="outline"
+            [testId]="'proactive-support'"
+            [label]="'Enable' | translate"
+            (onClick)="openProactive()"
+          ></tn-button>
+        </tn-banner>
+      }
+      @if (!isProactiveSupportAvailable()) {
+        <!-- Bronze: Support options -->
+        <tn-banner
+          class="support-banner"
+          type="info"
+          [heading]="'Need help? Looking for support?' | translate"
+        >
+          <a
+            tnBannerAction
+            href="https://www.truenas.com/support/"
+            target="_blank"
+            rel="noopener noreferrer"
+            [attr.aria-label]="'Explore TrueNAS support options (opens in new window)' | translate"
+          >
+            {{ 'Explore your options' | translate }}
+          </a>
+        </tn-banner>
+      }
+    } @else {
+      <!-- Community/Unlicensed: Forums -->
+      <tn-banner
+        class="support-banner"
+        type="info"
+        [heading]="'Need help?' | translate"
+        [message]="'Get support and join discussions on our forums.' | translate"
+      >
+        <a
+          tnBannerAction
+          href="https://forums.truenas.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          [attr.aria-label]="'Join TrueNAS community forums (opens in new window)' | translate"
+        >
+          {{ 'Join our community' | translate }}
+        </a>
+      </tn-banner>
+    }
+
+    <!-- SYSTEM/LICENSE INFO -->
+    <ix-sys-info
+      [hasLicense]="hasLicense"
+      [systemInfo]="systemInfo"
+      [licenseInfo]="licenseInfo"
+      [productionControl]="hasLicense ? isProductionControl : null"
+      [isProactiveSupportAvailable]="isProactiveSupportAvailable()"
+      [isProactiveSupportEnabled]="isProactiveSupportEnabled()"
+      (editContacts)="openProactive()"
+    ></ix-sys-info>
+
+    <!-- LINKS -->
+    <div class="links-row">
+      <a
+        href="https://www.truenas.com/docs/hub/"
+        target="_blank"
+        rel="noopener noreferrer"
+        [tnTooltip]="'Read and contribute to the open-source documentation.' | translate"
+        [attr.aria-label]="'TrueNAS documentation (opens in new window)' | translate"
+      >{{ 'Documentation' | translate }}</a>
+      <span class="link-separator">•</span>
+      <a
+        href="https://forums.truenas.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        [tnTooltip]="'Find answers from other users in the forums.' | translate"
+        [attr.aria-label]="'TrueNAS forums (opens in new window)' | translate"
+      >{{ 'Forums' | translate }}</a>
+      <span class="link-separator">•</span>
+      <a
+        href="https://www.ixsystems.com/support/truenas-arrays/"
+        target="_blank"
+        rel="noopener noreferrer"
+        [tnTooltip]="'Learn more about enterprise-grade support.' | translate"
+        [attr.aria-label]="'TrueNAS licensing information (opens in new window)' | translate"
+      >{{ 'Licensing' | translate }}</a>
+    </div>
+  }
+</tn-card>

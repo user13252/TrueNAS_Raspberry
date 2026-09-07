@@ -1,0 +1,84 @@
+<tn-form-section
+  [heading]="'Name and Options' | translate"
+  [formGroup]="form"
+>
+  @if (parent() && !existing()) {
+    <ix-details-table>
+      <ix-details-item [label]="'Parent Path:' | translate">
+        {{ parent()?.name }}
+      </ix-details-item>
+    </ix-details-table>
+  }
+
+  <tn-form-field
+    [label]="'Name' | translate"
+    [tooltip]="helptext.nameTooltip | translate"
+    [required]="true"
+  >
+    <tn-input formControlName="name"></tn-input>
+  </tn-form-field>
+
+  @if (!existing()) {
+    <tn-form-field
+      [label]="'Dataset Preset' | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="share_type"
+        [options]="(datasetPresetOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+  }
+</tn-form-section>
+
+@if (!existing()) {
+  <tn-form-section [formGroup]="datasetPresetForm">
+    <div class="preset-container">
+      @if (form.value.share_type) {
+        <div class="comments">
+          @if (form.value.share_type === DatasetPreset.Generic) {
+            {{ helptext.preset.generic| translate }}
+          }
+          @if (form.value.share_type === DatasetPreset.Smb) {
+            <div class="smb-comment">
+              <div>{{ helptext.preset.smb | translate }}</div>
+              <div>{{ helptext.preset.smbDescription | translate }}</div>
+            </div>
+          }
+          @if (form.value.share_type === DatasetPreset.Apps) {
+            {{ helptext.preset.apps | translate }}
+          }
+          @if (form.value.share_type === DatasetPreset.Multiprotocol) {
+            {{ helptext.preset.multiprotocol| translate }}
+          }
+        </div>
+      }
+
+      @if (canCreateNfs || canCreateSmb) {
+        <div class="controls">
+          @if (canCreateNfs) {
+            <tn-form-field>
+              <tn-checkbox
+                formControlName="create_nfs"
+                [label]="'Create NFS Share' | translate"
+              ></tn-checkbox>
+            </tn-form-field>
+          }
+          @if (canCreateSmb) {
+            <tn-form-field>
+              <tn-checkbox
+                formControlName="create_smb"
+                [label]="'Create SMB Share' | translate"
+              ></tn-checkbox>
+            </tn-form-field>
+          }
+          @if (canCreateSmb && datasetPresetForm.value.create_smb) {
+            <tn-form-field [label]="'SMB Name' | translate">
+              <tn-input formControlName="smb_name"></tn-input>
+            </tn-form-field>
+          }
+        </div>
+      }
+    </div>
+  </tn-form-section>
+}

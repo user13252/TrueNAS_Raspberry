@@ -1,0 +1,80 @@
+<tn-card
+  class="card"
+  [title]="'Set Up Two-Factor Authentication' | translate"
+  [ixUiSearch]="searchableElements.elements.twoFactor"
+>
+  @if (isFormLoading() || isDataLoading()) {
+    <tn-progress-bar
+      mode="indeterminate"
+    ></tn-progress-bar>
+  }
+
+  <div class="status-content">
+    @if (isDataLoading()) {
+      <ngx-skeleton-loader class="skeleton-loader"></ngx-skeleton-loader>
+    } @else {
+      <tn-banner
+        class="status-banner"
+        [type]="!globalTwoFactorEnabled() || !userTwoFactorAuthConfigured() ? 'warning' : 'success'"
+        [message]="global2FaMsg"
+      ></tn-banner>
+    }
+    @if (globalTwoFactorEnabled() && !userTwoFactorAuthConfigured()) {
+      <p>
+        {{ 'Two-Factor Authentication has been enabled on this system. It is strongly recommended to set up 2FA for your account to enhance security. Make sure to scan the QR code with your authenticator app before logging out or navigating away, otherwise you may have difficulty accessing your account later.' | translate }}
+      </p>
+    }
+    <div class="button-group">
+      <tn-button
+        color="primary"
+        [testId]="'renew-secret'"
+        [label]="userTwoFactorAuthConfigured() ? ('Renew 2FA Secret' | translate) : ('Configure 2FA Secret' | translate)"
+        [disabled]="isFormLoading()"
+        [ixUiSearch]="searchableElements.elements.configure2FaSecret"
+        (onClick)="renewSecretOrEnable2Fa()"
+      ></tn-button>
+      @if (userTwoFactorAuthConfigured()) {
+        <tn-button
+          color="warn"
+          [testId]="'unset-2fa-secret'"
+          [label]="'Unset 2FA Secret' | translate"
+          [disabled]="isFormLoading()"
+          (onClick)="unset2FaSecret()"
+        ></tn-button>
+      }
+      @if (showSkipButton()) {
+        <tn-button
+          [testId]="'skip-2fa-setup'"
+          [label]="'Skip Setup' | translate"
+          [disabled]="isFormLoading()"
+          (onClick)="onSkipSetup()"
+        ></tn-button>
+      }
+    </div>
+  </div>
+
+  @if (userTwoFactorAuthConfigured() && (authService.userTwoFactorConfig$ | async); as qrInfo) {
+    <div class="qr-section">
+      <ix-qr-viewer
+        [qrInfo]="qrInfo?.provisioning_uri"
+        [showWarning]="globalTwoFactorEnabled() && showQrCodeWarning"
+      ></ix-qr-viewer>
+    </div>
+
+    @if (getProvisioningUriSecret(qrInfo?.provisioning_uri); as secret) {
+      <div class="secret-actions">
+        <p>
+          {{ 'If you can\'t use QR code, use this text code instead' | translate }}:
+        </p>
+
+        <div class="secret">
+          <p>
+            {{ secret }}
+          </p>
+
+          <ix-copy-button [text]="secret"></ix-copy-button>
+        </div>
+      </div>
+    }
+  }
+</tn-card>

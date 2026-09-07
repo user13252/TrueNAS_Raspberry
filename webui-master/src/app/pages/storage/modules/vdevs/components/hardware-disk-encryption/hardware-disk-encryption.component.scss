@@ -1,0 +1,45 @@
+@import 'mixins/animations';
+
+.details-item {
+  @include fade-in();
+
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+
+  &:first-child {
+    margin-top: 0;
+  }
+
+  .label {
+    font-weight: bold;
+    margin-right: 5px;
+    white-space: normal;
+  }
+
+  .value {
+    font-weight: normal;
+    margin-right: 5px;
+    white-space: normal;
+  }
+
+  // A real <button> so activation, focus ring and keyboard support come from the
+  // platform; only the link's appearance is borrowed.
+  .link-action {
+    background: none;
+    border: 0;
+    color: var(--primary);
+    cursor: pointer;
+    font: inherit;
+    margin-left: auto;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0;
+    text-align: left;
+    text-decoration: underline;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

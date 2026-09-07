@@ -1,0 +1,18 @@
+<tn-dialog-shell testId="strip-acl" [title]="helptext.stripAclDialog.title | translate">
+<div class="modal-body">
+  <p>{{ helptext.stripAclDialog.message | translate }}</p>
+
+  <tn-form-field>
+    <tn-checkbox
+      class="traverse-checkbox"
+      testId="traverse"
+      [formControl]="traverseCheckbox"
+      [label]="helptext.stripAclDialog.traverseCheckbox | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+</div>
+<ix-form-actions tnDialogAction class="form-actions">
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close()"></tn-button>
+  <tn-button color="warn" testId="strip-acl" [label]="'Strip ACLs' | translate" (onClick)="onStrip()"></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

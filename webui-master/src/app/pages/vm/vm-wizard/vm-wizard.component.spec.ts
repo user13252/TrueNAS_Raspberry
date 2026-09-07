@@ -1,0 +1,390 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import {
+  TnButtonHarness, TnCheckboxHarness, TnInputHarness, TnSelectHarness,
+} from '@truenas/ui-components';
+import { MockComponent } from 'ng-mocks';
+import { NEVER, of } from 'rxjs';
+import { GiB } from 'app/constants/bytes.constant';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import {
+  VmBootloader, VmCpuMode, VmDeviceType, VmDiskMode, VmDisplayType, VmTime,
+} from 'app/enums/vm.enum';
+import { VirtualMachine, VmPortWizardResult } from 'app/interfaces/virtual-machine.interface';
+import { IxFormHarness } from 'app/modules/forms/ix-forms/testing/ix-form.harness';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { SummaryComponent } from 'app/modules/summary/summary.component';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { FreeSpaceValidatorService } from 'app/pages/vm/utils/free-space-validator.service';
+import { VmGpuService } from 'app/pages/vm/utils/vm-gpu.service';
+import { OsStepComponent } from 'app/pages/vm/vm-wizard/steps/1-os-step/os-step.component';
+import {
+  CpuAndMemoryStepComponent,
+} from 'app/pages/vm/vm-wizard/steps/2-cpu-and-memory-step/cpu-and-memory-step.component';
+import { DiskStepComponent } from 'app/pages/vm/vm-wizard/steps/3-disk-step/disk-step.component';
+import {
+  NetworkInterfaceStepComponent,
+} from 'app/pages/vm/vm-wizard/steps/4-network-interface-step/network-interface-step.component';
+import {
+  InstallationMediaStepComponent,
+} from 'app/pages/vm/vm-wizard/steps/5-installation-media-step/installation-media-step.component';
+import { GpuStepComponent } from 'app/pages/vm/vm-wizard/steps/6-gpu-step/gpu-step.component';
+import { VmWizardComponent } from 'app/pages/vm/vm-wizard/vm-wizard.component';
+import { FilesystemService } from 'app/services/filesystem.service';
+import { GpuService } from 'app/services/gpu/gpu.service';
+import { IsolatedGpuValidatorService } from 'app/services/gpu/isolated-gpu-validator.service';
+
+describe('VmWizardComponent', () => {
+  let spectator: Spectator<VmWizardComponent>;
+  let loader: HarnessLoader;
+  let nextButton: TnButtonHarness;
+  let closedSpy: jest.Mock;
+
+  const createComponent = createComponentFactory({
+    component: VmWizardComponent,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    declarations: [
+      OsStepComponent,
+      CpuAndMemoryStepComponent,
+      DiskStepComponent,
+      NetworkInterfaceStepComponent,
+      InstallationMediaStepComponent,
+      GpuStepComponent,
+
+      MockComponent(SummaryComponent),
+    ],
+    providers: [
+      mockProvider(GpuService),
+      mockProvider(VmGpuService),
+      mockAuth(),
+      mockApi([
+        mockCall('vm.create', { id: 4 } as VirtualMachine),
+        mockCall('vm.query', []),
+        mockCall('vm.port_wizard', { port: 13669 } as VmPortWizardResult),
+        mockCall('vm.device.create'),
+
+        mockCall('vm.bootloader_options', {
+          UEFI: 'UEFI',
+        }),
+        mockCall('vm.device.bind_choices', {
+          '0.0.0.0': '0.0.0.0',
+          '10.10.16.82': '10.10.16.82',
+        }),
+        mockCall('vm.cpu_model_choices', {
+          Pentium: 'Pentium',
+        }),
+        mockCall('vm.maximum_supported_vcpus', 27),
+        mockCall('pool.filesystem_choices', [
+          'poolio',
+        ]),
+        mockCall('vm.device.disk_choices', {
+          '/dev/zvol/poolio/test-327brn': 'poolio/test-327brn',
+        }),
+        mockCall('vm.random_mac', '00:00:00:00:00:01'),
+        mockCall('vm.device.nic_attach_choices', {
+          BRIDGE: ['eno2'],
+        }),
+        mockCall('system.advanced.update_gpu_pci_ids'),
+        mockCall('system.advanced.get_gpu_pci_choices', {
+          'GeForce GTX 1080 [0000:03:00.0]': {
+            pci_slot: '0000:03:00.0',
+            uses_system_critical_devices: false,
+            critical_reason: '',
+          },
+          'GeForce GTX 1070 [0000:02:00.0]': {
+            pci_slot: '0000:02:00.0',
+            uses_system_critical_devices: false,
+            critical_reason: '',
+          },
+        }),
+      ]),
+      mockProvider(GpuService, {
+        getRawGpuPciChoices: () => of({
+          'GeForce GTX 1080 [0000:03:00.0]': {
+            pci_slot: '0000:03:00.0',
+            uses_system_critical_devices: false,
+            critical_reason: '',
+          },
+          'GeForce GTX 1070 [0000:02:00.0]': {
+            pci_slot: '0000:02:00.0',
+            uses_system_critical_devices: false,
+            critical_reason: '',
+          },
+        }),
+        transformGpuChoicesToOptions: (choices: Record<string, { pci_slot: string }>) => Object.entries(choices).map(
+          ([label, choice]) => ({ label, value: choice.pci_slot }),
+        ),
+        addIsolatedGpuPciIds: jest.fn(() => of({})),
+        getIsolatedGpuPciIds: jest.fn(() => of([
+          '0000:02:00.0',
+        ])),
+      }),
+      mockProvider(FilesystemService, {
+        getFilesystemNodeProvider: jest.fn(),
+      }),
+      mockProvider(IsolatedGpuValidatorService, {
+        validateGpu: () => of(null),
+      }),
+      mockProvider(SnackbarService),
+      mockProvider(FreeSpaceValidatorService, {
+        validate: () => of(null),
+      }),
+      mockProvider(VmGpuService, {
+        updateVmGpus: jest.fn(() => of(undefined)),
+      }),
+    ],
+  });
+
+  beforeEach(async () => {
+    spectator = createComponent();
+    closedSpy = jest.fn();
+    spectator.component.closed.subscribe(closedSpy);
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    await updateStepHarnesses();
+  });
+
+  async function updateStepHarnesses(): Promise<void> {
+    // tn-stepper renders only the active step's content, so the single visible
+    // Next button and form controls resolve straight from the document-root loader.
+    nextButton = await loader.getHarness(TnButtonHarness.with({ label: 'Next' }));
+  }
+
+  async function setInput(controlName: string, value: string): Promise<void> {
+    const input = await loader.getHarness(TnInputHarness.with({ selector: `[formControlName="${controlName}"]` }));
+    await input.setValue(value);
+  }
+
+  async function setSelect(controlName: string, optionLabel: string): Promise<void> {
+    const select = await loader.getHarness(TnSelectHarness.with({ selector: `[formControlName="${controlName}"]` }));
+    await select.selectOption(optionLabel);
+  }
+
+  async function setCheckbox(controlName: string, checked: boolean): Promise<void> {
+    const checkbox = await loader.getHarness(
+      TnCheckboxHarness.with({ selector: `[formControlName="${controlName}"]` }),
+    );
+    if (checked) {
+      await checkbox.check();
+    } else {
+      await checkbox.uncheck();
+    }
+  }
+
+  async function fillWizard(): Promise<void> {
+    await setSelect('os', 'Windows');
+    await setInput('name', 'test');
+    await setCheckbox('enable_vnc', true);
+    await setInput('vnc_password', '12345678');
+    await nextButton.click();
+    await updateStepHarnesses();
+
+    await nextButton.click();
+    await updateStepHarnesses();
+
+    await setSelect('datastore', 'poolio');
+    await nextButton.click();
+    await updateStepHarnesses();
+
+    await setSelect('nic_type', 'Intel e82585 (e1000)');
+    await setSelect('nic_attach', 'eno2');
+    await nextButton.click();
+    await updateStepHarnesses();
+
+    // Installation media step still uses ix-explorer.
+    const mediaForm = await loader.getHarness(IxFormHarness);
+    await mediaForm.fillForm({
+      'Optional: Choose installation media image': '/mnt/iso/FreeNAS-11.3-U3.iso',
+    });
+    await nextButton.click();
+    await updateStepHarnesses();
+
+    await setSelect('gpus', 'GeForce GTX 1080 [0000:03:00.0]');
+    await nextButton.click();
+  }
+
+  it('sets some form fields when OS is selected', async () => {
+    jest.spyOn(spectator.component.cpuAndMemoryStep().form, 'patchValue');
+    jest.spyOn(spectator.component.diskStep().form, 'patchValue');
+
+    await setSelect('os', 'Windows');
+    await setInput('name', 'test');
+
+    expect(spectator.component.cpuAndMemoryStep().form.patchValue).toHaveBeenCalledWith({
+      cores: 1,
+      memory: 4 * GiB,
+      threads: 1,
+      vcpus: 2,
+    });
+    expect(spectator.component.diskStep().form.patchValue).toHaveBeenCalledWith({
+      volsize: 40 * GiB,
+    });
+  });
+
+  it('shows summary on the last step of the wizard', async () => {
+    await fillWizard();
+
+    const summary = spectator.query(SummaryComponent)!;
+    expect(summary.summary).toEqual([
+      [
+        { label: 'Name', value: 'test' },
+        {
+          label: 'Guest Operating System',
+          value: 'Windows',
+        },
+      ],
+      [
+        {
+          label: 'CPU Configuration',
+          value: '2 CPUs, 1 core, 1 thread',
+        },
+        {
+          label: 'CPU Mode',
+          value: 'Custom',
+        },
+        {
+          label: 'CPU Model',
+          value: '',
+        },
+        {
+          label: 'Memory',
+          value: '4 GiB',
+        },
+      ],
+      [
+        {
+          label: 'Disk',
+          value: 'Create new disk image',
+        },
+        {
+          label: 'Disk Description',
+          value: '40 GiB AHCI at poolio',
+        },
+      ],
+      [
+        {
+          label: 'NIC',
+          value: 'Intel e82585 (e1000) (eno2)',
+        },
+      ],
+      [
+        {
+          label: 'Installation Media',
+          value: '/mnt/iso/FreeNAS-11.3-U3.iso',
+        },
+      ],
+      [
+        {
+          label: 'GPU',
+          value: '1 GPU isolated',
+        },
+      ],
+    ]);
+  });
+
+  it('creates a VM an VM devices when wizard is submitted', async () => {
+    await fillWizard();
+
+    jest.clearAllMocks();
+    const submit = await loader.getHarness(TnButtonHarness.with({ label: 'Save' }));
+    await submit.click();
+
+    const api = spectator.inject(ApiService);
+    expect(api.call).toHaveBeenCalledWith('vm.create', [{
+      autostart: true,
+      bootloader: VmBootloader.Uefi,
+      cores: 1,
+      cpu_mode: VmCpuMode.Custom,
+      cpu_model: null,
+      cpuset: '',
+      description: '',
+      ensure_display_device: true,
+      enable_secure_boot: false,
+      hide_from_msr: false,
+      hyperv_enlightenments: false,
+      memory: 4096,
+      min_memory: null,
+      name: 'test',
+      nodeset: '',
+      pin_vcpus: false,
+      shutdown_timeout: 90,
+      threads: 1,
+      time: VmTime.Local,
+      trusted_platform_module: false,
+      vcpus: 2,
+    }]);
+    expect(api.call).toHaveBeenCalledWith('vm.device.create', [{
+      vm: 4,
+      attributes: {
+        dtype: VmDeviceType.Nic,
+        mac: '00:00:00:00:00:01',
+        nic_attach: 'eno2',
+        trust_guest_rx_filters: false,
+        type: 'E1000',
+      },
+    }]);
+    expect(api.call).toHaveBeenCalledWith('vm.device.create', [{
+      vm: 4,
+      attributes: {
+        dtype: VmDeviceType.Disk,
+        create_zvol: true,
+        logical_sectorsize: null,
+        physical_sectorsize: null,
+        type: VmDiskMode.Ahci,
+        zvol_name: expect.stringContaining('poolio/test-'),
+        zvol_volsize: 40 * GiB,
+      },
+    }]);
+    expect(api.call).toHaveBeenCalledWith('vm.device.create', [{
+      vm: 4,
+      attributes: {
+        dtype: VmDeviceType.Cdrom,
+        path: '/mnt/iso/FreeNAS-11.3-U3.iso',
+      },
+    }]);
+    expect(api.call).toHaveBeenCalledWith('vm.port_wizard');
+    expect(api.call).toHaveBeenCalledWith('vm.device.create', [{
+      vm: 4,
+      attributes: {
+        dtype: VmDeviceType.Display,
+        bind: '0.0.0.0',
+        password: '12345678',
+        port: 13669,
+        resolution: '1920x1080',
+        type: VmDisplayType.Vnc,
+        web: false,
+      },
+    }]);
+    expect(spectator.inject(GpuService).addIsolatedGpuPciIds).toHaveBeenCalledWith(
+      ['0000:03:00.0'],
+    );
+    expect(spectator.inject(VmGpuService).updateVmGpus).toHaveBeenCalledWith({ id: 4 }, ['0000:03:00.0']);
+    expect(closedSpy).toHaveBeenCalledWith(true);
+  });
+
+  // The footerless panel host renders its progress bar from `form()?.isBusy?.()`, an OPTIONAL
+  // member — dropping it compiles and passes every other test while silently shipping a wizard
+  // whose save gives no feedback.
+  it('reports busy to the side panel host while the save is in flight', async () => {
+    await fillWizard();
+    expect(spectator.component.isBusy()).toBe(false);
+
+    jest.spyOn(spectator.inject(ApiService), 'call').mockReturnValue(NEVER);
+    const submit = await loader.getHarness(TnButtonHarness.with({ label: 'Save' }));
+    await submit.click();
+
+    expect(spectator.component.isBusy()).toBe(true);
+  });
+
+  it('reports unsaved changes to the side panel host once a step is edited', async () => {
+    expect(spectator.component.hasUnsavedChanges()).toBe(false);
+
+    await setInput('name', 'test');
+
+    expect(spectator.component.hasUnsavedChanges()).toBe(true);
+  });
+});

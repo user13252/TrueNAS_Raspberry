@@ -1,0 +1,8 @@
+@import 'scss-imports/status-pill';
+
+.state-button {
+  @include status-pill;
+
+  cursor: pointer;
+  gap: 4px;
+}

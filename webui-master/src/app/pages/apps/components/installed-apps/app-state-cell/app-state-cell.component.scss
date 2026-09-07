@@ -1,0 +1,53 @@
+:host {
+  box-sizing: border-box;
+  display: flex;
+
+  &.has-icon {
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-start;
+
+    tn-icon {
+      display: inline-flex;
+      line-height: 24px;
+    }
+
+    span {
+      color: var(--fg2);
+    }
+  }
+
+  // Sized to its label, not to the table cell, and never wrapped: a stretched, two-line
+  // chip was the result inside the narrow Status column.
+  &.has-cell {
+    border: 1px solid transparent;
+    border-radius: 20px;
+    display: inline-flex;
+    font-weight: bold;
+    gap: 6px;
+    padding: 3px 6px;
+    white-space: nowrap;
+  }
+
+  &.running {
+    border-color: var(--status-active);
+    color: var(--status-active);
+  }
+
+  &.starting,
+  &.deploying,
+  &.stopping {
+    border-color: var(--status-in-progress);
+    color: var(--status-in-progress);
+  }
+
+  &.crashed {
+    border-color: var(--status-error);
+    color: var(--status-error);
+  }
+
+  &.stopped {
+    border-color: var(--status-inactive);
+    color: var(--status-inactive);
+  }
+}

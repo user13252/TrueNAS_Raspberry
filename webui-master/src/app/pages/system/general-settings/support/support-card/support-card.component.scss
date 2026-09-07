@@ -1,0 +1,70 @@
+@import 'scss-imports/variables';
+
+@media (max-width: $breakpoint-sm) {
+  :host {
+    &::ng-deep {
+      div {
+        word-break: break-word;
+      }
+    }
+  }
+}
+
+:host {
+  color: var(--fg2);
+}
+
+.support-banner {
+  display: block;
+  margin: 0 1rem 0.5rem;
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.product-image-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0 !important;
+  padding: 0 !important;
+}
+
+.product-image {
+  background-origin: content-box;
+  background-position: 50%;
+  background-repeat: no-repeat;
+  background-size: contain;
+  height: 160px;
+  max-width: 350px;
+  width: 100%;
+}
+
+.links-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 0 !important;
+  margin: 0.5rem 0 1rem !important;
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .link-separator {
+    color: var(--fg2);
+    opacity: 0.5;
+  }
+}

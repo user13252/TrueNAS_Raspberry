@@ -1,0 +1,246 @@
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, OnInit, signal, inject, input,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  UntypedFormGroup, Validators, ReactiveFormsModule,
+} from '@angular/forms';
+import { FormControl, FormGroup } from '@ngneat/reactive-forms';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnCheckboxComponent,
+  TnFormFieldComponent,
+  TnFormSectionComponent,
+  TnInputComponent,
+  TnSelectComponent,
+} from '@truenas/ui-components';
+import { BehaviorSubject, Observable } from 'rxjs';
+import { Role } from 'app/enums/role.enum';
+import { getDynamicFormSchemaNode } from 'app/helpers/get-dynamic-form-schema-node';
+import {
+  DynamicFormSchema, DynamicFormSchemaNode,
+} from 'app/interfaces/dynamic-form-schema.interface';
+import { Option } from 'app/interfaces/option.interface';
+import {
+  ReportingExporterList,
+  ReportingExporterKey as ReportingExporterType,
+  ReportingExporterSchema,
+  ReportingExporter,
+} from 'app/interfaces/reporting-exporters.interface';
+import { CustomUntypedFormField } from 'app/modules/forms/ix-dynamic-form/components/ix-dynamic-form/classes/custom-untyped-form-field';
+import {
+  IxDynamicFormComponent,
+} from 'app/modules/forms/ix-dynamic-form/components/ix-dynamic-form/ix-dynamic-form.component';
+import {
+  IxFormHostForm,
+} from 'app/modules/forms/ix-forms/components/ix-form/ix-form-host-form.directive';
+import {
+  IxFormComponent,
+  FormSubmitEvent,
+  SubmitResult,
+} from 'app/modules/forms/ix-forms/components/ix-form/ix-form.component';
+import { ignoreTranslation } from 'app/modules/translate/translate.helper';
+import { ApiService } from 'app/modules/websocket/api.service';
+
+@Component({
+  selector: 'ix-reporting-exporters-form',
+  templateUrl: './reporting-exporters-form.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    IxFormComponent,
+    ReactiveFormsModule,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TnSelectComponent,
+    TnCheckboxComponent,
+    TranslateModule,
+    IxDynamicFormComponent,
+    TnFormSectionComponent,
+  ],
+})
+export class ReportingExportersFormComponent extends IxFormHostForm implements OnInit {
+  private translate = inject(TranslateService);
+  private api = inject(ApiService);
+  private destroyRef = inject(DestroyRef);
+
+  /**
+   * the record being edited.
+   * supplied by the `<tn-side-panel>` host (null = create).
+   **/
+  readonly exporter = input<ReportingExporter | undefined>(undefined);
+
+  get isNew(): boolean {
+    return !this.editingExporter;
+  }
+
+  protected readonly form = new FormGroup({
+    name: new FormControl(null as string | null, Validators.required),
+    enabled: new FormControl(true),
+    type: new FormControl(null as string | null, Validators.required),
+    attributes: new FormGroup<Record<string, unknown>>({}),
+  });
+
+  get formGroup(): UntypedFormGroup {
+    return this.form.controls.attributes as UntypedFormGroup;
+  }
+
+  /**
+   * Whether the exporter schemas have been loaded and the attribute controls built. Gates the
+   * dynamic section: while it is false there are no `attributes` controls for `ix-dynamic-form`
+   * to bind to, and it stays false when the load fails so the section is never rendered empty.
+   */
+  protected readonly schemasLoaded = signal(false);
+  protected dynamicSection: DynamicFormSchema[] = [];
+  protected editingExporter: ReportingExporter | undefined;
+
+  protected readonly exporterTypeOptions = signal<Option[]>([]);
+  protected reportingExporterList: ReportingExporterList[] = [];
+  readonly requiredRoles = [Role.ReportingWrite];
+
+  ngOnInit(): void {
+    this.editingExporter = this.exporter();
+    // Subscribed before the load, for two reasons: `loadFormConfig`'s patch callback is replayed by
+    // `retryLoad`, so wiring it in there would register a second subscription; and when the schemas
+    // arrive synchronously, the edit-mode `patchValue({ type })` below has to reach
+    // `onExporterTypeChanged` — otherwise the chosen exporter's attribute controls stay disabled.
+    this.handleTypeChange();
+    this.loadSchemas();
+  }
+
+  protected handleSubmit = (event: FormSubmitEvent): SubmitResult => {
+    const submitted = event.allValues as {
+      name: string;
+      enabled: boolean;
+      type: string;
+      attributes: Record<string, unknown>;
+    };
+    // `attributes` is copied too, not just the outer object: the lines below write and delete keys
+    // in it, and a shallow spread would mutate whatever object `allValues` handed over.
+    const values = { ...submitted, attributes: { ...submitted.attributes } };
+
+    values.attributes['exporter_type'] = values.type;
+    delete (values as Record<string, unknown>)['type'];
+
+    for (const [key, value] of Object.entries(values.attributes)) {
+      if (value == null || value === '') {
+        delete values.attributes[key];
+      }
+    }
+
+    const request$ = this.editingExporter
+      ? this.api.call('reporting.exporters.update', [this.editingExporter.id, values])
+      : this.api.call('reporting.exporters.create', [values]);
+
+    return {
+      request$,
+      successMessage: this.isNew
+        ? this.translate.instant('Exporter created')
+        : this.translate.instant('Exporter updated'),
+    };
+  };
+
+  private handleTypeChange(): void {
+    this.form.controls.type.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (value) => {
+        this.onExporterTypeChanged(value as ReportingExporterType);
+      },
+    });
+  }
+
+  /**
+   * Loads the exporter schemas through {@link IxFormHostForm.loadFormConfig}, so the panel shows its
+   * progress bar while they arrive and — on failure — keeps Save disabled behind a retry banner
+   * rather than letting the user submit a form whose attribute controls were never built.
+   */
+  private loadSchemas(): void {
+    this.loadFormConfig(this.getExportersSchemas(), (schemas: ReportingExporterSchema[]) => {
+      // Idempotent, as `loadFormConfig` requires: `addControl` keeps an already-registered control,
+      // and the schema-derived collections below are rebuilt by assignment rather than appended to.
+      this.setExporterTypeOptions(schemas);
+      this.createExporterControls(schemas);
+
+      if (this.editingExporter) {
+        this.form.patchValue({
+          ...this.editingExporter,
+          type: this.editingExporter.attributes['exporter_type'] as string,
+        });
+      }
+
+      this.schemasLoaded.set(true);
+    });
+  }
+
+  /**
+   * Uses reporting.exporters.exporter_schemas API which returns the legacy schema format.
+   * Can be refactored when the API is updated to use the new schema format.
+   */
+  private getExportersSchemas(): Observable<ReportingExporterSchema[]> {
+    return this.api.call('reporting.exporters.exporter_schemas');
+  }
+
+  private setExporterTypeOptions(schemas: ReportingExporterSchema[]): void {
+    this.exporterTypeOptions.set(
+      schemas.map((schema) => ({
+        label: ignoreTranslation(schema.key),
+        value: schema.key,
+      })),
+    );
+  }
+
+  private createExporterControls(schemas: ReportingExporterSchema[]): void {
+    for (const schema of schemas) {
+      for (const field of schema.schema) {
+        this.form.controls.attributes.addControl(
+          field._name_,
+          new FormControl(field.const || '', field._required_ ? [Validators.required] : []),
+        );
+      }
+    }
+
+    this.dynamicSection = [{
+      name: '',
+      description: '',
+      schema: schemas
+        .map((schema) => this.parseSchemaForDynamicSchema(schema))
+        .reduce((all, val) => all.concat(val), []),
+    }];
+
+    this.reportingExporterList = schemas.map((schema) => this.parseSchemaForExporterList(schema));
+    this.onExporterTypeChanged(null);
+  }
+
+  private parseSchemaForDynamicSchema(schema: ReportingExporterSchema): DynamicFormSchemaNode[] {
+    return schema.schema
+      .filter((field) => !field.const)
+      .map((field) => getDynamicFormSchemaNode(field));
+  }
+
+  private parseSchemaForExporterList(schema: ReportingExporterSchema): ReportingExporterList {
+    const variables = schema.schema.map((field) => field._name_);
+    return { key: schema.key, variables };
+  }
+
+  private onExporterTypeChanged(type: ReportingExporterType | null): void {
+    for (const list of this.reportingExporterList) {
+      if (list.key === type) {
+        for (const variable of list.variables) {
+          const formField = this.form.controls.attributes.controls[variable] as unknown as CustomUntypedFormField;
+          formField.enable();
+          if (!formField.hidden$) {
+            formField.hidden$ = new BehaviorSubject(false);
+          }
+          formField.hidden$.next(false);
+        }
+      } else {
+        list.variables.forEach((variable) => {
+          const formField = this.form.controls.attributes.controls[variable] as unknown as CustomUntypedFormField;
+          formField.disable();
+          if (!formField.hidden$) {
+            formField.hidden$ = new BehaviorSubject(false);
+          }
+          formField.hidden$.next(true);
+        });
+      }
+    }
+  }
+}

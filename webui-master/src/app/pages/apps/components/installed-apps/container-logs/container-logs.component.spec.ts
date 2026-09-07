@@ -1,0 +1,214 @@
+import { DialogRef } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { fakeAsync } from '@angular/core/testing';
+import { ActivatedRoute, Router } from '@angular/router';
+import {
+  Spectator, SpectatorFactory, createComponentFactory, mockProvider,
+} from '@ngneat/spectator/jest';
+import { TnDialog, TnCheckboxHarness } from '@truenas/ui-components';
+import { MockComponent } from 'ng-mocks';
+import { of, Subject } from 'rxjs';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { PageHeaderComponent } from 'app/modules/page-header/page-title-header/page-header.component';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ContainerLogsComponent } from 'app/pages/apps/components/installed-apps/container-logs/container-logs.component';
+import { LogsDetailsDialog } from 'app/pages/apps/components/logs-details-dialog/logs-details-dialog.component';
+
+describe('ContainerLogsComponent', () => {
+  let spectator: Spectator<ContainerLogsComponent>;
+  let loader: HarnessLoader;
+
+  describe('When dialog is set a value', () => {
+    const createComponent = createComponentFactoryWithDialogResponse(false);
+
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('subscribes to logs updates', () => {
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(LogsDetailsDialog, { width: '400px' });
+
+      expect(spectator.inject(ApiService).subscribe).toHaveBeenCalledWith(
+        'app.container_log_follow: {"app_name":"ix-test-app","container_id":"ix-test-container","tail_lines":650}',
+      );
+    });
+
+    it('shows meta data', () => {
+      expect(spectator.queryAll('.meta-data .name').map((name) => name.textContent!.trim())).toEqual([
+        'ix-test-app',
+        'ix-test-container',
+      ]);
+    });
+
+    it('shows logs', () => {
+      expect(spectator.queryAll('.log-row').map((name) => name.textContent!.trim())).toEqual([
+        '[12:34]Some logs.',
+      ]);
+    });
+
+    it('has auto-scroll checkbox enabled by default', async () => {
+      const checkbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Auto Scroll' }));
+      expect(await checkbox.isChecked()).toBe(true);
+    });
+
+    it('applies the default font size to the logs container', () => {
+      const logs = spectator.query('.logs') as HTMLElement;
+      expect(logs.style.fontSize).toBe('14px');
+    });
+
+    it('updates the logs font size when the slider changes', () => {
+      const thumb = spectator.query('input[tnSliderThumb]') as HTMLInputElement;
+      thumb.value = '18';
+      spectator.dispatchFakeEvent(thumb, 'input');
+      spectator.detectChanges();
+
+      const logs = spectator.query('.logs') as HTMLElement;
+      expect(logs.style.fontSize).toBe('18px');
+    });
+  });
+
+  describe('auto-scroll behavior', () => {
+    let logSubject$: Subject<{ fields: { timestamp: string; data: string } }>;
+
+    const createComponent = createComponentFactory({
+      component: ContainerLogsComponent,
+      imports: [
+        MockComponent(PageHeaderComponent),
+      ],
+      providers: [
+        mockProvider(Router),
+        mockProvider(TnDialog, {
+          open: jest.fn(() => ({
+            closed: of({ tail_lines: 500 } as LogsDetailsDialog['form']['value']),
+          }) as unknown as DialogRef<unknown, LogsDetailsDialog>),
+        }),
+        mockProvider(ApiService, {
+          subscribe: jest.fn(() => {
+            logSubject$ = new Subject();
+            return logSubject$.asObservable();
+          }),
+        }),
+        mockAuth(),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            parent: { params: of({ appId: 'ix-test-app' }) },
+            params: of({ containerId: 'ix-test-container' }),
+          },
+        },
+      ],
+    });
+
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('scrolls to bottom when auto-scroll is enabled and new logs arrive', async () => {
+      const checkbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Auto Scroll' }));
+      expect(await checkbox.isChecked()).toBe(true);
+
+      const logContainer = spectator.query('.logs') as HTMLElement;
+      jest.spyOn(logContainer, 'scrollHeight', 'get').mockReturnValue(1000);
+      logContainer.scrollTop = 0;
+
+      logSubject$.next({ fields: { timestamp: '[12:35]', data: 'New log entry' } });
+      spectator.detectChanges();
+
+      expect(logContainer.scrollTop).toBe(1000);
+    });
+
+    it('does not scroll when auto-scroll is disabled and new logs arrive', async () => {
+      const checkbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Auto Scroll' }));
+      await checkbox.uncheck();
+
+      const logContainer = spectator.query('.logs') as HTMLElement;
+      jest.spyOn(logContainer, 'scrollHeight', 'get').mockReturnValue(1000);
+      logContainer.scrollTop = 0;
+
+      logSubject$.next({ fields: { timestamp: '[12:35]', data: 'New log entry' } });
+      spectator.detectChanges();
+
+      expect(logContainer.scrollTop).toBe(0);
+    });
+
+    it('responds to toggling auto-scroll checkbox', async () => {
+      const checkbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Auto Scroll' }));
+      const logContainer = spectator.query('.logs') as HTMLElement;
+      jest.spyOn(logContainer, 'scrollHeight', 'get').mockReturnValue(1000);
+
+      // Initially enabled - should scroll
+      logContainer.scrollTop = 0;
+      logSubject$.next({ fields: { timestamp: '[12:35]', data: 'Log 1' } });
+      spectator.detectChanges();
+      expect(logContainer.scrollTop).toBe(1000);
+
+      // Disable auto-scroll
+      await checkbox.uncheck();
+      logContainer.scrollTop = 0;
+      logSubject$.next({ fields: { timestamp: '[12:36]', data: 'Log 2' } });
+      spectator.detectChanges();
+      expect(logContainer.scrollTop).toBe(0);
+
+      // Re-enable auto-scroll
+      await checkbox.check();
+      logContainer.scrollTop = 0;
+      logSubject$.next({ fields: { timestamp: '[12:37]', data: 'Log 3' } });
+      spectator.detectChanges();
+      expect(logContainer.scrollTop).toBe(1000);
+    });
+  });
+
+  describe('When cancel is clicked', () => {
+    const createComponent = createComponentFactoryWithDialogResponse(true);
+
+    beforeEach(() => {
+      spectator = createComponent();
+    });
+
+    it('cancelling the dialog returns user to installed apps with app selected', fakeAsync(() => {
+      expect(spectator.inject(Router).navigate).toHaveBeenCalled();
+    }));
+  });
+
+  function createComponentFactoryWithDialogResponse(cancel = false): SpectatorFactory<ContainerLogsComponent> {
+    return createComponentFactory({
+      component: ContainerLogsComponent,
+      imports: [
+        MockComponent(PageHeaderComponent),
+      ],
+      providers: [
+        mockProvider(Router),
+        mockProvider(TnDialog, {
+          open: jest.fn(() => ({
+            closed: cancel
+              ? of(false)
+              : of({
+                  tail_lines: 650,
+                } as LogsDetailsDialog['form']['value']),
+          }) as unknown as DialogRef<unknown, LogsDetailsDialog>),
+        }),
+        mockProvider(ApiService, {
+          subscribe: jest.fn(() => of({
+            fields: {
+              timestamp: '[12:34]',
+              data: 'Some logs.',
+            },
+          })),
+        }),
+        mockAuth(),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            parent: {
+              params: of({ appId: 'ix-test-app' }),
+            },
+            params: of({ containerId: 'ix-test-container' }),
+          },
+        },
+      ],
+    });
+  }
+});

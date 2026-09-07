@@ -1,0 +1,76 @@
+import { Injectable, inject } from '@angular/core';
+import { Store } from '@ngrx/store';
+import {
+  BehaviorSubject, distinctUntilChanged, filter, Observable,
+} from 'rxjs';
+import { Choices } from 'app/interfaces/choices.interface';
+import { IscsiGlobalSession } from 'app/interfaces/iscsi-global-config.interface';
+import {
+  IscsiAuthAccess, IscsiExtent,
+  IscsiInitiatorGroup,
+  IscsiPortal,
+  IscsiTarget,
+  IscsiTargetExtent,
+} from 'app/interfaces/iscsi.interface';
+import { AuthService } from 'app/modules/auth/auth.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { AppState } from 'app/store';
+
+@Injectable({
+  providedIn: 'root',
+})
+export class IscsiService {
+  protected api = inject(ApiService);
+  protected auth = inject(AuthService);
+  private store$ = inject<Store<AppState>>(Store);
+
+  private refreshData$ = new BehaviorSubject<IscsiTarget | null>(null);
+
+  listenForDataRefresh(): Observable<IscsiTarget | null> {
+    return this.refreshData$.pipe(distinctUntilChanged(), filter(Boolean));
+  }
+
+  refreshData(target?: IscsiTarget): void {
+    this.refreshData$.next(target || null);
+  }
+
+  getIpChoices(): Observable<Choices> {
+    return this.api.call('iscsi.portal.listen_ip_choices');
+  }
+
+  listPortals(): Observable<IscsiPortal[]> {
+    return this.api.call('iscsi.portal.query', []);
+  }
+
+  getInitiators(): Observable<IscsiInitiatorGroup[]> {
+    return this.api.call('iscsi.initiator.query', []);
+  }
+
+  getExtentDevices(): Observable<Choices> {
+    return this.api.call('iscsi.extent.disk_choices');
+  }
+
+  getExtents(): Observable<IscsiExtent[]> {
+    return this.api.call('iscsi.extent.query', []);
+  }
+
+  getTargets(): Observable<IscsiTarget[]> {
+    return this.api.call('iscsi.target.query', []);
+  }
+
+  getTargetExtents(): Observable<IscsiTargetExtent[]> {
+    return this.api.call('iscsi.targetextent.query', []);
+  }
+
+  deleteTargetExtent(id: number): Observable<boolean> {
+    return this.api.call('iscsi.targetextent.delete', [id]);
+  }
+
+  getAuth(): Observable<IscsiAuthAccess[]> {
+    return this.api.call('iscsi.auth.query', []);
+  }
+
+  getGlobalSessions(): Observable<IscsiGlobalSession[]> {
+    return this.api.call('iscsi.global.sessions');
+  }
+}

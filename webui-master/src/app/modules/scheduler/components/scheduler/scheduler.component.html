@@ -1,0 +1,12 @@
+<tn-form-field
+  [label]="label() || ''"
+  [tooltip]="tooltip() || ''"
+  [required]="required()"
+>
+  <tn-select
+    [formControl]="selectControl"
+    [options]="options()"
+    [testId]="[controlDirective.name, 'presets']"
+    [ariaLabel]="label() || ''"
+  ></tn-select>
+</tn-form-field>

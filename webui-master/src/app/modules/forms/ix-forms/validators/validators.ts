@@ -1,0 +1,133 @@
+import {
+  AbstractControl, FormGroup, UntypedFormControl, ValidationErrors, ValidatorFn,
+} from '@angular/forms';
+import { isEmpty, isNumber, toNumber } from 'lodash-es';
+
+export function greaterThanFg(
+  controlName: string,
+  comparateControlNames: string[],
+  errMsg?: string,
+): ValidatorFn {
+  return (fg: FormGroup) => {
+    if (!fg?.get(controlName)) {
+      return null;
+    }
+
+    const errFields: string[] = [];
+    const subjectControl = fg.get(controlName) as UntypedFormControl;
+    for (const name of comparateControlNames) {
+      const otherControl = fg.get(name) as UntypedFormControl;
+      if (!otherControl) {
+        throw new Error(
+          'greaterThanValidator(): other control is not found in the group',
+        );
+      }
+      const otherValueExists = otherControl.value !== null && otherControl.value !== undefined && otherControl.value !== '';
+      const subjectValueExists = subjectControl.value !== null && subjectControl.value !== undefined && subjectControl.value !== '';
+      if (otherValueExists && subjectValueExists) {
+        if (!isNumber(otherControl.value) || !isNumber(subjectControl.value)) {
+          throw new Error('greaterThanValidator(): Comparates are not all numeric');
+        }
+        if (toNumber(otherControl.value) >= toNumber(subjectControl.value)) {
+          errFields.push(name);
+        }
+      }
+    }
+    if (errFields.length) {
+      fg.get(controlName)?.setErrors({
+        greaterThan: errMsg ? { message: errMsg } : true,
+      });
+      return {
+        [controlName]: { greaterThan: errMsg ? { message: errMsg } : true },
+      };
+    }
+    let prevErrors: ValidationErrors | null = { ...fg.get(controlName)?.errors };
+    delete prevErrors.greaterThan;
+    if (isEmpty(prevErrors)) {
+      prevErrors = null;
+    }
+    fg.get(controlName)?.setErrors(prevErrors);
+    return null;
+  };
+}
+
+/**
+ * Validates that the selected path is not /mnt itself or a pool root.
+ * Pool roots are paths like /mnt/poolname with no subdirectories.
+ *
+ * The backend requires a child dataset to be selected for operations like
+ * ISO uploads and disk exports because writing directly to pool roots can
+ * cause filesystem issues and is considered a security risk. Operations
+ * should target specific datasets (e.g., /mnt/pool/dataset) rather than
+ * the pool root itself.
+ *
+ * @param errorMessage Translated error message to show when validation fails.
+ *                     Must be translated before passing to this validator for proper i18n support.
+ * @returns ValidatorFn that returns null if valid, or ValidationErrors if invalid
+ *
+ * @example
+ * // Usage in a form control with translated message
+ * this.form = this.fb.group({
+ *   path: ['', [validateNotPoolRoot(
+ *     this.translate.instant('Cannot select pool root. Please select a dataset.')
+ *   )]],
+ * });
+ */
+export function validateNotPoolRoot(errorMessage: string): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const path = control.value?.trim() as string;
+    if (!path) {
+      return null; // Let required validator handle empty values
+    }
+
+    // Normalize path by removing trailing slashes for consistent validation
+    const normalizedPath = path.replace(/\/+$/, '');
+
+    // Reject /mnt itself or pool root pattern: /mnt/poolname (no subdirectories)
+    const poolRootPattern = /^\/mnt\/[^/]+$/;
+    if (normalizedPath === '/mnt' || poolRootPattern.test(normalizedPath)) {
+      return {
+        poolRoot: {
+          message: errorMessage,
+        },
+      };
+    }
+
+    return null;
+  };
+}
+
+/**
+ * Validates that a string has an exact length.
+ * Provides a clearer error message than using minLength and maxLength together.
+ *
+ * @param length The exact required length
+ * @param errorMessage Optional custom error message. If not provided, uses default message.
+ * @returns ValidatorFn that returns null if valid, or ValidationErrors if invalid
+ *
+ * @example
+ * // Encryption key must be exactly 64 characters
+ * this.form = this.fb.group({
+ *   key: ['', exactLength(64, this.translate.instant('Key must be exactly 64 characters'))],
+ * });
+ */
+export function exactLength(length: number, errorMessage?: string): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const value = control.value as string;
+    if (!value) {
+      return null; // Let required validator handle empty values
+    }
+
+    if (value.length !== length) {
+      return {
+        exactLength: {
+          requiredLength: length,
+          actualLength: value.length,
+          message: errorMessage,
+        },
+      };
+    }
+
+    return null;
+  };
+}

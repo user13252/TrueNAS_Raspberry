@@ -1,0 +1,76 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createRoutingFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnButtonHarness } from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { fakeSuccessfulJob } from 'app/core/testing/utils/fake-job.utils';
+import { mockCall, mockJob, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { DetailsDisk } from 'app/interfaces/disk.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import {
+  UnusedDiskSelectComponent,
+} from 'app/modules/forms/custom-selects/unused-disk-select/unused-disk-select.component';
+import { IxFormHarness } from 'app/modules/forms/ix-forms/testing/ix-form.harness';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { BootPoolReplaceDialog } from './boot-pool-replace-dialog.component';
+
+describe('BootPoolReplaceDialogComponent', () => {
+  let spectator: Spectator<BootPoolReplaceDialog>;
+  let loader: HarnessLoader;
+
+  const createComponent = createRoutingFactory({
+    component: BootPoolReplaceDialog,
+    imports: [
+      UnusedDiskSelectComponent,
+      ReactiveFormsModule,
+    ],
+    providers: [
+      mockApi([
+        mockCall('disk.details', {
+          unused: [
+            {
+              name: 'sdb',
+              devname: 'sdb',
+              size: 10737418240,
+            },
+          ] as DetailsDisk[],
+          used: [],
+        }),
+        mockJob('boot.replace', fakeSuccessfulJob()),
+      ]),
+      mockProvider(DialogService, {
+        jobDialog: jest.fn(() => ({
+          afterClosed: () => of(undefined),
+        })),
+      }),
+      mockProvider(DialogRef),
+      {
+        provide: DIALOG_DATA,
+        useValue: 'sda3',
+      },
+      mockAuth(),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  it('sends an update payload to websocket when save is pressed', async () => {
+    const form = await loader.getHarness(IxFormHarness);
+    await form.fillForm({
+      'Member Disk': 'sdb (10 GiB)',
+    });
+
+    const saveButton = await loader.getHarness(TnButtonHarness.with({ label: 'Save' }));
+    await saveButton.click();
+
+    expect(spectator.inject(DialogService).jobDialog).toHaveBeenCalled();
+    expect(spectator.inject(ApiService).job)
+      .toHaveBeenCalledWith('boot.replace', ['sda3', 'sdb']);
+  });
+});

@@ -1,0 +1,345 @@
+import { AsyncPipe, NgTemplateOutlet } from '@angular/common';
+import {
+  ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, OnInit, signal, inject, input,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormControl } from '@ngneat/reactive-forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnFormFieldComponent, TnFormSectionComponent, TnInputComponent, TnRadioGroupComponent,
+  TnSelectComponent,
+} from '@truenas/ui-components';
+import { uniq } from 'lodash-es';
+import { Observable, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
+import { IscsiAuthMethod, IscsiTargetMode, iscsiTargetModeNames } from 'app/enums/iscsi.enum';
+import { Role } from 'app/enums/role.enum';
+import { createFormArraySnapshot } from 'app/helpers/form-array-snapshot.helper';
+import { mapToOptions } from 'app/helpers/options.helper';
+import { helptextIscsi } from 'app/helptext/sharing';
+import { IscsiTarget, IscsiTargetGroup } from 'app/interfaces/iscsi.interface';
+import { Option } from 'app/interfaces/option.interface';
+import { IxFormHostForm } from 'app/modules/forms/ix-forms/components/ix-form/ix-form-host-form.directive';
+import {
+  FormSubmitEvent, IxFormComponent, SubmitResult,
+} from 'app/modules/forms/ix-forms/components/ix-form/ix-form.component';
+import {
+  IxIpInputWithNetmaskComponent,
+} from 'app/modules/forms/ix-forms/components/ix-ip-input-with-netmask/ix-ip-input-with-netmask.component';
+import { IxListItemComponent } from 'app/modules/forms/ix-forms/components/ix-list/ix-list-item/ix-list-item.component';
+import { IxListComponent } from 'app/modules/forms/ix-forms/components/ix-list/ix-list.component';
+import { TranslateOptionsPipe } from 'app/modules/translate/translate-options/translate-options.pipe';
+import { ignoreTranslation, TranslatedString } from 'app/modules/translate/translate.helper';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  FcMpioInfoBannerComponent,
+} from 'app/pages/sharing/iscsi/fibre-channel-ports/fc-mpio-info-banner/fc-mpio-info-banner.component';
+import {
+  FcPortItemControlsComponent,
+} from 'app/pages/sharing/iscsi/fibre-channel-ports/fc-port-item-controls/fc-port-item-controls.component';
+import { TargetNameValidationService } from 'app/pages/sharing/iscsi/target/target-name-validation.service';
+import { FibreChannelService } from 'app/services/fibre-channel.service';
+import { IscsiService } from 'app/services/iscsi.service';
+import { LicenseService } from 'app/services/license.service';
+
+@Component({
+  selector: 'ix-target-form',
+  templateUrl: './target-form.component.html',
+  styleUrls: ['./target-form.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    NgTemplateOutlet,
+    ReactiveFormsModule,
+    IxFormComponent,
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TnRadioGroupComponent,
+    TnSelectComponent,
+    IxListComponent,
+    IxListItemComponent,
+    IxIpInputWithNetmaskComponent,
+    FcPortItemControlsComponent,
+    FcMpioInfoBannerComponent,
+    TranslateModule,
+    TranslateOptionsPipe,
+    AsyncPipe,
+  ],
+})
+export class TargetFormComponent extends IxFormHostForm implements OnInit {
+  protected iscsiService = inject(IscsiService);
+  private translate = inject(TranslateService);
+  private formBuilder = inject(FormBuilder);
+  private cdr = inject(ChangeDetectorRef);
+  private api = inject(ApiService);
+  private fcService = inject(FibreChannelService);
+  private license = inject(LicenseService);
+  private targetNameValidationService = inject(TargetNameValidationService);
+  private destroyRef = inject(DestroyRef);
+
+  /** Edit data supplied by the `<tn-side-panel>` host. */
+  readonly targetData = input<IscsiTarget | undefined>(undefined);
+
+  get isNew(): boolean {
+    return !this.editingTarget;
+  }
+
+  get isAsyncValidatorPending(): boolean {
+    return this.form.controls.name.status === 'PENDING' && this.form.controls.name.dirty;
+  }
+
+  get showPortControls(): boolean {
+    return this.form.value.mode === IscsiTargetMode.Fc || this.form.value.mode === IscsiTargetMode.Both;
+  }
+
+  get showGroupsControls(): boolean {
+    const mode = this.form.value.mode;
+    return mode === IscsiTargetMode.Iscsi || mode === IscsiTargetMode.Both;
+  }
+
+  hasFibreChannel = toSignal(this.license.hasFibreChannel$);
+
+  readonly helptext = helptextIscsi;
+  readonly portals$ = this.iscsiService.listPortals().pipe(
+    map((portals) => {
+      const opts: Option[] = portals.map((portal) => {
+        const label = portal.comment ? `${portal.id} (${portal.comment})` : String(portal.id);
+        return { label, value: portal.id };
+      });
+
+      return opts;
+    }),
+  );
+
+  readonly initiators$ = this.iscsiService.getInitiators().pipe(
+    map((initiators) => {
+      const opts: Option[] = [];
+      initiators.forEach((initiator) => {
+        const initiatorsAllowed = initiator.initiators.length === 0
+          ? this.translate.instant('ALL Initiators Allowed')
+          : initiator.initiators.toString();
+        const optionLabel = `${initiator.id} (${initiatorsAllowed})` as TranslatedString;
+        opts.push({ label: optionLabel, value: initiator.id });
+      });
+      return opts;
+    }),
+  );
+
+  readonly authmethods$ = of(this.helptext.target.authenticationMethodOptions);
+  readonly auths$ = this.iscsiService.getAuth().pipe(
+    map((auths) => {
+      const opts: Option[] = [];
+      const tags = uniq(auths.map((item) => item.tag));
+      tags.forEach((tag) => {
+        opts.push({ label: ignoreTranslation(String(tag)), value: tag });
+      });
+      return opts;
+    }),
+  );
+
+  // A stable array, not an observable: tn-radio-group takes its options synchronously, and
+  // rebuilding them per change-detection pass would re-create the whole option list.
+  protected readonly modeOptions = mapToOptions(iscsiTargetModeNames, this.translate);
+
+  protected readonly requiredRoles = [
+    Role.SharingIscsiTargetWrite,
+    Role.SharingIscsiWrite,
+    Role.SharingWrite,
+  ];
+
+  protected editingTarget: IscsiTarget | undefined = undefined;
+  protected fcHosts = signal<{ id: number; alias: string }[]>([]);
+  protected availableFcPorts = signal<string[]>([]);
+
+  form = this.formBuilder.group({
+    name: [
+      '',
+      [Validators.required],
+    ],
+    alias: [''],
+    mode: [IscsiTargetMode.Iscsi],
+    groups: this.formBuilder.array<IscsiTargetGroup>([]),
+    auth_networks: this.formBuilder.array<string>([]),
+    fcPorts: this.formBuilder.array<{
+      port: FormControl<string | null>;
+      host_id: FormControl<number | null>;
+    }>([]),
+  });
+
+  // Reactive snapshot of FC ports form array for use in computed signals
+  protected fcPortsSnapshot = createFormArraySnapshot<{ port: string | null; host_id: number | null }>(
+    this.form.controls.fcPorts,
+    this.destroyRef,
+  );
+
+  // Computed signal for current port values (used in edit mode)
+  protected currentPorts = computed(() => this.fcPortsSnapshot().map((form) => form.port).filter(Boolean) as string[]);
+
+  /** Extra Save gate (FC port validity + pending async name validation) ORed into `<ix-form>`. */
+  protected isSaveBlocked(): boolean {
+    return (this.showPortControls && !this.areFcPortsValid()) || this.isAsyncValidatorPending;
+  }
+
+  ngOnInit(): void {
+    // Edit data arrives via the `targetData` input from the side-panel host.
+    this.editingTarget = this.targetData();
+
+    this.form.controls.name.setAsyncValidators(
+      [this.targetNameValidationService.validateTargetName(String(this.editingTarget?.name))],
+    );
+
+    // Load FC hosts for validation
+    this.api.call('fc.fc_host.query').pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((hosts) => {
+      this.fcHosts.set(hosts.map((host) => ({ id: host.id, alias: host.alias })));
+    });
+
+    // Load available FC port choices
+    this.api.call('fcport.port_choices', [false]).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((portsData) => {
+      this.availableFcPorts.set(Object.keys(portsData));
+    });
+
+    if (this.editingTarget) {
+      this.setTargetForEdit(this.editingTarget);
+
+      if ([IscsiTargetMode.Fc, IscsiTargetMode.Both].includes(this.editingTarget.mode)) {
+        this.loadFibreChannelPorts();
+      }
+    }
+  }
+
+  private setTargetForEdit(target: IscsiTarget): void {
+    Object.values(target.groups).forEach(() => this.addGroup());
+    Object.values(target.auth_networks).forEach(() => this.addNetwork());
+
+    this.form.patchValue({
+      ...target,
+    });
+  }
+
+  protected handleSubmit = (_: FormSubmitEvent): SubmitResult => {
+    const { fcPorts, ...values } = this.form.getRawValue();
+
+    // Clear groups array if mode is FC (groups are not applicable in FC mode)
+    if (values.mode === IscsiTargetMode.Fc) {
+      values.groups = [];
+    }
+
+    const request$: Observable<IscsiTarget> = (this.editingTarget
+      ? this.api.call('iscsi.target.update', [this.editingTarget.id, values])
+      : this.api.call('iscsi.target.create', [values])).pipe(
+      switchMap((target) => {
+        if (!this.showPortControls) {
+          return of(target);
+        }
+
+        const fcPortValues = this.form.controls.fcPorts.getRawValue();
+        return this.fcService.linkFiberChannelPortsToTarget(
+          target.id,
+          fcPortValues,
+        ).pipe(map(() => target));
+      }),
+    );
+
+    return {
+      request$,
+      successMessage: this.isNew
+        ? this.translate.instant('Target added')
+        : this.translate.instant('Target updated'),
+      // The side-panel host doesn't forward the created/updated record, so broadcast it
+      // through the shared service — `all-targets` expands and reloads on the refresh tick.
+      onSuccess: (target: unknown) => this.iscsiService.refreshData(target as IscsiTarget),
+    };
+  };
+
+  protected addGroup(): void {
+    this.form.controls.groups.push(
+      this.formBuilder.group({
+        portal: new FormControl(null as number | null, Validators.required),
+        initiator: new FormControl(null as number | null),
+        authmethod: [IscsiAuthMethod.None, Validators.required],
+        auth: new FormControl(null as number | null),
+      }),
+    );
+  }
+
+  protected deleteGroup(index: number): void {
+    this.form.controls.groups.removeAt(index);
+  }
+
+  protected addNetwork(): void {
+    this.form.controls.auth_networks.push(
+      this.formBuilder.control(''),
+    );
+  }
+
+  protected deleteNetwork(index: number): void {
+    this.form.controls.auth_networks.removeAt(index);
+  }
+
+  protected addFcPort(): void {
+    this.form.controls.fcPorts.push(
+      this.formBuilder.group({
+        port: new FormControl(null as string | null),
+        host_id: new FormControl(null as number | null),
+      }),
+    );
+  }
+
+  protected deleteFcPort(index: number): void {
+    this.form.controls.fcPorts.removeAt(index);
+  }
+
+  protected validateFcPorts(): string[] {
+    const ports = this.form.controls.fcPorts.getRawValue();
+    const validation = this.fcService.validatePhysicalPortUniqueness(ports, this.fcHosts());
+
+    if (!validation.valid) {
+      return validation.duplicates.map((port) => this.translate.instant(
+        'Physical port {port} is used multiple times. Each target port must use a different physical FC port.',
+        { port },
+      ));
+    }
+
+    return [];
+  }
+
+  protected areFcPortsValid(): boolean {
+    return this.form.controls.fcPorts.valid && this.validateFcPorts().length === 0;
+  }
+
+  protected fcPortValidationErrors = (): string[] => {
+    return this.validateFcPorts();
+  };
+
+  // Array of used physical ports for each index (excluding that index)
+  protected usedPhysicalPortsByIndex = computed(() => {
+    const ports = this.fcPortsSnapshot();
+    const hosts = this.fcHosts();
+
+    return ports.map((_item, currentIndex) => ports
+      .filter((_port, idx) => idx !== currentIndex)
+      .map((portForm) => this.fcService.getPhysicalPort(portForm, hosts))
+      .filter((port): port is string => port !== null));
+  });
+
+  private loadFibreChannelPorts(): void {
+    this.fcService.loadTargetPorts(this.editingTarget.id).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((ports) => {
+      this.form.controls.fcPorts.clear();
+
+      ports.forEach((port) => {
+        this.addFcPort();
+        const index = this.form.controls.fcPorts.length - 1;
+        this.form.controls.fcPorts.at(index).patchValue({ port: port.port, host_id: null });
+      });
+
+      this.cdr.markForCheck();
+    });
+  }
+}

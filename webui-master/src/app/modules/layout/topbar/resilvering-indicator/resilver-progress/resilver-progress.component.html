@@ -1,0 +1,26 @@
+<tn-dialog-shell testId="resilver-progress" [title]="title | translate">
+  <div class="resilver-progress-dialog">
+    @if (state !== PoolScanState.Finished) {
+      <div>
+        <tn-progress-bar
+          class="example-margin"
+          mode="indeterminate"
+          [value]="progressTotalPercent"
+          [ariaLabel]="title | translate"
+        ></tn-progress-bar>
+        <label> {{ progressTotalPercent | number: '1.2-2' }}% </label>
+      </div>
+    }
+    <div>{{ description | translate }}{{ diskName }}</div>
+    <div>{{ statusLabel | translate }}{{ state }}</div>
+  </div>
+
+  <div tnDialogAction>
+    <tn-button
+      variant="outline"
+      testId="close"
+      [label]="'Close' | translate"
+      (onClick)="dialogRef.close('close')"
+    ></tn-button>
+  </div>
+</tn-dialog-shell>

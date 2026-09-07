@@ -1,0 +1,96 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { Component, OnInit, ChangeDetectionStrategy, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnFormFieldComponent, TnInputComponent,
+  InputType,
+} from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { helptextDisks } from 'app/helptext/storage/disks/disks';
+import { Disk } from 'app/interfaces/disk.interface';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-manage-disk-sed-dialog',
+  templateUrl: './manage-disk-sed-dialog.component.html',
+  styleUrls: ['./manage-disk-sed-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+    ReactiveFormsModule,
+    FormActionsComponent,
+    RequiresRolesDirective,
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+export class ManageDiskSedDialog implements OnInit {
+  protected readonly InputType = InputType;
+  private api = inject(ApiService);
+  private errorHandler = inject(ErrorHandlerService);
+  private loader = inject(LoaderService);
+  protected dialogRef = inject<DialogRef<unknown, ManageDiskSedDialog>>(DialogRef);
+  private snackbar = inject(SnackbarService);
+  private translate = inject(TranslateService);
+  private diskName = inject(DIALOG_DATA);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.DiskWrite];
+
+  passwordControl = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required],
+  });
+
+  disk: Disk | undefined = undefined;
+
+  readonly helptext = helptextDisks;
+
+  ngOnInit(): void {
+    this.loadDiskSedInfo();
+  }
+
+  onClearPassword(): void {
+    this.setNewPassword('');
+  }
+
+  onSubmit(event?: SubmitEvent): void {
+    event?.preventDefault();
+    this.setNewPassword(this.passwordControl.value);
+  }
+
+  private loadDiskSedInfo(): void {
+    this.api.call('disk.query', [[['devname', '=', this.diskName]], { extra: { passwords: true } }])
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((disks) => {
+        this.disk = disks[0];
+        this.passwordControl.setValue(this.disk.passwd || '');
+      });
+  }
+
+  private setNewPassword(password: string): void {
+    this.api.call('disk.update', [this.disk.identifier, { passwd: password }])
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.dialogRef.close(true);
+        this.snackbar.success(this.translate.instant('SED password updated.'));
+      });
+  }
+}

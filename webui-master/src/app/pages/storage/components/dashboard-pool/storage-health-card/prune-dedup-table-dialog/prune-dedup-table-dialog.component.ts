@@ -1,0 +1,101 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnFormFieldComponent, TnInputComponent,
+  TnRadioComponent, TnRadioGroupComponent,
+  TnSliderComponent, TnSliderThumbDirective, TnTestIdDirective,
+  InputType,
+} from '@truenas/ui-components';
+import { mapToOptions } from 'app/helpers/options.helper';
+import { Pool, PruneDedupTableParams } from 'app/interfaces/pool.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { IxLabelComponent } from 'app/modules/forms/ix-forms/components/ix-label/ix-label.component';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+export enum PruneBy {
+  Percentage = 'percentage',
+  Age = 'age',
+}
+
+export const pruneByLabels = new Map<PruneBy, string>([
+  [PruneBy.Percentage, T('Percentage')],
+  [PruneBy.Age, T('Age')],
+]);
+
+@Component({
+  selector: 'ix-prune-dedup-table-dialog',
+  styleUrls: ['prune-dedup-table-dialog.component.scss'],
+  templateUrl: './prune-dedup-table-dialog.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    FormActionsComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TnButtonComponent,
+    ReactiveFormsModule,
+    TnTestIdDirective,
+    TranslateModule,
+    TnRadioGroupComponent,
+    TnRadioComponent,
+    TnSliderComponent,
+    TnSliderThumbDirective,
+    IxLabelComponent,
+  ],
+})
+export class PruneDedupTableDialog {
+  protected readonly InputType = InputType;
+  private formBuilder = inject(NonNullableFormBuilder);
+  private api = inject(ApiService);
+  private dialog = inject(DialogService);
+  private snackbar = inject(SnackbarService);
+  private translate = inject(TranslateService);
+  private errorHandler = inject(ErrorHandlerService);
+  protected dialogRef = inject<DialogRef<unknown, PruneDedupTableDialog>>(DialogRef);
+  protected pool = inject<Pool>(DIALOG_DATA);
+  private destroyRef = inject(DestroyRef);
+
+  protected form = this.formBuilder.group({
+    pruneBy: [PruneBy.Percentage],
+    percentage: [null as number | null, [Validators.min(1), Validators.max(100)]],
+    days: [null as number | null],
+  });
+
+  /** Held in a field, not rebuilt per change-detection pass: `tn-radio-group` tracks options by `value`. */
+  protected readonly pruneByOptions = mapToOptions(pruneByLabels, this.translate);
+
+  get isPruningByPercentage(): boolean {
+    return this.form.value.pruneBy === PruneBy.Percentage;
+  }
+
+  submit(): void {
+    const payload: PruneDedupTableParams = { pool_name: this.pool.name };
+    if (this.form.value.pruneBy === PruneBy.Percentage) {
+      payload.percentage = Number(this.form.value.percentage);
+    } else {
+      payload.days = Number(this.form.value.days);
+    }
+
+    const job$ = this.api.job('pool.ddt_prune', [payload]);
+    this.dialog.jobDialog(job$, {
+      title: this.translate.instant('Pruning Deduplication Table'),
+      canMinimize: true,
+    })
+      .afterClosed()
+      .pipe(
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.snackbar.success(this.translate.instant('Deduplication table pruned'));
+        this.dialogRef.close(true);
+      });
+  }
+}

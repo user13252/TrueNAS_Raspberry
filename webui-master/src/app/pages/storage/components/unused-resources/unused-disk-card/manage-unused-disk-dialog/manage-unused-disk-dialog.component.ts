@@ -1,0 +1,156 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl, FormBuilder, Validators, ReactiveFormsModule,
+} from '@angular/forms';
+import { Router } from '@angular/router';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnFormFieldComponent, TnFormSectionComponent,
+  TnRadioComponent, TnRadioGroupComponent, TnSelectComponent,
+} from '@truenas/ui-components';
+import { groupBy } from 'lodash-es';
+import { Observable, of } from 'rxjs';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { PoolStatus } from 'app/enums/pool-status.enum';
+import { Role } from 'app/enums/role.enum';
+import { buildNormalizedFileSize } from 'app/helpers/file-size.utils';
+import { Option, SelectOption } from 'app/interfaces/option.interface';
+import { WarningComponent } from 'app/modules/forms/ix-forms/components/warning/warning.component';
+import { IxValidatorsService } from 'app/modules/forms/ix-forms/services/ix-validators.service';
+import { AddToPoolType, ManageUnusedDiskDialogResource } from 'app/pages/storage/components/unused-resources/unused-disk-card/manage-unused-disk-dialog/manage-unused-disk-dialog.interface';
+
+@Component({
+  selector: 'ix-manage-unused-disk-dialog',
+  templateUrl: './manage-unused-disk-dialog.component.html',
+  styleUrls: ['./manage-unused-disk-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    TnDialogShellComponent,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    ReactiveFormsModule,
+    WarningComponent,
+    TnFormSectionComponent,
+    TnRadioGroupComponent,
+    TnRadioComponent,
+    TnButtonComponent,
+    RequiresRolesDirective,
+    TranslateModule,
+  ],
+})
+export class ManageUnusedDiskDialog implements OnInit {
+  private fb = inject(FormBuilder);
+  private router = inject(Router);
+  private translate = inject(TranslateService);
+  private validatorsService = inject(IxValidatorsService);
+  cdr = inject(ChangeDetectorRef);
+  protected dialogRef = inject<DialogRef<unknown, ManageUnusedDiskDialog>>(DialogRef);
+  resource = inject<ManageUnusedDiskDialogResource>(DIALOG_DATA);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.DiskWrite];
+
+  /** Held in a field, not rebuilt per change-detection pass: `tn-radio-group` tracks options by `value`. */
+  readonly toPoolOptions: SelectOption<AddToPoolType>[] = [
+    {
+      label: this.translate.instant('New Pool'),
+      value: AddToPoolType.New,
+    }, {
+      label: this.translate.instant('Existing Pool'),
+      value: AddToPoolType.Existing,
+    },
+  ];
+
+  readonly poolOptions$: Observable<Option[]> = of(
+    this.resource.pools.filter((pool) => pool.status !== PoolStatus.Offline).map((pool) => ({
+      label: pool.name,
+      value: pool.id,
+    })),
+  );
+
+  form = this.fb.group({
+    toPool: [AddToPoolType.New],
+    pool: [
+      null as number | null,
+      [
+        this.validatorsService.validateOnCondition(
+          (control: AbstractControl) => control.parent?.get('toPool')?.value === AddToPoolType.Existing,
+          Validators.required,
+        ),
+      ],
+    ],
+  });
+
+  get noPoolsDisks(): { formattedDisk: string }[] {
+    const diskInfoFormats = this.resource.unusedDisks.filter((disk) => {
+      return !disk.exported_zpool;
+    }).map((disk) => {
+      return {
+        detailedDisk: `${buildNormalizedFileSize(disk.size)} ${disk.subsystem === 'nvme' ? disk.subsystem.toUpperCase() : disk.type}`,
+        exportedPool: disk.exported_zpool,
+      };
+    });
+    const groupDisks = groupBy(diskInfoFormats, (diskDetailsWithPoolName) => {
+      return diskDetailsWithPoolName.detailedDisk + diskDetailsWithPoolName.exportedPool;
+    });
+    return Object.keys(groupDisks).map((format: string) => {
+      return {
+        formattedDisk: `${groupDisks[format][0].detailedDisk} x ${groupDisks[format].length}`,
+        exportedPool: groupDisks[format][0].exportedPool,
+      };
+    });
+  }
+
+  get exportedPoolsDisks(): { formattedDisk: string; exportedPool: string }[] {
+    const diskInfoFormats = this.resource.unusedDisks.filter((disk) => {
+      return disk.exported_zpool;
+    }).map((disk) => {
+      return {
+        detailedDisk: `${buildNormalizedFileSize(disk.size)} ${disk.subsystem === 'nvme' ? disk.subsystem.toUpperCase() : disk.type}`,
+        exportedPool: disk.exported_zpool,
+      };
+    });
+    const groupDisks = groupBy(diskInfoFormats, (diskDetailsWithPoolName) => {
+      return diskDetailsWithPoolName.detailedDisk + diskDetailsWithPoolName.exportedPool;
+    });
+    return Object.keys(groupDisks).map((format: string) => {
+      return {
+        formattedDisk: `${groupDisks[format][0].detailedDisk} x ${groupDisks[format].length}`,
+        exportedPool: groupDisks[format][0].exportedPool,
+      };
+    });
+  }
+
+  get isExistingMode(): boolean {
+    return this.form.controls.toPool.value === AddToPoolType.Existing;
+  }
+
+  ngOnInit(): void {
+    this.form.controls.toPool.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((value) => {
+      if (value === AddToPoolType.New) {
+        this.form.controls.pool.reset();
+        this.form.controls.pool.setErrors(null);
+      }
+      this.cdr.detectChanges();
+    });
+  }
+
+  onSubmit(): void {
+    this.dialogRef.close();
+
+    const { toPool, pool } = this.form.value;
+    if (toPool === AddToPoolType.Existing) {
+      this.router.navigate(['/storage', pool, 'add-vdevs']);
+    } else {
+      this.router.navigate(['/storage', 'create']);
+    }
+  }
+
+  getWarningText(exportedPool: string): string {
+    return `(${exportedPool})`;
+  }
+}

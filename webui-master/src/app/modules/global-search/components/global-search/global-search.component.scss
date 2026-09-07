@@ -1,0 +1,60 @@
+@import 'scss-imports/cssvars';
+@import '../search-box.mixin';
+
+// The overlay is positioned so its search box lands exactly on top of the
+// topbar decoy (global-search-trigger). The margins mirror the sidenav's
+// width states — change those together or the overlay visibly jumps.
+.search-box-wrapper {
+  margin-left: 307px;
+  margin-top: 7.5px;
+  position: absolute;
+
+  &.sidenav-collapsed {
+    margin-left: 115px;
+  }
+
+  &.sidenav-mobile {
+    margin-left: 67px;
+
+    @media(max-width: $breakpoint-xs) {
+      margin-left: 10px;
+      margin-top: 4px;
+      width: 100vw;
+
+      .search-box {
+        width: 95%;
+      }
+    }
+  }
+}
+
+.search-box {
+  @include search-box;
+
+  .reset-input {
+    align-items: center;
+    background: none;
+    border: 0;
+    bottom: 0;
+    color: var(--fg1);
+    cursor: pointer;
+    display: flex;
+    line-height: initial;
+    opacity: 0.5;
+    padding: 5px;
+    position: absolute;
+    right: 0.3rem;
+    top: 0;
+    user-select: none;
+
+    tn-icon {
+      height: 17px;
+      width: 17px;
+
+      &:focus-visible {
+        border-radius: 50%;
+        outline: 1px solid var(--primary);
+      }
+    }
+  }
+}

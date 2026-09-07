@@ -1,0 +1,33 @@
+<ng-container [formGroup]="form">
+  <tn-form-field
+    [label]="'AWS Region' | translate"
+    [tooltip]="helptext.awsSns.regionTooltip | translate"
+    [required]="true"
+  >
+    <tn-input formControlName="region" [testId]="'region'"></tn-input>
+  </tn-form-field>
+
+  <tn-form-field
+    [label]="'ARN' | translate"
+    [tooltip]="helptext.awsSns.topicArnTooltip | translate"
+    [required]="true"
+  >
+    <tn-input formControlName="topic_arn" [testId]="'topic_arn'"></tn-input>
+  </tn-form-field>
+
+  <tn-form-field
+    [label]="'Key ID' | translate"
+    [tooltip]="helptext.awsSns.accessKeyIdTooltip | translate"
+    [required]="true"
+  >
+    <tn-input formControlName="aws_access_key_id" [testId]="'aws_access_key_id'"></tn-input>
+  </tn-form-field>
+
+  <tn-form-field
+    [label]="'Secret Key' | translate"
+    [tooltip]="helptext.awsSns.secretAccessKeyTooltip | translate"
+    [required]="true"
+  >
+    <tn-input formControlName="aws_secret_access_key" [testId]="'aws_secret_access_key'" [inputType]="InputType.Password"></tn-input>
+  </tn-form-field>
+</ng-container>

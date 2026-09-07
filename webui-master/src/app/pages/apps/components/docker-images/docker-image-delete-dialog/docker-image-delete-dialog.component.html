@@ -1,0 +1,77 @@
+<tn-dialog-shell testId="docker-image-delete" [title]="'Delete' | translate">
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  @if (isJobCompleted) {
+    <p>
+      @if (failedCount) {
+        <strong>
+          {{ 'Warning: {n} of {total} docker images could not be deleted.' | translate: { n: failedCount, total: bulkItems.size } }}
+        </strong>
+      }
+      @if (successCount) {
+        <strong>
+          {{ '{n, plural, one {# docker image} other {# docker images}} has been deleted.' | translate: { n: successCount } }}
+        </strong>
+      }
+    </p>
+  } @else {
+    <p>
+      <strong>
+        {{ 'The following { n, plural, one {docker image} other {# docker images} } will be deleted. Are you sure you want to proceed?' | translate: { n: bulkItems.size } }}
+      </strong>
+    </p>
+  }
+
+  <div class="bulk-list">
+    @for (bulkItem of bulkItems | keyvalue; track trackByKey($index, bulkItem)) {
+      <ix-bulk-list-item [item]="bulkItem.value">
+        <span>
+          {{ bulkItem.value.item.repo_tags.length ? bulkItem.value.item.repo_tags.join(', ') : bulkItem.value.item.id }}
+        </span>
+      </ix-bulk-list-item>
+    }
+  </div>
+
+  @if (!isJobCompleted) {
+    <tn-form-field>
+      <tn-checkbox
+        testId="confirm"
+        formControlName="confirm"
+        [label]="'Confirm' | translate"
+        [required]="true"
+      ></tn-checkbox>
+    </tn-form-field>
+    <tn-form-field [tooltip]="forceCheckboxTooltip | translate">
+      <tn-checkbox
+        testId="force"
+        formControlName="force"
+        [label]="'Force' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+</form>
+<ix-form-actions tnDialogAction>
+  @if (isJobCompleted) {
+    <tn-button
+      variant="outline"
+      testId="close"
+      [label]="'Close' | translate"
+      (onClick)="dialogRef.close(true)"
+    ></tn-button>
+  } @else {
+    <tn-button
+      variant="outline"
+      testId="cancel"
+      [label]="'Cancel' | translate"
+      (onClick)="dialogRef.close()"
+    ></tn-button>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="warn"
+      testId="delete"
+      [label]="'Delete' | translate"
+      [disabled]="form.invalid || !!runningCount"
+      (onClick)="onSubmit()"
+    ></tn-button>
+  }
+</ix-form-actions>
+</tn-dialog-shell>

@@ -1,0 +1,88 @@
+<div>
+  <h2>
+    {{ 'Update Profile' | translate }}
+  </h2>
+
+  @if (isProfileMissingFromOptions()) {
+    <div class="current-profile">
+      <div class="label">{{ 'Current Profile:' | translate }}</div>
+      <div class="value">{{ currentProfileLabel() }}</div>
+    </div>
+  }
+
+  @if (hasProfileOptions()) {
+    <div class="update-profile" [class.disabled]="!canChangeProfile()">
+      <tn-form-field [label]="'Select an update profile' | translate">
+        <tn-select
+          testId="update-profile"
+          [formControl]="updateProfileControl"
+          [options]="profileOptions()"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-button
+        [testId]="'apply-profile'"
+        [label]="'Apply' | translate"
+        [disabled]="!canChangeProfile()"
+        (onClick)="applyProfile()"
+      ></tn-button>
+    </div>
+  }
+
+  <div class="hint">
+    {{ 'Selecting an update profile allows users to choose how conservative the software selection is based on their use case. Descriptions of update profiles are listed below from least conservative to most conservative.' | translate }}
+  </div>
+
+  <div class="profiles-section available">
+    <h3>
+      {{ 'Available Profiles' | translate }}
+    </h3>
+
+    <div class="profile-list">
+      <div class="profile-list">
+        @for (profile of availableProfiles(); track profile.name) {
+          <div class="profile-row">
+            <div class="profile-name">
+              <strong>{{ profile.name }}</strong>
+              @if (profile.footnote) {
+                <span class="profile-note">{{ profile.footnote }}</span>
+              }
+            </div>
+            <div class="profile-description">
+              {{ profile.description }}
+            </div>
+          </div>
+        } @empty {
+          {{ 'No other profiles are available.' | translate }}
+        }
+      </div>
+    </div>
+  </div>
+
+  @if (notAvailableProfiles().length) {
+    <div class="profiles-section not-available">
+      <h3>
+        {{ 'Other Profiles' | translate }}
+        <div class="tag-line">{{ '(Not Available)' | translate }}</div>
+      </h3>
+
+      <div class="profile-list">
+        <div class="profile-list">
+          @for (profile of notAvailableProfiles(); track profile.name) {
+            <div class="profile-row">
+              <div class="profile-name">
+                <strong>{{ profile.name }}</strong>
+                @if (profile.footnote) {
+                  <span class="profile-note">{{ profile.footnote }}</span>
+                }
+              </div>
+              <div class="profile-description">
+                {{ profile.description }}
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>

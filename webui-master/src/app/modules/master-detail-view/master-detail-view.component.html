@@ -1,0 +1,29 @@
+<div class="container">
+  <tn-card class="table-container" [padContent]="false">
+    <ng-content select="[master]"></ng-content>
+  </tn-card>
+
+  @if (selectedItem() && showDetails()) {
+    <div
+      class="details-container"
+      ixDetailsHeight
+      [class.details-container-mobile]="showMobileDetails() && isMobileView()"
+    >
+      <div class="header-container">
+        @if (isMobileView()) {
+          <ix-mobile-back-button
+            (closed)="toggleShowMobileDetails(false)"
+          ></ix-mobile-back-button>
+        }
+        <h3 class="header">
+          <ng-content select="[detail-header]"></ng-content>
+        </h3>
+      </div>
+
+      <div class="detail-content">
+        <ng-content select="[detail]"></ng-content>
+      </div>
+    </div>
+  }
+</div>
+

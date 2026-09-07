@@ -1,0 +1,31 @@
+<tn-dialog-shell testId="lock-dataset" [title]="'Lock Dataset' | translate">
+<form class="ix-form-container" (submit)="onSubmit($event)">
+  <p>
+    {{ 'Lock Dataset {datasetName}?' | translate: { datasetName: dataset.name } }}
+  </p>
+
+  <tn-form-field>
+    <tn-checkbox
+      testId="force"
+      [formControl]="forceCheckbox"
+      [label]="'Force unmount' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+</form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    testId="lock"
+    [label]="'Lock' | translate"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

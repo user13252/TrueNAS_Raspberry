@@ -1,0 +1,110 @@
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, inject, input, output, signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { Store } from '@ngrx/store';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnButtonComponent,
+  TnDialog,
+  TnIconButtonComponent,
+  TnListComponent,
+  TnListItemComponent,
+  TnSlideToggleComponent,
+  TnTooltipDirective,
+} from '@truenas/ui-components';
+import { Observable, of, tap } from 'rxjs';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { helptextSystemSupport } from 'app/helptext/system/support';
+import { getLabelForContractType } from 'app/interfaces/system-info.interface';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  LicenseFingerprintDialog,
+} from 'app/pages/system/general-settings/support/license-fingerprint-dialog/license-fingerprint-dialog.component';
+import { LicenseInfoInSupport } from 'app/pages/system/general-settings/support/license-info-in-support.interface';
+import { SystemInfoInSupport } from 'app/pages/system/general-settings/support/system-info-in-support.interface';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { AppState } from 'app/store';
+import { selectIsEnterprise } from 'app/store/system-info/system-info.selectors';
+
+@Component({
+  selector: 'ix-sys-info',
+  templateUrl: './sys-info.component.html',
+  styleUrls: ['../../common-settings-card.scss', './sys-info.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    RequiresRolesDirective,
+    TnButtonComponent,
+    TnIconButtonComponent,
+    TnListComponent,
+    TnListItemComponent,
+    TnSlideToggleComponent,
+    TnTooltipDirective,
+    TranslateModule,
+  ],
+})
+export class SysInfoComponent {
+  private api = inject(ApiService);
+  private errorHandler = inject(ErrorHandlerService);
+  private snackbar = inject(SnackbarService);
+  private translate = inject(TranslateService);
+  private tnDialog = inject(TnDialog);
+  private destroyRef = inject(DestroyRef);
+  private store$ = inject<Store<AppState>>(Store);
+
+  protected readonly isEnterprise = toSignal(this.store$.select(selectIsEnterprise));
+
+  readonly hasLicense = input<boolean>();
+  readonly licenseInfo = input<LicenseInfoInSupport>();
+  readonly systemInfo = input.required<SystemInfoInSupport>();
+  readonly productionControl = input<FormControl<boolean>>();
+  readonly isProactiveSupportAvailable = input<boolean>(false);
+  readonly isProactiveSupportEnabled = input<boolean>(false);
+
+  readonly editContacts = output();
+
+  protected readonly productionToggleRoles = [Role.FullAdmin];
+  protected readonly manageProactiveRoles = [Role.SupportWrite];
+  protected readonly getLabelForContractType = getLabelForContractType;
+  protected readonly helptext = helptextSystemSupport;
+
+  protected readonly isFingerprintBusy = signal(false);
+  private fingerprintRaw: string | null = null;
+
+  protected openFingerprintDialog(): void {
+    this.tnDialog.open(LicenseFingerprintDialog, { autoFocus: false });
+  }
+
+  protected copyFingerprint(): void {
+    this.loadFingerprint().subscribe({
+      next: (raw) => {
+        navigator.clipboard.writeText(raw).then(
+          () => this.snackbar.success(this.translate.instant('Copied to clipboard')),
+          () => this.snackbar.error(this.translate.instant('Failed to copy to clipboard')),
+        );
+      },
+    });
+  }
+
+  private loadFingerprint(): Observable<string> {
+    if (this.fingerprintRaw) {
+      return of(this.fingerprintRaw);
+    }
+    this.isFingerprintBusy.set(true);
+    return this.api.call('truenas.license.fingerprint').pipe(
+      tap({
+        next: (value) => {
+          this.fingerprintRaw = value;
+          this.isFingerprintBusy.set(false);
+        },
+        error: () => this.isFingerprintBusy.set(false),
+      }),
+      this.errorHandler.withErrorHandler(),
+      takeUntilDestroyed(this.destroyRef),
+    );
+  }
+}

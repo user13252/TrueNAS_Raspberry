@@ -1,0 +1,19 @@
+<div class="font-size-controls">
+  <span>{{ 'Font Size:' | translate }}</span>
+  <tn-icon-button
+    name="minus"
+    library="mdi"
+    testId="decrease-font-size"
+    [ariaLabel]="'Decrease font size' | translate"
+    [disabled]="fontSize() <= minFontSize"
+    (onClick)="change(-1)"
+  ></tn-icon-button>
+  <tn-icon-button
+    name="plus"
+    library="mdi"
+    testId="increase-font-size"
+    [ariaLabel]="'Increase font size' | translate"
+    [disabled]="fontSize() >= maxFontSize"
+    (onClick)="change(1)"
+  ></tn-icon-button>
+</div>

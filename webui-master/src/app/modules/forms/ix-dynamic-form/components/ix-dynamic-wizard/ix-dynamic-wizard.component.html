@@ -1,0 +1,28 @@
+@for (section of dynamicSection(); track section) {
+  @if (section.schema.length) {
+    <tn-form-section
+      [id]="section.name"
+      [heading]="section.name | translate"
+    >
+      <tn-divider class="divider" [inset]="true"></tn-divider>
+      <div class="section">
+        <div class="fieldset">
+          @for (schema of section.schema; track schema) {
+            <ix-dynamic-form-item
+              [id]="schema.controlName"
+              [dynamicSchema]="schema"
+              [dynamicForm]="dynamicForm()"
+              [isEditMode]="isEditMode()"
+              (addListItem)="addControlNext($event)"
+              (deleteListItem)="removeControlNext($event)"
+            ></ix-dynamic-form-item>
+          }
+        </div>
+        <div class="help" [hidden]="!section.help">
+          <div class="title">{{ 'Section Help' | translate }}</div>
+          <div class="value">{{ section.help }}</div>
+        </div>
+      </div>
+    </tn-form-section>
+  }
+}

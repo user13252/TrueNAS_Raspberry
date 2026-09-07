@@ -1,0 +1,131 @@
+<tn-card class="card" [padContent]="false">
+  <div class="card-content">
+    @if (isFullSize()) {
+      <div class="header">
+        <h3>{{ 'Interface' | translate }}</h3>
+        <tn-icon-button
+          name="chart-box"
+          library="mdi"
+          size="lg"
+          testId="network-reports"
+          tooltipPosition="above"
+          [ariaLabel]="'Network Reports' | translate"
+          [tooltip]="'Network Reports' | translate"
+          (onClick)="goToReports()"
+        ></tn-icon-button>
+      </div>
+    }
+
+    <div *ixWithLoadingState="interface() as interface" [class]="['container', size()]">
+      @if (isStale()) {
+        <div class="nic-info">
+          <div class="info-header">
+            <h3 class="info-header-title">{{ interface.name }}</h3>
+          </div>
+        </div>
+        <ix-widget-stale-data-notice></ix-widget-stale-data-notice>
+      } @else {
+        <div class="nic-info">
+        <div class="info-header">
+          <h3 class="info-header-title">{{ interface.name }}</h3>
+        </div>
+        <div class="info-body">
+          <div class="info-column primary">
+            @if (!isLoading()) {
+              <div class="info-list-item state">
+                @if (isLinkStateUp()) {
+                  <span class="icon-wrapper up">
+                    <tn-icon name="check-circle" library="mdi" size="sm" [tnTooltip]="linkStateLabel()"></tn-icon>
+                  </span>
+                } @else {
+                  <span class="icon-wrapper down">
+                    <tn-icon name="close" library="mdi" size="sm" [tnTooltip]="linkStateLabel()"></tn-icon>
+                  </span>
+                }
+                <span>{{ linkStateLabel() }}</span>
+              </div>
+            } @else {
+              <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+            }
+            <div class="info-list-item traffic">
+              @if (!isLoading() && isFullSize()) {
+                <span class="icon-wrapper">
+                  <ix-interface-status-icon [update]="interfaceUsage()"></ix-interface-status-icon>
+                </span>
+              }
+              <div class="in-out" [class.loading]="isLoading()">
+                @if (!isLoading()) {
+                  <div class="info-list-item in">
+                    <span>{{ 'In' | translate }}:</span>
+                    <span>{{ bitsIn() | ixNetworkSpeed }}</span>
+                  </div>
+                } @else {
+                  <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+                }
+                @if (!isLoading()) {
+                  <div class="info-list-item out">
+                    <span>{{ 'Out' | translate }}:</span>
+                    <span>{{ bitsOut() | ixNetworkSpeed }}</span>
+                  </div>
+                } @else {
+                  <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+                }
+              </div>
+            </div>
+          </div>
+          @if (isFullSize()) {
+            <div class="info-column secondary">
+              @if (!isLoading()) {
+                <div class="info-list-item">
+                  <span>{{ 'Media Type' | translate }}:</span>
+                  <span>{{ interface.state.active_media_type }}</span>
+                </div>
+              } @else {
+                <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+              }
+              @if (!isLoading()) {
+                <div class="info-list-item">
+                  <span>{{ 'Media Subtype' | translate }}:</span>
+                  <span>{{ interface.state.active_media_subtype }}</span>
+                </div>
+              } @else {
+                <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+              }
+              @if (!isLoading()) {
+                <div class="info-list-item">
+                  <span>{{ 'IP' | translate }}:</span>
+                  <span>{{ getIpAddress(interface) }}</span>
+                </div>
+              } @else {
+                <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+              }
+            </div>
+          }
+        </div>
+      </div>
+      @if (showChart()) {
+        <div class="nic-chart">
+          @if (isLoading()) {
+            <ngx-skeleton-loader
+              class="skeleton"
+              [theme]="{
+                width: 'calc(100% - 16px)',
+                height: '184px',
+                background: 'var(--alt-bg2)',
+                opacity: 0.25,
+                margin: '8px 0 0',
+              }"
+            ></ngx-skeleton-loader>
+          } @else {
+            <ix-rate-chart
+              [data]="chartData()"
+              [aspectRatio]="aspectRatio()"
+              [unit]="'b'"
+            ></ix-rate-chart>
+          }
+        </div>
+      }
+      }
+    </div>
+  </div>
+</tn-card>

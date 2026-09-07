@@ -1,0 +1,80 @@
+<ix-manual-selection-disk-filters
+  [isSedEncryption]="isSedEncryption()"
+  (filtersUpdated)="filtersUpdated.next($event)"
+></ix-manual-selection-disk-filters>
+
+<div
+  class="dnd-wrapper"
+  dndDropzone
+  [ngClass]="{'drag-active': (dragToggleStore$.dragActive$ | async)}"
+  (dndDrop)="onDrop($event)">
+  <div
+    class="tree-container"
+  >
+    <tn-tree
+      [dataSource]="dataSource"
+      [treeControl]="treeControl"
+    >
+      <tn-nested-tree-node
+        *cdkTreeNodeDef="let disk"
+        hideToggle
+        (click)="$event.stopPropagation()"
+      >
+        <div
+          class="unused-disk"
+          [ngClass]="{ 'grabbed': dragToggleStore$.dragActive$ | async }"
+          [dndDraggable]="asDisk(disk)"
+          [dndEffectAllowed]="'move'"
+          (dndStart)="onDragStart()"
+          (dndCanceled)="onDragCanceled()"
+          (dndEnd)="onDragEnd()"
+        >
+          <ix-disk-icon
+            class="disk-icon"
+            dndDragImageRef
+            [name]="asDisk(disk).name"
+            [size]="asDisk(disk).size"
+            [type]="asDisk(disk).type"
+          ></ix-disk-icon>
+
+          <ix-disk-info
+            class="disk-info"
+            [disk]="asDisk(disk)"
+          ></ix-disk-info>
+        </div>
+      </tn-nested-tree-node>
+
+      <!-- hideToggle: the group row draws its own chevron, so the whole row toggles.
+           Enter/Space mirror the click for keyboard users focused on the treeitem host
+           (the library's built-in keyboard toggle is suppressed with the button). -->
+      <tn-nested-tree-node
+        *cdkTreeNodeDef="let group; when: isGroup"
+        hideToggle
+        (click)="toggleGroup(group)"
+        (keydown.enter)="toggleGroup(group)"
+        (keydown.space)="$event.preventDefault(); toggleGroup(group)"
+      >
+        <div
+          class="group-row"
+          [class.group-row-empty]="!group.children.length"
+        >
+          <tn-icon name="enclosure" library="custom" [tnTooltip]="enclosureTooltip"></tn-icon>
+          <span class="group-name">{{ asEnclosureGroup(group).group }}</span>
+          @if (group.children.length) {
+            <tn-icon
+              library="mdi"
+              [name]="treeControl.isExpanded(group) ? 'chevron-down' : 'chevron-right'"
+            ></tn-icon>
+          }
+        </div>
+
+        <ng-container slot="children" tnTreeNodeOutlet></ng-container>
+      </tn-nested-tree-node>
+    </tn-tree>
+    @if (!dataSource.data.length) {
+      <div class="empty-tree">
+        {{ 'No Unassigned Disks' | translate }}
+      </div>
+    }
+  </div>
+</div>

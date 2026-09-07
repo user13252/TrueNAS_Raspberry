@@ -1,0 +1,61 @@
+<ix-form
+  [formGroup]="form"
+  [editData]="editScript()"
+  [addTitle]="'Add Init/Shutdown Script' | translate"
+  [editTitle]="'Edit Init/Shutdown Script' | translate"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field [label]="'Description' | translate">
+      <tn-input formControlName="comment"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Type' | translate"
+      [required]="true"
+      [tooltip]="tooltips.type | translate"
+    >
+      <tn-select formControlName="type" [options]="(typeOptions$ | async) ?? []"></tn-select>
+    </tn-form-field>
+
+    @if (isCommand$ | async) {
+      <tn-form-field
+        [label]="'Command' | translate"
+        [required]="true"
+        [tooltip]="tooltips.command | translate"
+      >
+        <tn-input formControlName="command"></tn-input>
+      </tn-form-field>
+    } @else {
+      <ix-explorer
+        formControlName="script"
+        [label]="'Script' | translate"
+        [required]="true"
+        [tooltip]="tooltips.script | translate"
+        [nodeProvider]="treeNodeProvider"
+      >
+        @if (isNew) {
+          <ix-explorer-create-dataset></ix-explorer-create-dataset>
+        }
+      </ix-explorer>
+    }
+
+    <tn-form-field
+      [label]="'When' | translate"
+      [required]="true"
+      [tooltip]="tooltips.when | translate"
+    >
+      <tn-select formControlName="when" [options]="(whenOptions$ | async) ?? []"></tn-select>
+    </tn-form-field>
+
+    <tn-form-field>
+      <tn-checkbox formControlName="enabled" [label]="'Enabled' | translate"></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [label]="'Timeout' | translate">
+      <tn-input formControlName="timeout" [inputType]="InputType.Number"></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

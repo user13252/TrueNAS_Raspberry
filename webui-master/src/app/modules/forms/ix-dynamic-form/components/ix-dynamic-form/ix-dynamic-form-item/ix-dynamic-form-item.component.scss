@@ -1,0 +1,57 @@
+:host ::ng-deep {
+  ix-list.form-error {
+    padding: 0 10px;
+  }
+}
+
+.disabled {
+  cursor: not-allowed;
+  opacity: var(--disabled-opacity);
+  pointer-events: none;
+}
+
+.indent {
+  padding-left: 16px;
+}
+
+tn-form-field {
+  display: block;
+
+  :host-context(ix-dynamic-wizard) & {
+    margin-top: 12px;
+    margin-bottom: 12px;
+    padding: 8px 0;
+  }
+}
+
+.label {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+}
+
+.label-wrapper {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  margin-right: 10px;
+}
+
+.label-tooltip {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  justify-content: center;
+
+  .tooltip {
+    align-items: center;
+    background: none;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    padding: 0;
+  }
+}

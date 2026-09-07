@@ -1,0 +1,77 @@
+<tn-card class="card" [ixUiSearch]="searchableElements.elements.diskHealth">
+  <h3 tnCardHeader class="tn-card__title">
+    {{ 'Disk Health' | translate }}
+    <ix-pool-card-icon [type]="iconType" [tooltip]="iconTooltip"></ix-pool-card-icon>
+  </h3>
+
+  <ng-template tnCardFooterActions>
+    <!-- Host-pinned to keep the legacy `link-view-disks` id — see the playbook's upstream-defects table. -->
+    <tn-button
+      tnTestIdType="link"
+      [tnTestId]="'view-disks'"
+      [routerLink]="['/storage', 'disks']"
+      [label]="'View Disks' | translate"
+    ></tn-button>
+  </ng-template>
+
+  <div class="content">
+    <div class="details-item">
+      <div class="label">
+        {{ 'Disks temperature related alerts' | translate }}:
+      </div>
+      <div class="value">
+        {{ diskState.alerts | number }}
+      </div>
+    </div>
+
+    @if (isTemperatureDataAvailable) {
+      <div class="details-item">
+        <div class="label">{{ 'Highest Temperature' | translate }}:</div>
+        <div class="value">
+          @if (isHighestTempReady) {
+            {{ diskState.highestTemperature | number }}
+            {{ diskState.unit }}
+          } @else {
+            {{ 'No Data' | translate }}
+          }
+        </div>
+      </div>
+
+      <div class="details-item">
+        <div class="label">{{ 'Lowest Temperature' | translate }}:</div>
+        <div class="value">
+          @if (isLowestTempReady) {
+            {{ diskState.lowestTemperature | number }}
+            {{ diskState.unit }}
+          } @else {
+            {{ 'No Data' | translate }}
+          }
+        </div>
+      </div>
+
+      <div class="details-item">
+        <div class="label">{{ 'Average Disk Temperature' | translate }}:</div>
+        <div class="value">
+          @if (isAverageTempReady) {
+            {{ diskState.averageTemperature | number }}
+            {{ diskState.unit }}
+          } @else {
+            {{ 'No Data' | translate }}
+          }
+        </div>
+        <a
+          tnTestIdType="link"
+          [tnTestId]="'view-disk-reports'"
+          [routerLink]="['/reportsdashboard', 'disk']"
+          [queryParams]="{ disks: disksNames }"
+        >
+          {{ 'View Disk Reports' | translate }}
+        </a>
+      </div>
+    } @else {
+      <div class="details-item">
+        <div class="label">{{ 'No disk temperature is available' | translate }}.</div>
+      </div>
+    }
+  </div>
+</tn-card>

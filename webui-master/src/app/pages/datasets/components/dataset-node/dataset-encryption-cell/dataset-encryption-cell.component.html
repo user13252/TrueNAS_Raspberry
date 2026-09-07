@@ -1,0 +1,35 @@
+@if (!dataset().encrypted) {
+  <div class="encryption-description">
+    {{ 'Unencrypted' | translate }}
+  </div>
+} @else {
+  @if (dataset().locked) {
+    @if (isEncryptionRoot()) {
+      <tn-icon name="lock" library="mdi"></tn-icon>
+    } @else {
+      <tn-icon name="lock-outline" library="mdi"></tn-icon>
+    }
+    <div class="encryption-description">
+      <div>{{ 'Locked' | translate }}</div>
+      @if (!isEncryptionRoot()) {
+        <div class="by-parent">
+          {{ 'by parent' | translate }}
+        </div>
+      }
+    </div>
+  } @else {
+    @if (isEncryptionRoot()) {
+      <tn-icon name="lock-open-variant" library="mdi"></tn-icon>
+    } @else {
+      <tn-icon name="lock-open-variant-outline" library="mdi"></tn-icon>
+    }
+    <div class="encryption-description">
+      <div>{{ 'Unlocked' | translate }}</div>
+      @if (!isEncryptionRoot()) {
+        <div class="by-ancestor">
+          {{ 'by parent' | translate }}
+        </div>
+      }
+    </div>
+  }
+}

@@ -1,0 +1,34 @@
+:host {
+  display: block;
+  max-width: 800px;
+}
+
+.general-fields {
+  border-bottom: 1px solid var(--lines);
+  display: block;
+  padding: 24px;
+}
+
+.permissions-and-flags {
+  align-items: flex-start;
+  display: flex;
+  gap: 40px;
+  padding: 24px 25px;
+
+  > * {
+    flex: 1;
+  }
+}
+
+.checkbox-list {
+  column-gap: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 8px;
+
+  // Two columns with a gap between them: subtract half the gap from each 50% track so the
+  // pair still fits on one row.
+  > tn-checkbox {
+    flex: 0 0 calc(50% - 12px);
+  }
+}

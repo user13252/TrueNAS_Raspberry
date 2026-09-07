@@ -1,0 +1,45 @@
+
+<ix-layout-step
+  [description]="helptext.cacheVdevDescription | translate"
+  [type]="vDevType.Cache"
+  [inventory]="(inventory$ | async) || []"
+  [canChangeLayout]="false"
+  [limitLayouts]="allowedLayouts"
+  [isStepActive]="isStepActive()"
+></ix-layout-step>
+
+@if (stepWarning()) {
+  <p class="error-warning">
+    {{ stepWarning() }}
+  </p>
+}
+
+<ix-form-actions>
+  <tn-button
+    tnStepperPrevious
+    color="secondary"
+    [testId]="'back-cache'"
+    [label]="'Back' | translate"
+  ></tn-button>
+  <tn-button
+    tnStepperNext
+    color="primary"
+    [testId]="'next-cache'"
+    [label]="'Next' | translate"
+  ></tn-button>
+
+  <tn-button
+    color="warn"
+    [testId]="'reset-fields-in-cache-step'"
+    [label]="'Reset Step' | translate"
+    (onClick)="resetStep()"
+  ></tn-button>
+
+  <tn-button
+    color="secondary"
+    [testId]="'save-and-go-to-review-cache'"
+    [label]="'Go to Review' | translate"
+    (onClick)="goToReviewStep()"
+  ></tn-button>
+</ix-form-actions>
+

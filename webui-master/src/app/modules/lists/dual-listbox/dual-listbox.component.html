@@ -1,0 +1,89 @@
+<!-- cdkDropListGroup connects the two lists to each other, so neither has to name the other. -->
+<div class="dual-list" cdkDropListGroup>
+  <ix-dual-listbox-side
+    #availableSide
+    listType="available"
+    [side]="availableList"
+    [listName]="sourceName()"
+    [listItemIcon]="listItemIcon()"
+    [height]="height()"
+    [sortable]="sort()"
+    [searchable]="searchable()"
+    (dropped)="onDrop(availableList, $event)"
+  ></ix-dual-listbox-side>
+
+  <div class="button-box">
+    <tn-icon-button
+      name="chevron-right"
+      library="mdi"
+      color="var(--primary)"
+      tooltipPosition="right"
+      testId="move-selected-right"
+      [ariaLabel]="'Move selected items to the right side list' | translate"
+      [tooltip]="'Move selected items to the right side list' | translate"
+      [disabled]="!availableList.hasSelection()"
+      (onClick)="moveSelectedRight()"
+    ></tn-icon-button>
+
+    <tn-icon-button
+      name="chevron-double-right"
+      library="mdi"
+      color="var(--primary)"
+      tooltipPosition="right"
+      testId="move-all-right"
+      [ariaLabel]="'Move all listed items to the right side list' | translate"
+      [tooltip]="'Move all listed items to the right side list' | translate"
+      [disabled]="!canMoveAllRight()"
+      (onClick)="moveAllRight()"
+    ></tn-icon-button>
+
+    <tn-icon-button
+      name="chevron-left"
+      library="mdi"
+      color="var(--primary)"
+      tooltipPosition="right"
+      testId="move-selected-left"
+      [ariaLabel]="'Move selected items to the left side list' | translate"
+      [tooltip]="'Move selected items to the left side list' | translate"
+      [disabled]="!selectedList.hasSelection()"
+      (onClick)="moveSelectedLeft()"
+    ></tn-icon-button>
+
+    <tn-icon-button
+      name="chevron-double-left"
+      library="mdi"
+      color="var(--primary)"
+      tooltipPosition="right"
+      testId="move-all-left"
+      [ariaLabel]="'Move all listed items to the left side list' | translate"
+      [tooltip]="'Move all listed items to the left side list' | translate"
+      [disabled]="!canMoveAllLeft()"
+      (onClick)="moveAllLeft()"
+    ></tn-icon-button>
+  </div>
+
+  <ix-dual-listbox-side
+    #selectedSide
+    listType="selected"
+    [side]="selectedList"
+    [listName]="targetName()"
+    [listItemIcon]="listItemIcon()"
+    [height]="height()"
+    [sortable]="sort()"
+    [searchable]="searchable()"
+    (dropped)="onDrop(selectedList, $event)"
+  ></ix-dual-listbox-side>
+</div>
+
+<div class="hint">
+  @if (isMacOs) {
+    {{ 'You can select multiple items with the Command and Shift keys.' | translate }}
+  } @else {
+    {{ 'You can select multiple items with the Ctrl and Shift keys.' | translate }}
+  }
+  {{ 'Use the arrow keys to move between items, or start typing to jump to one.' | translate }}
+</div>
+
+<div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+  {{ ariaMessage() }}
+</div>

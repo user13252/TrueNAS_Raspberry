@@ -1,0 +1,192 @@
+<div class="alerts-header">
+  <h3>{{ 'Alerts' | translate }}</h3>
+
+  <div class="controls">
+    <tn-icon-button
+      name="cog"
+      library="mdi"
+      testId="settings-menu"
+      [ariaLabel]="'Settings' | translate"
+      [tooltip]="'Settings' | translate"
+      [tnMenuTriggerFor]="alertSettingsMenu"
+    ></tn-icon-button>
+    <tn-menu #alertSettingsMenu>
+      <tn-menu-item
+        testId="alert-settings"
+        [label]="'Alert Settings' | translate"
+        (itemClick)="navigateTo(['/system', 'alert-settings'])"
+      ></tn-menu-item>
+      <tn-menu-item
+        testId="email-settings"
+        [label]="'Email' | translate"
+        (itemClick)="openEmailForm()"
+      ></tn-menu-item>
+    </tn-menu>
+    <tn-icon-button
+      name="close"
+      library="mdi"
+      testId="close-panel"
+      [ariaLabel]="'Close panel' | translate"
+      [tooltip]="'Close panel' | translate"
+      (onClick)="onPanelClosed()"
+    ></tn-icon-button>
+  </div>
+</div>
+
+<!-- Severity Filters -->
+<div class="severity-filters">
+  <button
+    class="filter-button"
+    tnTestIdType="button"
+    [class.active]="severityFilter() === 'all'"
+    [tnTestId]="['filter', 'all']"
+    (click)="setSeverityFilter('all')"
+  >
+    {{ 'All Alerts' | translate }}
+    <span class="count">{{ alertCounts().all }}</span>
+  </button>
+  <button
+    class="filter-button"
+    tnTestIdType="button"
+    [class.active]="severityFilter() === 'critical'"
+    [tnTestId]="['filter', 'critical']"
+    (click)="setSeverityFilter('critical')"
+  >
+    {{ 'Critical' | translate }}
+    <span class="count">{{ alertCounts().critical }}</span>
+  </button>
+  <button
+    class="filter-button"
+    tnTestIdType="button"
+    [class.active]="severityFilter() === 'warning'"
+    [tnTestId]="['filter', 'warning']"
+    (click)="setSeverityFilter('warning')"
+  >
+    {{ 'Warnings' | translate }}
+    <span class="count">{{ alertCounts().warning }}</span>
+  </button>
+  <button
+    class="filter-button"
+    tnTestIdType="button"
+    [class.active]="severityFilter() === 'info'"
+    [tnTestId]="['filter', 'info']"
+    (click)="setSeverityFilter('info')"
+  >
+    {{ 'Info' | translate }}
+    <span class="count">{{ alertCounts().info }}</span>
+  </button>
+  <button
+    class="filter-button"
+    tnTestIdType="button"
+    [class.active]="severityFilter() === 'dismissed'"
+    [tnTestId]="['filter', 'dismissed']"
+    (click)="setSeverityFilter('dismissed')"
+  >
+    {{ 'Dismissed' | translate }}
+    <span class="count">{{ alertCounts().dismissed }}</span>
+  </button>
+</div>
+
+@if (isLoading$ | async) {
+  <div>
+    <tn-progress-bar
+      class="loading-indicator"
+      mode="indeterminate"
+    ></tn-progress-bar>
+  </div>
+} @else {
+  <!-- TODO: Consider extracting into its own component -->
+  @if (error$ | async; as error) {
+    <div class="error">
+      <tn-icon class="icon" color="accent" name="close-circle" library="mdi"></tn-icon>
+      <h4 class="message">
+        <span class="error-word">{{ 'Error:' | translate }}</span>
+        {{ error }}
+      </h4>
+    </div>
+  }
+
+  @if (shouldShowUnread() && !unreadAlerts()?.length) {
+    <div class="no-alerts">
+      <tn-icon class="icon" name="bell-outline" library="mdi"></tn-icon>
+      <h3 class="title">{{ 'No alerts' | translate }}</h3>
+    </div>
+  }
+
+  @if (shouldShowDismissed() && !dismissedAlerts()?.length) {
+    <div class="no-alerts">
+      <tn-icon class="icon" name="bell-outline" library="mdi"></tn-icon>
+      <h3 class="title">{{ 'No dismissed alerts' | translate }}</h3>
+    </div>
+  }
+
+  @if (shouldShowUnread() && unreadAlerts()?.length) {
+    <!-- Grouped by category view -->
+    @for (entry of getCategoryEntries(groupedUnreadAlerts()); track entry[0]) {
+      @let category = entry[0];
+      @let alerts = entry[1];
+      <div class="category-section">
+        <div class="category-header">
+          <tn-icon [name]="getCategoryIcon(category)"></tn-icon>
+          <h4>{{ getCategoryLabel(category) | translate }}</h4>
+          <span class="category-count">{{ getCategoryCount(alerts) }}</span>
+        </div>
+        <div class="alert-list">
+          @for (alert of alerts; track trackAlert(alert); let last = $last) {
+            <div
+              class="alert"
+              role="listitem"
+              [class.alert-last]="last"
+            >
+              <ix-alert [alert]="alert" [isHaLicensed]="isHaLicensed"></ix-alert>
+            </div>
+          }
+        </div>
+      </div>
+    }
+    <button
+      *ixRequiresRoles="requiredRoles"
+      class="button-row"
+      tnTestIdType="button"
+      tnTestId="dismiss-all-alerts"
+      (click)="onDismissAll()"
+    >
+      {{ dismissAllButtonText() }}
+    </button>
+  }
+
+  @if (shouldShowDismissed() && dismissedAlerts()?.length) {
+    <!-- Grouped by category view for dismissed alerts -->
+    @for (entry of getCategoryEntries(groupedDismissedAlerts()); track entry[0]) {
+      @let category = entry[0];
+      @let alerts = entry[1];
+      <div class="category-section">
+        <div class="category-header">
+          <tn-icon [name]="getCategoryIcon(category)"></tn-icon>
+          <h4>{{ getCategoryLabel(category) | translate }}</h4>
+          <span class="category-count">{{ getCategoryCount(alerts) }}</span>
+        </div>
+        <div class="alert-list">
+          @for (alert of alerts; track trackAlert(alert); let last = $last) {
+            <div
+              class="alert"
+              role="listitem"
+              [class.alert-last]="last"
+            >
+              <ix-alert [alert]="alert" [isHaLicensed]="isHaLicensed"></ix-alert>
+            </div>
+          }
+        </div>
+      </div>
+    }
+    <button
+      *ixRequiresRoles="requiredRoles"
+      class="button-row"
+      tnTestIdType="button"
+      tnTestId="reopen-all-alerts"
+      (click)="onReopenAll()"
+    >
+      {{ reopenAllButtonText() }}
+    </button>
+  }
+}

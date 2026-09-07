@@ -1,0 +1,37 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="true"
+  [requiredRoles]="requiredRoles"
+  [externalLoading]="isFormLoading()"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field [label]="nameLabel">
+      <tn-input
+        formControlName="name"
+        [readonly]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="dataQuotaLabel"
+      [tooltip]="dataQuotaTooltip"
+    >
+      <tn-input
+        formControlName="data_quota"
+        [inputType]="InputType.Size"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="objectQuotaLabel"
+      [tooltip]="objectQuotaTooltip"
+    >
+      <tn-input
+        formControlName="obj_quota"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

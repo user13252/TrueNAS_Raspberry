@@ -1,0 +1,192 @@
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, input, OnChanges, OnInit, output, inject } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  InputType, TnButtonComponent, TnCheckboxComponent, TnFormFieldComponent, TnFormSectionComponent,
+  TnInputComponent, TnRadioComponent, TnRadioGroupComponent, TnSelectComponent, TnStepperPreviousDirective,
+} from '@truenas/ui-components';
+import {
+  map, Observable, of, startWith,
+} from 'rxjs';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { LifetimeUnit, lifetimeUnitNames } from 'app/enums/lifetime-unit.enum';
+import { RetentionPolicy } from 'app/enums/retention-policy.enum';
+import { Role } from 'app/enums/role.enum';
+import { ScheduleMethod } from 'app/enums/schedule-method.enum';
+import { helptextReplicationWizard } from 'app/helptext/data-protection/replication/replication-wizard';
+import { Option } from 'app/interfaces/option.interface';
+import { IxSimpleChanges } from 'app/interfaces/simple-changes.interface';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { SchedulerComponent } from 'app/modules/scheduler/components/scheduler/scheduler.component';
+import { CronPresetValue } from 'app/modules/scheduler/utils/get-default-crontab-presets.utils';
+import { SummaryProvider, SummarySection } from 'app/modules/summary/summary.interface';
+
+@Component({
+  selector: 'ix-replication-when',
+  templateUrl: './replication-when.component.html',
+  styleUrls: ['./replication-when.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    ReactiveFormsModule,
+    TnFormFieldComponent,
+    TnFormSectionComponent,
+    TnRadioComponent,
+    TnRadioGroupComponent,
+    TnCheckboxComponent,
+    TnInputComponent,
+    TnSelectComponent,
+    SchedulerComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    TnStepperPreviousDirective,
+    RequiresRolesDirective,
+    TranslateModule,
+  ],
+})
+export class ReplicationWhenComponent implements OnInit, OnChanges, SummaryProvider {
+  private formBuilder = inject(FormBuilder);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly isCustomRetentionVisible = input(true);
+  readonly isSourceLocal = input(false);
+  readonly isLoading = input(false);
+
+  readonly save = output();
+
+  form = this.formBuilder.group({
+    schedule_method: [ScheduleMethod.Cron, [Validators.required]],
+    schedule_picker: [CronPresetValue.Daily, [Validators.required]],
+    readonly: [true],
+    source_lifetime_value: [2, [Validators.required, Validators.min(1)]],
+    source_lifetime_unit: [LifetimeUnit.Week, [Validators.required]],
+    retention_policy: [RetentionPolicy.Source, [Validators.required]],
+    lifetime_value: [2, [Validators.required, Validators.min(1)]],
+    lifetime_unit: [LifetimeUnit.Week, [Validators.required]],
+  });
+
+  // Drives the stepper's linear gating (replaces mat's [stepControl]).
+  readonly completed = toSignal(
+    this.form.statusChanges.pipe(startWith(this.form.status), map(() => this.form.valid)),
+    { initialValue: this.form.valid },
+  );
+
+  readonly helptext = helptextReplicationWizard;
+  protected readonly InputType = InputType;
+  protected readonly requiredRoles = [Role.ReplicationTaskWrite, Role.ReplicationTaskWritePull];
+
+  scheduleMethodOptions$ = of([
+    { label: this.translate.instant('Run On a Schedule'), value: ScheduleMethod.Cron },
+    { label: this.translate.instant('Run Once'), value: ScheduleMethod.Once },
+  ]);
+
+  defaultRetentionPolicyOptions = [
+    { label: this.translate.instant('Same as Source'), value: RetentionPolicy.Source },
+    { label: this.translate.instant('Never Delete'), value: RetentionPolicy.None },
+  ];
+
+  lifetimeUnitOptions$ = of([
+    { label: this.translate.instant('Hours'), value: LifetimeUnit.Hour },
+    { label: this.translate.instant('Days'), value: LifetimeUnit.Day },
+    { label: this.translate.instant('Weeks'), value: LifetimeUnit.Week },
+    { label: this.translate.instant('Months'), value: LifetimeUnit.Month },
+    { label: this.translate.instant('Years'), value: LifetimeUnit.Year },
+  ]);
+
+  get retentionPolicyOptions$(): Observable<Option[]> {
+    return this.isCustomRetentionVisible()
+      ? of([
+          ...this.defaultRetentionPolicyOptions,
+          { label: this.translate.instant('Custom'), value: RetentionPolicy.Custom },
+        ])
+      : of(this.defaultRetentionPolicyOptions);
+  }
+
+  ngOnChanges(changes: IxSimpleChanges<this>): void {
+    if (changes.isCustomRetentionVisible && !changes.isCustomRetentionVisible.currentValue) {
+      this.form.controls.retention_policy.setValue(RetentionPolicy.Source);
+    }
+    if (changes.isSourceLocal) {
+      this.updateSourceLifetimeState();
+    }
+  }
+
+  ngOnInit(): void {
+    this.form.controls.readonly.disable();
+    this.form.controls.lifetime_value.disable();
+    this.form.controls.lifetime_unit.disable();
+    this.form.controls.source_lifetime_value.disable();
+    this.form.controls.source_lifetime_unit.disable();
+    this.form.controls.schedule_method.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((method) => {
+      if (method === ScheduleMethod.Cron) {
+        this.form.controls.schedule_picker.enable();
+        this.form.controls.readonly.disable();
+      } else {
+        this.form.controls.schedule_picker.disable();
+        this.form.controls.readonly.enable();
+      }
+      this.updateSourceLifetimeState();
+    });
+    this.form.controls.retention_policy.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((policy) => {
+      if (policy === RetentionPolicy.Custom) {
+        this.form.controls.lifetime_value.enable();
+        this.form.controls.lifetime_unit.enable();
+      } else {
+        this.form.controls.lifetime_value.disable();
+        this.form.controls.lifetime_unit.disable();
+      }
+    });
+  }
+
+  private updateSourceLifetimeState(): void {
+    const showSourceLifetime = this.isSourceLocal()
+      && this.form.controls.schedule_method.value === ScheduleMethod.Cron;
+    if (showSourceLifetime) {
+      this.form.controls.source_lifetime_value.enable();
+      this.form.controls.source_lifetime_unit.enable();
+    } else {
+      this.form.controls.source_lifetime_value.disable();
+      this.form.controls.source_lifetime_unit.disable();
+    }
+  }
+
+  getSummary(): SummarySection {
+    const summary: SummarySection = [];
+    const values = this.form.value;
+
+    if (values.schedule_method === ScheduleMethod.Cron) {
+      summary.push({
+        label: this.translate.instant(helptextReplicationWizard.scheduleMethodLabel),
+        value: this.translate.instant('Run On a Schedule'),
+      });
+    } else {
+      summary.push({
+        label: this.translate.instant(helptextReplicationWizard.scheduleMethodLabel),
+        value: this.translate.instant('Run Once'),
+      });
+    }
+
+    if (values.source_lifetime_value != null && values.source_lifetime_unit != null) {
+      const unitName = lifetimeUnitNames.get(values.source_lifetime_unit);
+      if (unitName) {
+        summary.push({
+          label: this.translate.instant(helptextReplicationWizard.sourceLifetimeLabel),
+          value: `${values.source_lifetime_value} ${this.translate.instant(unitName)}`,
+        });
+      }
+    }
+
+    return summary;
+  }
+
+  getPayload(): ReplicationWhenComponent['form']['value'] {
+    return this.form.value;
+  }
+
+  onSave(): void {
+    this.save.emit();
+  }
+}

@@ -1,0 +1,52 @@
+<tn-card class="card" padding="small" [title]="'Extents' | translate">
+  <ng-template tnCardFooterActions>
+    @if (isLoadingExtents()) {
+      <ngx-skeleton-loader class="button-loader"></ngx-skeleton-loader>
+    } @else {
+      <div
+        class="actions"
+        [tnTooltip]="unassociatedExtents().length > 0 ? null : ('No unassociated extents available.' | translate)"
+      >
+        <tn-button
+          *ixRequiresRoles="requiredRoles"
+          color="default"
+          [disabled]="!unassociatedExtents().length"
+          [testId]="[targetTestIdSlug(), 'associate-target']"
+          [label]="'Associate' | translate"
+          (onClick)="associateTarget()"
+        ></tn-button>
+      </div>
+    }
+  </ng-template>
+
+  @if (isLoadingExtents()) {
+    <ngx-skeleton-loader></ngx-skeleton-loader>
+  } @else {
+    @for (extent of mappedTargetExtents(); track extent.extent) {
+      <div class="mapped-extent">
+        <p>
+          {{ 'LUN ID' | translate }}: {{ extent.lunid }} |
+          {{ extent.name }} |
+          {{ extent.path }}
+        </p>
+
+        <!-- Array testId so the digit-bearing extent id resolves with the same
+          `-`-separated segments the legacy [ixTest] kebab produced. -->
+        <!-- ariaLabel appends the extent name so per-row buttons are distinguishable to AT. -->
+        <tn-icon-button
+          *ixRequiresRoles="requiredRoles"
+          name="link-off"
+          library="mdi"
+          [testId]="['remove-extent-association', extent.extent]"
+          [ariaLabel]="('Remove extent association' | translate) + ' ' + extent.name"
+          [tooltip]="'Remove extent association' | translate"
+          (onClick)="removeExtentAssociation(extent)"
+        ></tn-icon-button>
+      </div>
+    } @empty {
+      <div>
+        <p>{{ 'No extents associated.' | translate }}</p>
+      </div>
+    }
+  }
+</tn-card>

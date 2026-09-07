@@ -1,0 +1,33 @@
+<div class="section-header">
+  <h5>{{ 'Namespaces' | translate }}</h5>
+  <tn-button
+    [testId]="'add-namespace'"
+    [label]="'Add' | translate"
+    (onClick)="onAddNamespace()"
+  ></tn-button>
+</div>
+
+@if (!namespaces.length) {
+  <div class="empty-state">
+    {{ 'Select files or zvols to expose.' | translate }}
+  </div>
+} @else {
+  <div class="namespaces-list">
+    @for (namespace of namespaces; track namespace; let i = $index) {
+      <div class="namespace">
+        <ix-namespace-description [namespace]="namespace"></ix-namespace-description>
+
+        <div class="namespace-actions">
+          <tn-icon-button
+            name="close"
+            library="mdi"
+            [testId]="'delete-namespace'"
+            [ariaLabel]="'Remove namespace' | translate"
+            [tnTooltip]="'Remove namespace' | translate"
+            (click)="onDeleteNamespace(i)"
+          ></tn-icon-button>
+        </div>
+      </div>
+    }
+  </div>
+}

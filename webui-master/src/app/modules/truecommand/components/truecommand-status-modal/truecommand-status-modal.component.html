@@ -1,0 +1,58 @@
+<tn-dialog-shell testId="truecommand-status" [title]="'TrueCommand Cloud Service' | translate">
+  <div class="tc-dialog-content">
+    <div class="status-header">
+      @if (tc.status === TrueCommandStatus.Connected) {
+        <tn-icon
+          class="status-icon status-connected"
+          name="check-circle"
+          library="mdi"
+        ></tn-icon>
+      }
+      @if (tc.status === TrueCommandStatus.Failed) {
+        <tn-icon
+          class="status-icon status-failed"
+          name="close"
+          library="mdi"
+        ></tn-icon>
+      }
+      @if (tc.status === TrueCommandStatus.Disabled) {
+        <tn-icon
+          class="status-icon status-disabled"
+          name="pause-circle"
+          library="mdi"
+        ></tn-icon>
+      }
+      <span class="status-label">{{ tc.status | translate }}</span>
+    </div>
+    @if (tc.status_reason) {
+      <div class="status-reason">
+        {{ tc.status_reason | translate }}
+      </div>
+    }
+    @if (tc.status === TrueCommandStatus.Connected && tc.remote_ip_address) {
+      <div class="tc-ip">
+        <tn-icon name="tn-truecommand-logo-mark-color" class="tc-ip-icon"></tn-icon>
+        <span class="tc-ip-label">{{ 'Remote IP:' | translate }}</span>
+        <span class="tc-ip-value">{{ tc.remote_ip_address }}</span>
+      </div>
+    }
+  </div>
+
+  <tn-button
+    tnDialogAction
+    color="primary"
+    class="tc-action-button"
+    testId="truecommand-settings"
+    [label]="'Settings' | translate"
+    (onClick)="data.parent.handleUpdate()"
+  ></tn-button>
+  <tn-button
+    tnDialogAction
+    color="primary"
+    class="tc-action-button"
+    testId="go-to-truecommand"
+    [disabled]="!tc.remote_url || tc.status !== TrueCommandStatus.Connected"
+    [label]="'TrueCommand'"
+    (onClick)="goToTrueCommand()"
+  ></tn-button>
+</tn-dialog-shell>

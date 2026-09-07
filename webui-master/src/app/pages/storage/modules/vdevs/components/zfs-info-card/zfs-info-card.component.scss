@@ -1,0 +1,27 @@
+@import 'mixins/animations';
+
+.details-item {
+  @include fade-in();
+
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+
+  &:first-child {
+    margin-top: 0;
+  }
+
+  .label {
+    font-weight: bold;
+    margin-right: 5px;
+    white-space: normal;
+  }
+
+  .value {
+    font-weight: normal;
+    margin-right: 5px;
+    white-space: normal;
+  }
+}

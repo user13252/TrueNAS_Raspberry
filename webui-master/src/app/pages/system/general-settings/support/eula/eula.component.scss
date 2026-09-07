@@ -1,0 +1,26 @@
+tn-card {
+  display: flex;
+  margin: 0 auto;
+  max-width: 90%;
+  width: 960px;
+}
+
+p {
+  margin-bottom: 15px;
+}
+
+#eula {
+  color: var(--fg1);
+  font-size: 120%;
+  padding: 3rem 3rem 1rem;
+}
+
+h2 {
+  margin-bottom: 1rem;
+}
+
+#button-row {
+  display: flex;
+  justify-content: center;
+  padding-top: 22px;
+}

@@ -1,0 +1,13 @@
+<div class="linked-select">
+  <div class="link-wrapper">
+    <a
+      class="link"
+      tnTestIdType="text"
+      [tnTestId]="'manage-certificates'"
+      [routerLink]="['/', 'credentials', 'certificates']"
+    >
+      {{ 'Manage Certificates' | translate }}
+    </a>
+  </div>
+  <ng-content></ng-content>
+</div>

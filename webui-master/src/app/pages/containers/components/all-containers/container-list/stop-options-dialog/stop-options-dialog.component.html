@@ -1,0 +1,27 @@
+<tn-dialog-shell testId="stop-options" [title]="(isRestart() ? 'Restart Options' : 'Stop Options') | translate">
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-field [label]="'Stop Method' | translate" [required]="true">
+    <tn-select
+      testId="stop-method"
+      formControlName="stopMethod"
+      [options]="stopMethodOptions()"
+    ></tn-select>
+  </tn-form-field>
+
+  </form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+
+  <tn-button
+    color="primary"
+    testId="continue"
+    [label]="(isRestart() ? 'Restart' : 'Stop') | translate"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

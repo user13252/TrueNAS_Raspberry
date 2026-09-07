@@ -1,0 +1,35 @@
+<tn-dialog-shell testId="disk-wipe" [title]="title">
+@if (data.exportedPool) {
+  <div class="warning-wrapper">
+  <ix-warning [message]="'This disk is part of the exported pool {pool}. Wiping this disk will make {pool} unable\
+  to import. You will lose any and all data in {pool}. Please make sure that any sensitive data in {pool} is backed up before wiping this disk.' | translate: { pool: '\'' + data.exportedPool + '\'' }"></ix-warning>
+  </div>
+}
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-field [label]="'Method' | translate" [tooltip]="tooltips.wipe_method | translate">
+    <tn-select
+      testId="wipe-method"
+      formControlName="wipe_method"
+      [options]="(wipeMethods$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+
+</form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="[Role.DiskWrite]"
+    color="primary"
+    testId="wipe"
+    [label]="'Wipe' | translate"
+    [disabled]="form.invalid"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

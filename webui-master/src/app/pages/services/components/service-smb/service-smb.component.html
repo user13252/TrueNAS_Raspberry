@@ -1,0 +1,191 @@
+<ix-form
+  [formGroup]="form"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section [heading]="'NetBIOS' | translate">
+    <tn-form-field
+      [label]="'NetBIOS Name' | translate"
+      [tooltip]="tooltips.netbiosname | translate"
+    >
+      <tn-input formControlName="netbiosname"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'NetBIOS Alias' | translate"
+      [tooltip]="tooltips.netbiosalias | translate"
+    >
+      <tn-chip-input
+        formControlName="netbiosalias"
+        [testId]="'netbiosalias'"
+        [allowCustomValue]="true"
+      ></tn-chip-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Workgroup' | translate"
+      [tooltip]="tooltips.workgroup | translate"
+    >
+      <tn-input formControlName="workgroup"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Description' | translate"
+      [tooltip]="tooltips.description | translate"
+    >
+      <tn-input formControlName="description"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Minimum Protocol' | translate"
+      [tooltip]="tooltips.minimum_protocol | translate"
+    >
+      <tn-select formControlName="minimum_protocol" [options]="minimumProtocolOptions"></tn-select>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="tooltips.ntlmv1_auth | translate">
+      <tn-checkbox formControlName="ntlmv1_auth" [label]="'NTLMv1 Auth' | translate"></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+
+  @if (isAdvancedMode()) {
+    <tn-form-section [heading]="'Other Options' | translate">
+      <tn-form-field
+        [label]="'UNIX Charset' | translate"
+        [tooltip]="tooltips.unixcharset | translate"
+      >
+        <tn-select formControlName="unixcharset" [options]="(unixCharsetOptions$ | async) ?? []"></tn-select>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'Transport Encryption Behavior' | translate"
+        [required]="true"
+      >
+        <tn-select formControlName="encryption" [options]="encryptionOptions"></tn-select>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="tooltips.debug | translate">
+        <tn-checkbox formControlName="debug" [label]="'Use Debug' | translate"></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="tooltips.syslog | translate">
+        <tn-checkbox formControlName="syslog" [label]="'Use Syslog Only' | translate"></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="tooltips.localmaster | translate">
+        <tn-checkbox formControlName="localmaster" [label]="'Local Master' | translate"></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="tooltips.aapl_extensions | translate">
+        <tn-checkbox formControlName="aapl_extensions" [label]="'Enable Apple SMB2/3 Protocol Extensions' | translate"></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="tooltips.multichannel | translate">
+        <tn-checkbox formControlName="multichannel" [label]="'Multichannel' | translate"></tn-checkbox>
+      </tn-form-field>
+
+      @if (isHaLicensed()) {
+        <tn-form-field [tooltip]="tooltips.stateful_failover | translate">
+          <tn-checkbox formControlName="stateful_failover" [label]="'Stateful Failover' | translate"></tn-checkbox>
+        </tn-form-field>
+      }
+
+      <tn-form-field [tooltip]="tooltips.spotlight_search | translate">
+        <tn-checkbox
+          formControlName="spotlight_search"
+          [label]="'Enable Search (Spotlight)' | translate"
+          [attr.aria-describedby]="shouldShowTruenasConnectNotice() ? 'truenas-connect-notice' : null"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      @if (shouldShowTruenasConnectNotice()) {
+        <div id="truenas-connect-notice" class="truenas-connect-notice">
+          <span
+            class="truenas-connect-link"
+            role="button"
+            tabindex="0"
+            [attr.aria-label]="'Configure TrueNAS Connect to enable Spotlight Search feature' | translate"
+            (click)="openTruenasConnectModal()"
+            (keydown)="onTruenasConnectLinkKeydown($event)"
+          >
+            {{ 'Configure TrueNAS Connect to enable this feature.' | translate }}
+          </span>
+        </div>
+      }
+
+      <tn-form-field
+        [label]="'Administrators Group' | translate"
+        [tooltip]="tooltips.admin_group | translate"
+      >
+        <tn-autocomplete
+          formControlName="admin_group"
+          [testId]="'admin-group'"
+          [placeholder]="'Administrators Group' | translate"
+          [options]="(groupOptions$ | async) ?? []"
+          [allowCustomValue]="true"
+          [loading]="groupsLoading()"
+          [noResultsText]="(groupsFetchFailed() ? 'Options cannot be loaded' : 'No results found') | translate"
+          (searchChange)="groupSearch$.next($event)"
+        ></tn-autocomplete>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'Guest Account' | translate"
+        [tooltip]="tooltips.guest | translate"
+      >
+        <tn-autocomplete
+          formControlName="guest"
+          [testId]="'guest'"
+          [placeholder]="'Guest Account' | translate"
+          [options]="(userOptions$ | async) ?? []"
+          [allowCustomValue]="true"
+          [loading]="usersLoading()"
+          [noResultsText]="(usersFetchFailed() ? 'Options cannot be loaded' : 'No results found') | translate"
+          (searchChange)="userSearch$.next($event)"
+        ></tn-autocomplete>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'File Mask' | translate"
+        [tooltip]="tooltips.filemask | translate"
+      >
+        <tn-input formControlName="filemask"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'Directory Mask' | translate"
+        [tooltip]="tooltips.dirmask | translate"
+      >
+        <tn-input formControlName="dirmask"></tn-input>
+      </tn-form-field>
+
+      <tn-form-list
+        formArrayName="bindip"
+        [control]="form.controls.bindip"
+        [label]="'Bind IP Addresses' | translate"
+        [tooltip]="tooltips.bindip | translate"
+        [addLabel]="'Add' | translate"
+        [emptyMessage]="'No items have been added yet.' | translate"
+        (add)="addBindIp()"
+      >
+        @for (address of form.controls.bindip.controls; track address; let i = $index) {
+          <!-- `testId` keeps the `button-remove-from-list` value the ix-list rows shipped: both
+               render it on a `tn-icon-button`, which declares the `button` prefix. The Add button
+               needs no binding — `tn-form-list` composes it as `['add-item', label()]`, the very
+               expression ix-list used, so it stays `button-add-item-bind-ip-addresses`. -->
+          <tn-form-list-item
+            testId="remove-from-list"
+            [formGroupName]="i"
+            [removeAriaLabel]="'Remove Bind IP Address' | translate"
+            (delete)="removeBindIp(i)"
+          >
+            <tn-form-field [label]="'IP Address' | translate">
+              <tn-select formControlName="bindIp" [options]="bindIpAddressOptions()"></tn-select>
+            </tn-form-field>
+          </tn-form-list-item>
+        }
+      </tn-form-list>
+    </tn-form-section>
+  }
+</ix-form>

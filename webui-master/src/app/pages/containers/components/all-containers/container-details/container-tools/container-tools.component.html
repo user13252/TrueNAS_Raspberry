@@ -1,0 +1,29 @@
+@if (container(); as container) {
+  <tn-card
+    padding="small"
+    [title]="'Tools' | translate"
+    [padContent]="false"
+  >
+    <tn-list>
+      <div [tnTooltip]="shellTooltip() | translate">
+        <tn-list-item
+          tnTestIdType="link"
+          [tnTestId]="'open-shell'"
+          [class.is-clickable]="canOpenShell()"
+          [clickable]="canOpenShell()"
+          [disabled]="!canOpenShell()"
+          (itemClick)="openShell(container.id)"
+        >
+          <div class="shell-row">
+            <span>{{ 'Shell' | translate }}</span>
+            <tn-icon
+              library="mdi"
+              [name]="hasWebShellAccess() ? 'console-line' : 'lock'"
+              [ariaLabel]="shellTooltip() | translate"
+            ></tn-icon>
+          </div>
+        </tn-list-item>
+      </div>
+    </tn-list>
+  </tn-card>
+}

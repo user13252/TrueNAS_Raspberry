@@ -1,0 +1,87 @@
+<div class="enclosure-mock-tab">
+  <form class="enclosure-mock-form" [formGroup]="form">
+    <div class="enable-section">
+      <tn-checkbox
+        formControlName="enabled"
+        class="enable-checkbox"
+        testId="enable-enclosure-mocking"
+        [label]="'Enable Enclosure Mocking' | translate"
+      ></tn-checkbox>
+    </div>
+
+    <div class="config-section">
+      <h3 class="config-title">{{ 'Configuration' | translate }}</h3>
+
+      <tn-form-field
+        [label]="'Controller Model' | translate"
+        [required]="true"
+        [tooltip]="'Select the controller enclosure model' | translate"
+      >
+        <tn-select
+          testId="controller-model-select"
+          formControlName="controllerModel"
+          [options]="controllerOptions"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'Expansion Shelves' | translate"
+        [tooltip]="'Select expansion shelf models to attach' | translate"
+      >
+        <tn-select
+          testId="expansion-models-select"
+          formControlName="expansionModels"
+          [options]="expansionOptions"
+          [multiple]="true"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'Mocking Scenario' | translate"
+        [tooltip]="'Select the scenario for populating enclosure slots' | translate"
+      >
+        @for (option of scenarioOptions; track option.value) {
+          <tn-radio
+            name="enclosure-scenario"
+            formControlName="scenario"
+            [value]="option.value"
+            [label]="option.label | translate"
+            [testId]="['scenario', option.value]"
+          ></tn-radio>
+        }
+      </tn-form-field>
+    </div>
+
+    <div class="actions">
+      <tn-button
+        color="primary"
+        testId="apply-enclosure-mock"
+        [disabled]="form.invalid && form.value.enabled"
+        [label]="'Apply' | translate"
+        (onClick)="onApply()"
+      ></tn-button>
+    </div>
+
+    @if (form.value.enabled && form.value.controllerModel) {
+      <div class="preview-section">
+        <h3>{{ 'Configuration Preview' | translate }}</h3>
+        <div class="preview-content">
+          <div class="preview-item">
+            <span class="preview-label">{{ 'Controller:' | translate }}</span>
+            <span class="preview-value">{{ form.value.controllerModel }}</span>
+          </div>
+          @if (form.value.expansionModels?.length) {
+            <div class="preview-item">
+              <span class="preview-label">{{ 'Expansion Shelves:' | translate }}</span>
+              <span class="preview-value">{{ form.value.expansionModels.join(', ') }}</span>
+            </div>
+          }
+          <div class="preview-item">
+            <span class="preview-label">{{ 'Scenario:' | translate }}</span>
+            <span class="preview-value">{{ getScenarioLabel(form.value.scenario) | translate }}</span>
+          </div>
+        </div>
+      </div>
+    }
+  </form>
+</div>

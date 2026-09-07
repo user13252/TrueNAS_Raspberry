@@ -1,0 +1,81 @@
+<!--
+  The close button is a sibling of the <h3>, not a child: now that it has an accessible
+  name, nesting it would fold that name into the heading's own.
+-->
+<div class="details-header">
+  <h3>
+    @if (slot().dev) {
+      {{ 'Drive Details {disk}' | translate: { disk: slot().dev } }}
+    } @else {
+      {{ 'Drive Details' | translate }}
+    }
+  </h3>
+
+  <!-- Host-pinned to keep the legacy `link-close-details` id the `<a mat-icon-button>` resolved. -->
+  <tn-icon-button
+    name="close"
+    library="mdi"
+    tnTestIdType="link"
+    [tnTestId]="'close-details'"
+    [ariaLabel]="'Close drive details' | translate"
+    (onClick)="onClosePressed()"
+  ></tn-icon-button>
+</div>
+
+<ul class="overview">
+  <li class="item">
+    <div class="label">{{ 'Pool' | translate }}:</div>
+    <div class="value">
+      {{ slot().pool_info?.pool_name || ('Disk not attached to any pools.' | translate) }}
+    </div>
+  </li>
+
+  <li class="item">
+    <div class="label">{{ 'VDEV' | translate }}:</div>
+    <div class="value">
+      @if (slot().pool_info; as poolInfo) {
+        {{ getFriendlyVdevName(poolInfo.vdev_name, poolInfo.vdev_type) }}
+      } @else {
+        {{ 'Unassigned' | translate }}
+      }
+    </div>
+  </li>
+
+  @if (slot().pool_info) {
+    <li class="item">
+      <div class="label">{{ 'Status' | translate }}:</div>
+      <div class="value">
+        {{ slot().pool_info.disk_status | mapValue: enclosureDiskStatusLabels | translate }}
+      </div>
+    </li>
+  }
+
+  @if (slot().model) {
+    <li class="item">
+      <div class="label">{{ 'Model' | translate }}:</div>
+      <div class="value">{{ slot().model }}</div>
+    </li>
+  }
+
+  @if (slot().serial) {
+    <li class="item">
+      <div class="label">{{ 'Serial' | translate }}:</div>
+      <div class="value">{{ slot().serial }}</div>
+    </li>
+  }
+
+  @if (slot().rotationrate) {
+    <li class="item">
+      <div class="label">{{ 'Rotation Rate' | translate }}:</div>
+      <div class="value">
+        {{ '{rate} RPM' | translate: { rate: slot().rotationrate } }}
+      </div>
+    </li>
+  }
+</ul>
+
+@if (slot().supports_identify_light) {
+  <h3>{{ 'Identify Light' | translate }}</h3>
+
+  <ix-identify-light></ix-identify-light>
+}

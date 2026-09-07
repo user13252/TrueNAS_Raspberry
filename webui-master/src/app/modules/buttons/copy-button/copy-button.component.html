@@ -1,0 +1,33 @@
+@if (!jsonText() || !isValidJson()) {
+  <tn-icon-button
+    tnTooltipPosition="above"
+    testId="copy-to-clipboard"
+    name="content-copy"
+    library="mdi"
+    [tnTooltip]="'Copy to Clipboard' | translate"
+    (click)="copyToClipboard()"
+  ></tn-icon-button>
+}
+
+@if (jsonText() && isValidJson()) {
+  <tn-icon-button
+    testId="copy-to-clipboard-menu"
+    name="content-copy"
+    library="mdi"
+    [tnTooltip]="'Copy to Clipboard' | translate"
+    [tnMenuTriggerFor]="menu"
+  ></tn-icon-button>
+
+  <tn-menu #menu>
+    <tn-menu-item
+      testId="copy-text"
+      [label]="'Copy Text' | translate"
+      (itemClick)="copyToClipboard()"
+    ></tn-menu-item>
+    <tn-menu-item
+      testId="copy-json-text"
+      [label]="'Copy Json' | translate"
+      (itemClick)="copyJsonToClipboard()"
+    ></tn-menu-item>
+  </tn-menu>
+}

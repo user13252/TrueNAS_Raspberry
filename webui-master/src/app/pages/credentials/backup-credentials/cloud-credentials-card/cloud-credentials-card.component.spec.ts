@@ -1,0 +1,140 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import {
+  TnButtonHarness, TnCardComponent, TnDialog, TnIconButtonHarness, TnTableHarness,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { CloudSyncProviderName } from 'app/enums/cloudsync-provider.enum';
+import { CloudSyncCredential } from 'app/interfaces/cloudsync-credential.interface';
+import { CloudSyncProvider } from 'app/interfaces/cloudsync-provider.interface';
+import { ConfirmDeleteCallOptions } from 'app/interfaces/dialog.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import {
+  TablePagerShowMoreComponent,
+} from 'app/modules/tn-table/components/table-pager-show-more/table-pager-show-more.component';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { CloudCredentialsCardComponent } from 'app/pages/credentials/backup-credentials/cloud-credentials-card/cloud-credentials-card.component';
+import { CloudCredentialsFormComponent } from 'app/pages/credentials/backup-credentials/cloud-credentials-form/cloud-credentials-form.component';
+import { CloudCredentialService } from 'app/services/cloud-credential.service';
+
+describe('CloudCredentialsCardComponent', () => {
+  let spectator: Spectator<CloudCredentialsCardComponent>;
+  let loader: HarnessLoader;
+  let table: TnTableHarness;
+
+  const credentials = [
+    {
+      id: 1,
+      name: 'GDrive',
+      provider: {
+        type: CloudSyncProviderName.GoogleDrive,
+        client_id: 'client_id',
+        client_secret: 'client_secret',
+        token: '{"access_token":"<token>","expiry":"2023-08-10T01:59:50.96113807-07:00"}',
+        team_drive: '',
+      },
+    },
+    {
+      id: 2,
+      name: 'BB2',
+      provider: {
+        type: CloudSyncProviderName.BackblazeB2,
+        account: '<account>',
+        key: '<key>',
+      },
+    },
+  ] as CloudSyncCredential[];
+
+  const providers = [{
+    name: CloudSyncProviderName.GoogleDrive,
+    title: 'Google Drive',
+  }, {
+    name: CloudSyncProviderName.BackblazeB2,
+    title: 'Backblaze B2',
+  }] as CloudSyncProvider[];
+
+  const createComponent = createComponentFactory({
+    component: CloudCredentialsCardComponent,
+    imports: [
+      TablePagerShowMoreComponent,
+    ],
+    providers: [
+      mockApi([
+        mockCall('cloudsync.providers', providers),
+        mockCall('cloudsync.credentials.query', credentials),
+        mockCall('cloudsync.credentials.delete'),
+      ]),
+      mockProvider(DialogService, {
+        confirmDelete: jest.fn((options: ConfirmDeleteCallOptions) => options.call()),
+      }),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+      mockProvider(TnDialog, {
+        open: jest.fn(() => ({
+          closed: of(true),
+        })),
+      }),
+      mockProvider(CloudCredentialService, {
+        getProviders: jest.fn(() => of(providers)),
+      }),
+      mockAuth(),
+    ],
+  });
+
+  beforeEach(async () => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    table = await loader.getHarness(TnTableHarness);
+  });
+
+  it('checks page title', () => {
+    expect(spectator.query(TnCardComponent)!.title()).toBe('Cloud Credentials');
+  });
+
+  it('opens form when "Add" button is pressed', async () => {
+    const addButton = await loader.getHarness(TnButtonHarness.with({ label: 'Add' }));
+    await addButton.click();
+
+    expect(
+      spectator.inject(FormSidePanelService).open,
+    ).toHaveBeenCalledWith(CloudCredentialsFormComponent, { title: 'Add Cloud Credential' });
+  });
+
+  it('opens form when "Edit" button is pressed', async () => {
+    const editButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'mdi-pencil' }));
+    await editButton.click();
+    expect(
+      spectator.inject(FormSidePanelService).open,
+    ).toHaveBeenCalledWith(CloudCredentialsFormComponent, {
+      title: 'Edit Cloud Credential',
+      inputs: { editInput: { existingCredential: credentials[0] } },
+    });
+  });
+
+  it('opens delete dialog when "Delete" button is pressed', async () => {
+    const deleteButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'mdi-delete' }));
+    await deleteButton.click();
+
+    expect(spectator.inject(DialogService).confirmDelete).toHaveBeenCalledWith({
+      title: 'Delete Cloud Credential',
+      message: 'Are you sure you want to delete the <b>GDrive</b>?',
+      call: expect.any(Function),
+    });
+
+    expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('cloudsync.credentials.delete', [1]);
+  });
+
+  it('should show table rows', async () => {
+    expect(await table.getHeaderTexts()).toEqual(['Name', 'Provider', '']);
+    expect(await table.getAllRowTexts()).toEqual([
+      ['GDrive', 'Google Drive', ''],
+      ['BB2', 'Backblaze B2', ''],
+    ]);
+  });
+});

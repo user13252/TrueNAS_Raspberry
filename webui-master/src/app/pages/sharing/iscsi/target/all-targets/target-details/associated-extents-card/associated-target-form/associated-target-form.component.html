@@ -1,0 +1,40 @@
+<tn-dialog-shell testId="associated-target-form" [title]="('Associate' | translate) + ' ' + data.target.name">
+
+  <form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+    <tn-form-section>
+      <tn-form-field [label]="'LUN ID' | translate" [tooltip]="tooltips.lunid | translate">
+        <tn-input
+          testId="lunid"
+          formControlName="lunid"
+          [inputType]="InputType.Number"
+        ></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Extent' | translate" [tooltip]="tooltips.extent | translate" [required]="true">
+        <tn-select
+          testId="extent"
+          formControlName="extent"
+          [options]="(extents$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    </tn-form-section>
+  </form>
+
+  <ix-form-actions tnDialogAction class="form-actions">
+    <tn-button
+      variant="outline"
+      testId="cancel-associate-target"
+      [label]="'Cancel' | translate"
+      (onClick)="dialogRef.close(false)"
+    ></tn-button>
+
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      testId="associate-target"
+      [label]="'Associate' | translate"
+      [disabled]="form.invalid || isLoading()"
+      (onClick)="onSubmit()"
+    ></tn-button>
+  </ix-form-actions>
+</tn-dialog-shell>

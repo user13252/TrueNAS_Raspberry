@@ -1,0 +1,87 @@
+<ix-form
+  [formGroup]="form"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section [heading]="'General Options' | translate">
+    <tn-form-field
+      [label]="'TCP Port' | translate"
+      [tooltip]="tooltips.tcpport | translate"
+    >
+      <tn-input formControlName="tcpport" [inputType]="InputType.Number" [allowDecimals]="false"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Password Login Groups' | translate"
+      [tooltip]="tooltips.password_login_groups | translate"
+    >
+      <tn-chip-input
+        formControlName="password_login_groups"
+        testId="password-login-groups"
+        [allowCustomValue]="true"
+        [options]="(groupOptions$ | async) ?? []"
+        (searchChange)="groupSearch$.next($event)"
+      ></tn-chip-input>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="tooltips.passwordauth | translate">
+      <tn-checkbox formControlName="passwordauth" [label]="'Allow Password Authentication' | translate"></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="tooltips.kerberosauth | translate">
+      <tn-checkbox formControlName="kerberosauth" [label]="'Allow Kerberos Authentication' | translate"></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="tooltips.tcpfwd | translate">
+      <tn-checkbox formControlName="tcpfwd" [label]="'Allow TCP Port Forwarding' | translate"></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+
+  @if (isAdvancedMode()) {
+    <tn-form-section>
+      <tn-form-field
+        [label]="'Bind Interfaces' | translate"
+        [tooltip]="tooltips.bindiface | translate"
+      >
+        <tn-select
+          formControlName="bindiface"
+          [multiple]="true"
+          [options]="(bindInterfaces$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="tooltips.compression | translate">
+        <tn-checkbox formControlName="compression" [label]="'Compress Connections' | translate"></tn-checkbox>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'SFTP Log Level' | translate"
+        [tooltip]="tooltips.sftp_log_level | translate"
+      >
+        <tn-select formControlName="sftp_log_level" [options]="sftpLogLevelOptions" [allowEmpty]="true"></tn-select>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'SFTP Log Facility' | translate"
+        [tooltip]="tooltips.sftp_log_facility | translate"
+      >
+        <tn-select formControlName="sftp_log_facility" [options]="sftpLogFacilityOptions"></tn-select>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'Weak Ciphers' | translate"
+        [tooltip]="tooltips.weak_ciphers | translate"
+      >
+        <tn-select formControlName="weak_ciphers" [multiple]="true" [options]="weakCiphersOptions"></tn-select>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'Auxiliary Parameters' | translate"
+        [tooltip]="tooltips.options | translate"
+      >
+        <tn-input formControlName="options" [multiline]="true"></tn-input>
+      </tn-form-field>
+    </tn-form-section>
+  }
+</ix-form>

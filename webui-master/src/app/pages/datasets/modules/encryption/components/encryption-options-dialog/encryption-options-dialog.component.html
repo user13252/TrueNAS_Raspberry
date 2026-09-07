@@ -1,0 +1,105 @@
+<tn-dialog-shell testId="encryption-options" [title]="'Edit Encryption Options for {dataset}' | translate: { dataset: data.dataset.id }">
+  <ix-form
+    [formGroup]="form"
+    [requiredRoles]="requiredRoles"
+    [submitHandler]="handleSubmit"
+    (closed)="dialogRef.close($event)"
+  >
+    @if (canInherit) {
+      <tn-form-field>
+        <tn-checkbox
+          testId="inherit-encryption"
+          formControlName="inherit_encryption"
+          [label]="'Inherit encryption properties from parent' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+
+    @if (!isInheriting()) {
+      <tn-form-field
+        [label]="'Encryption Type' | translate"
+        [tooltip]="tooltips.encryption_type | translate"
+        [required]="true"
+      >
+        <tn-select
+          testId="encryption-type"
+          formControlName="encryption_type"
+          [options]="encryptionTypeOptions"
+        ></tn-select>
+      </tn-form-field>
+
+      @if (isKeyEncryption()) {
+        <tn-form-field [tooltip]="tooltips.generate_key | translate">
+          <tn-checkbox
+            testId="generate-key"
+            formControlName="generate_key"
+            [label]="'Generate Key' | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+
+        @if (!isGeneratingKey()) {
+          <tn-form-field [label]="'Key' | translate" [required]="true">
+            <tn-input
+              formControlName="key"
+              [multiline]="true"
+            ></tn-input>
+          </tn-form-field>
+        }
+      } @else {
+        <tn-form-field
+          [label]="'Passphrase' | translate"
+          [tooltip]="tooltips.passphrase | translate"
+        >
+          <tn-input
+            formControlName="passphrase"
+            [inputType]="InputType.Password"
+          ></tn-input>
+        </tn-form-field>
+
+        <tn-form-field [label]="'Confirm Passphrase' | translate">
+          <tn-input
+            formControlName="confirm_passphrase"
+            [inputType]="InputType.Password"
+          ></tn-input>
+        </tn-form-field>
+
+        <tn-form-field
+          [label]="'pbkdf2iters' | translate"
+          [tooltip]="tooltips.pbkdf2iters | translate"
+        >
+          <tn-input
+            testId="pbkdf-2-iters"
+            formControlName="pbkdf2iters"
+            [inputType]="InputType.Number"
+          ></tn-input>
+        </tn-form-field>
+      }
+    }
+
+    <tn-form-field>
+      <tn-checkbox
+        testId="confirm"
+        formControlName="confirm"
+        [label]="'Confirm' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </ix-form>
+
+  <ix-form-actions tnDialogAction>
+    <tn-button
+      variant="outline"
+      testId="cancel"
+      [label]="'Cancel' | translate"
+      (onClick)="dialogRef.close(false)"
+    ></tn-button>
+
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      testId="save"
+      [label]="'Save' | translate"
+      [disabled]="!canSubmit()"
+      (onClick)="submit()"
+    ></tn-button>
+  </ix-form-actions>
+</tn-dialog-shell>

@@ -1,0 +1,497 @@
+import { Component, AfterViewInit, OnDestroy, OnChanges, ElementRef, ChangeDetectionStrategy, output, input, viewChild, Signal, inject } from '@angular/core';
+import { TinyColor } from '@ctrl/tinycolor';
+import { toZonedTime } from 'date-fns-tz';
+import Dygraph, { dygraphs } from 'dygraphs';
+import { v4 as uuidv4 } from 'uuid';
+import { Gb, kb, Mb } from 'app/constants/bits.constant';
+import {
+  GiB, KiB, MiB, TiB,
+} from 'app/constants/bytes.constant';
+import { ReportingGraphName } from 'app/enums/reporting.enum';
+import { buildNormalizedFileSize, normalizeFileSize } from 'app/helpers/file-size.utils';
+import { stringToTitleCase } from 'app/helpers/string-to-title-case';
+import { ReportingData } from 'app/interfaces/reporting.interface';
+import { IxSimpleChanges } from 'app/interfaces/simple-changes.interface';
+import { Theme } from 'app/interfaces/theme.interface';
+import { ThemeService } from 'app/modules/theme/theme.service';
+import { Report, LegendDataWithStackedTotalHtml } from 'app/pages/reports-dashboard/interfaces/report.interface';
+import { ReportsService } from 'app/pages/reports-dashboard/reports.service';
+import { PlotterService } from 'app/pages/reports-dashboard/services/plotter.service';
+import { determineTimeUnit, isUpsRuntimeWithData } from '../../utils/report.utils';
+
+interface Conversion {
+  value: number;
+  prefix?: string;
+  suffix?: string;
+  shortName?: string;
+}
+
+// TODO: Untie from reporting and move to a separate module.
+@Component({
+  selector: 'ix-linechart',
+  templateUrl: './line-chart.component.html',
+  styleUrls: ['./line-chart.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class LineChartComponent implements AfterViewInit, OnDestroy, OnChanges {
+  themeService = inject(ThemeService);
+  private reportsService = inject(ReportsService);
+  private plotterService = inject(PlotterService);
+
+  readonly chartId = input<string>();
+  readonly chartColors = input<string[]>([]);
+  readonly data = input<ReportingData>();
+  readonly report = input.required<Report>();
+  readonly timezone = input<string>();
+  readonly stacked = input(false);
+  readonly labelY = input('Label Y');
+
+  private readonly el: Signal<ElementRef<HTMLElement>> = viewChild.required('wrapper', { read: ElementRef });
+
+  lastMinDate: number;
+  lastMaxDate: number;
+
+  chart: Dygraph;
+
+  units = '';
+  yLabelPrefix: string;
+
+  theme: Theme;
+  timeFormat = '%H:%M';
+  controlUid = `chart_${uuidv4()}`;
+
+  readonly zoomChange = output<number[]>();
+
+  /**
+   * @param update Redraw the existing chart instead of constructing a new one.
+   * Constructing a Dygraph clears the wrapper and re-measures its width from an
+   * empty element, which is how auto-refresh used to shrink the graph.
+   * @param resetDateWindow Drop the date window a drag-zoom left behind. Right
+   * when new data arrived -- the freshly fetched range is what should be on
+   * screen -- but wrong for a recolour, which must leave the zoom alone.
+   */
+  private render(update = false, resetDateWindow = update): void {
+    const data = this.data()?.data;
+    this.units = this.inferUnits(this.labelY());
+    if (isUpsRuntimeWithData(this.report().name, data)) {
+      this.units = stringToTitleCase(determineTimeUnit(data));
+    }
+    this.renderGraph(update, resetDateWindow);
+  }
+
+  private renderGraph(update: boolean, resetDateWindow: boolean): void {
+    if (!this.data()?.legend?.length) {
+      return;
+    }
+
+    const data = this.makeTimeAxis(this.data());
+    const labels = data.shift();
+    const fg2 = this.themeService.currentTheme().fg2;
+    const gridLineColor = new TinyColor(fg2).setAlpha(0.25).toRgbString();
+
+    const options: dygraphs.Options = {
+      animatedZooms: true,
+      drawPoints: false, // Must be disabled for smoothPlotter
+      pointSize: 1,
+      includeZero: true,
+      highlightCircleSize: 4,
+      strokeWidth: 1,
+      colors: this.chartColors(),
+      labels, // time axis
+      ylabel: this.formatAxisName(),
+      gridLineColor,
+      showLabelsOnHighlight: false,
+      labelsSeparateLines: true,
+      axes: {
+        y: {
+          yRangePad: 24,
+          axisLabelFormatter: this.axisLabelFormatter.bind(this),
+        },
+      },
+      legendFormatter: this.legendFormatter.bind(this),
+      series: this.series.bind(this),
+      drawCallback: this.drawCallback.bind(this),
+      zoomCallback: this.zoomCallback.bind(this),
+      stackedGraph: this.stacked(),
+    } as unknown as dygraphs.Options;
+
+    if (update) {
+      this.chart.updateOptions({
+        ...options,
+        // Without `file` the chart keeps plotting whatever it was built with,
+        // so zooming and stepping would redraw the axes and never the series.
+        file: data,
+        // A drag-zoom leaves a dateWindow pinned to a range the newly fetched
+        // data no longer covers, so a data update clears it. A recolour keeps
+        // it, since the user is still looking at the range they zoomed into.
+        ...(resetDateWindow ? { dateWindow: null } : {}),
+      } as unknown as dygraphs.Options);
+    } else {
+      this.chart = new Dygraph(this.el().nativeElement, data, options);
+    }
+  }
+
+  // TODO: Line chart should be dumber and should not care about timezones.
+  private makeTimeAxis(rd: ReportingData): dygraphs.DataArray {
+    const rowData = rd.data as number[][];
+
+    const newRows = rowData.map((row, index) => {
+      // replace unix timestamp in first column with date
+      const convertedDate = toZonedTime(row[0] * 1000, this.timezone());
+
+      if (index === 0) {
+        this.lastMinDate = convertedDate.getTime();
+      }
+      if (index === rowData.length - 1) {
+        this.lastMaxDate = convertedDate.getTime();
+      }
+
+      return [convertedDate, ...row.slice(1)];
+    });
+
+    return [
+      ['x', ...rd.legend],
+      ...newRows,
+    ] as dygraphs.DataArray;
+  }
+
+  private inferUnits(label: string): string {
+    // Figures out from the label what the unit is
+    let units;
+    switch (true) {
+      case label.toLowerCase().includes('percentage'):
+      case label.includes('%'):
+        units = '%';
+        break;
+      case label.toLowerCase().includes('celsius'):
+      case label.includes('°'):
+        units = '°';
+        break;
+      case label.toLowerCase().includes('mebibytes'):
+        units = 'mebibytes';
+        break;
+      case label.toLowerCase().includes('kilobits'):
+        units = 'kilobits';
+        break;
+      case label.toLowerCase().includes('kibibytes'):
+        units = 'kibibytes';
+        break;
+      case label.toLowerCase().includes('bytes'):
+        units = 'bytes';
+        break;
+      case label.toLowerCase().includes('bits'):
+        units = 'bits';
+        break;
+      case label.toLowerCase().includes('load'):
+      case label.toLowerCase().includes('average'):
+        units = '';
+        break;
+      case label.toLowerCase().includes('count'):
+      case label.toLowerCase().includes('number'):
+        units = '';
+        break;
+      case label.toLowerCase().includes('processes'):
+        units = '';
+        break;
+      default:
+        console.warn('Could not infer units from ' + this.labelY());
+        units = label || '';
+    }
+
+    return units;
+  }
+
+  private formatAxisName(): string {
+    const data = this.data().data;
+    if (this.report().name === ReportingGraphName.NetworkInterface) {
+      return this.yLabelPrefix + '/s';
+    }
+
+    if (isUpsRuntimeWithData(this.report().name, data)) {
+      return this.units;
+    }
+
+    switch (true) {
+      case this.labelY().toLowerCase().includes('bits/s'):
+        return `${this.yLabelPrefix}bits/s`;
+      case this.labelY().toLowerCase().includes('bytes/s'):
+        return `${this.yLabelPrefix}bytes/s`;
+      case this.labelY().toLowerCase().includes('bytes'):
+        return `${this.yLabelPrefix}bytes`;
+      case this.labelY().toLowerCase().includes('bits'):
+        return `${this.yLabelPrefix}bits`;
+      default:
+        return this.labelY();
+    }
+  }
+
+  private formatLabelValue(
+    value: number,
+    units: string,
+    fixed?: number,
+    prefixRules?: boolean,
+    axis = false,
+  ): Conversion {
+    if (!fixed) {
+      fixed = -1;
+    }
+    if (typeof value !== 'number') {
+      return value;
+    }
+
+    switch (units.toLowerCase()) {
+      case 'seconds': {
+        const shortName = this.units;
+        switch (this.units.toLowerCase()) {
+          case 'minutes': return { value: value / 60, shortName };
+          case 'hours': return { value: value / (60 * 60), shortName };
+          case 'days': return { value: value / (60 * 60 * 24), shortName };
+          default: return { value, shortName };
+        }
+      }
+      case 'kilobits': {
+        const result = this.convertKmgt(value * 1000, 'bits', fixed, prefixRules);
+        if (axis) {
+          result.value = this.getValueForAxis(value * 1000, result.prefix);
+        }
+
+        return result;
+      }
+      case 'mebibytes': {
+        const result = this.convertKmgt(value * MiB, 'bytes', fixed, prefixRules);
+        if (axis) {
+          result.value = this.getValueForAxis(value * 1000 * 1000, result.prefix);
+        }
+
+        return result;
+      }
+      case 'kibibytes': {
+        const result = this.convertKmgt(value * KiB, 'bytes', fixed, prefixRules);
+        if (axis) {
+          result.value = this.getValueForAxis(value * 1000, result.prefix);
+        }
+
+        return result;
+      }
+      case 'bits':
+      case 'bytes': {
+        const result = this.convertKmgt(value, units.toLowerCase(), fixed, prefixRules);
+        if (axis) {
+          result.value = this.getValueForAxis(value, result.prefix);
+        }
+
+        return result;
+      }
+      default:
+        return this.convertByKilo(value);
+    }
+  }
+
+  private convertByKilo(value: number): Conversion {
+    if (typeof value !== 'number') {
+      return value;
+    }
+
+    let newValue = value;
+    let suffix = '';
+
+    if (value >= 1000000) {
+      newValue = value / 1000000;
+      suffix = 'm';
+    } else if (value < 1000000 && value >= 1000) {
+      newValue = value / 1000;
+      suffix = 'k';
+    }
+
+    return { value: newValue, suffix };
+  }
+
+  private limitDecimals(numero: number): string | number {
+    if (numero < 1024) {
+      return Number(numero.toString().slice(0, 4));
+    }
+    return Math.round(numero);
+  }
+
+  axisLabelFormatter = (numero: number): string => {
+    if (this.report()?.name === ReportingGraphName.NetworkInterface) {
+      if (numero < Mb) {
+        if (this.yLabelPrefix === 'Gb') {
+          numero /= Gb;
+        }
+        if (this.yLabelPrefix === 'Mb') {
+          numero /= Mb;
+        }
+        if (this.yLabelPrefix === 'kb') {
+          numero /= kb;
+        }
+      }
+      const [formatted] = normalizeFileSize(numero * 1000, 'b', 10);
+      return formatted.toString();
+    }
+    const converted = this.formatLabelValue(numero, this.inferUnits(this.labelY()), 1, true, true);
+    const suffix = converted.suffix ? converted.suffix : '';
+    return `${this.limitDecimals(converted.value)}${suffix}`;
+  };
+
+  series = (): Record<string, { plotter: unknown }> => {
+    const series: Record<string, { plotter: unknown }> = {};
+    this.data().legend.forEach((item) => {
+      series[item] = { plotter: this.plotterService.getSmoothPlotter() };
+    });
+
+    return series;
+  };
+
+  getSuffix = (converted: Conversion): string => {
+    if (converted.shortName !== undefined) {
+      return converted.shortName;
+    }
+
+    return converted.suffix !== undefined ? converted.suffix : '';
+  };
+
+  legendFormatter = (legend: dygraphs.LegendData): string => {
+    const clone = { ...legend, chartId: this.chartId() } as LegendDataWithStackedTotalHtml;
+    clone.series.forEach((item: dygraphs.SeriesLegendData, index: number): void => {
+      if (!item.y) {
+        return;
+      }
+      if (this.report().name === ReportingGraphName.NetworkInterface) {
+        clone.series[index].yHTML = buildNormalizedFileSize(item.y * 1000, 'b', 10) + '/s';
+      } else {
+        const yConverted = this.formatLabelValue(item.y, this.inferUnits(this.labelY()), 1, true);
+        const ySuffix = this.getSuffix(yConverted);
+        clone.series[index].yHTML = `${this.limitDecimals(yConverted.value)} ${ySuffix}`;
+        if (this.labelY().endsWith('/s')) {
+          clone.series[index].yHTML += '/s';
+        }
+        if (!clone.stackedTotal) {
+          clone.stackedTotal = 0;
+        }
+        clone.stackedTotal += item.y;
+        if (clone.stackedTotal >= 0) {
+          const stackedTotalConverted = this.formatLabelValue(
+            clone.stackedTotal,
+            this.inferUnits(this.labelY()),
+            1,
+            true,
+          );
+          const stackedTotalSuffix = this.getSuffix(stackedTotalConverted);
+          clone.stackedTotalHTML = `${this.limitDecimals(stackedTotalConverted.value)} ${stackedTotalSuffix}`;
+        }
+      }
+    });
+
+    this.reportsService.emitLegendEvent(clone);
+    return '';
+  };
+
+  drawCallback = (dygraph: Dygraph & { axes_: { maxyval: number }[] }): void => {
+    if (dygraph.axes_.length) {
+      const numero = dygraph.axes_[0].maxyval;
+      if (this.report()?.name === ReportingGraphName.NetworkInterface) {
+        const [, unit] = normalizeFileSize(numero * 1000, 'b', 10);
+        this.yLabelPrefix = unit;
+        return;
+      }
+      const converted = this.formatLabelValue(numero, this.inferUnits(this.labelY()));
+      if (converted.prefix) {
+        this.yLabelPrefix = converted.prefix;
+      } else {
+        this.yLabelPrefix = '';
+      }
+    } else {
+      console.warn('axes not found');
+    }
+  };
+
+  zoomCallback = (startDate: number, endDate: number): void => {
+    const maxZoomLevel = 5 * 60 * 1000;
+    const zoomRange = endDate - startDate;
+
+    if (zoomRange < maxZoomLevel) {
+      this.chart.updateOptions({
+        dateWindow: [this.lastMinDate, this.lastMaxDate],
+        animatedZooms: false,
+      });
+      return;
+    }
+
+    this.lastMinDate = startDate;
+    this.lastMaxDate = endDate;
+    this.zoomChange.emit([startDate, endDate]);
+  };
+
+  private getValueForAxis(value: number, prefix: string | undefined): number {
+    if (prefix === 'Tebi') return value / 1000 ** 4;
+    if (prefix === 'Gibi') return value / 1000 ** 3;
+    if (prefix === 'Mebi') return value / 1000 ** 2;
+    if (prefix === 'Kibi') return value / 1000;
+    return value;
+  }
+
+  private convertKmgt(value: number, units: string, fixed?: number, prefixRules?: boolean): Conversion {
+    let prefix = '';
+    let newValue: number = value;
+    let shortName = '';
+
+    if (value > TiB || (prefixRules && this.yLabelPrefix === 'Tebi')) {
+      prefix = 'Tebi';
+      shortName = 'TiB';
+      newValue = value / TiB;
+    } else if ((value < TiB && value > GiB) || (prefixRules && this.yLabelPrefix === 'Gibi')) {
+      prefix = 'Gibi';
+      shortName = 'GiB';
+      newValue = value / GiB;
+    } else if ((value < GiB && value > MiB) || (prefixRules && this.yLabelPrefix === 'Mebi')) {
+      prefix = 'Mebi';
+      shortName = 'MiB';
+      newValue = value / MiB;
+    } else if ((value < MiB && value > KiB) || (prefixRules && this.yLabelPrefix === 'Kibi')) {
+      prefix = 'Kibi';
+      shortName = 'KiB';
+      newValue = value / KiB;
+    }
+
+    if (units === 'bits') {
+      shortName = shortName.replace(/i/, '').trim();
+      shortName = ` ${shortName.charAt(0).toUpperCase()}${shortName.substring(1).toLowerCase()}`; // Kb, Mb, Gb, Tb
+    }
+
+    return { value: newValue, prefix, shortName };
+  }
+
+  ngOnChanges(changes: IxSimpleChanges<this>): void {
+    if (changes.data) {
+      // Update the existing chart rather than building a new one. Rebuilding
+      // also leaked the previous chart along with its window listeners.
+      this.render(Boolean(this.chart));
+      return;
+    }
+
+    if (changes.chartColors) {
+      // A theme switch replaces the palette without touching the data or the
+      // container size, so nothing else would repaint the series and the grid.
+      this.render(Boolean(this.chart), false);
+    }
+  }
+
+  ngAfterViewInit(): void {
+    // ngOnChanges usually gets here first with data already in hand, and a second
+    // constructor call would orphan that chart along with its resize listener.
+    this.render(Boolean(this.chart));
+  }
+
+  /**
+   * Re-measures the container and redraws. Needed when the container changes
+   * width without a window resize -- Dygraph only watches the window itself.
+   */
+  resize(): void {
+    this.chart?.resize();
+  }
+
+  ngOnDestroy(): void {
+    this.chart?.destroy();
+  }
+}

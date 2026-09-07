@@ -1,0 +1,280 @@
+import {
+  TiB, GiB, MiB, KiB,
+} from 'app/constants/bytes.constant';
+import { ReportingGraphName } from 'app/enums/reporting.enum';
+import { toHumanReadableKey } from 'app/helpers/object-keys-to-human-readable.helper';
+import { ReportingAggregationKeys, ReportingData } from 'app/interfaces/reporting.interface';
+
+type TimeAxisUnit = 'seconds' | 'minutes' | 'hours' | 'days';
+
+const timeConstants = {
+  minutes: 60,
+  hours: 60 * 60,
+  days: 60 * 60 * 24,
+};
+
+export function formatData(data: ReportingData): ReportingData {
+  const formattedData: ReportingData = { ...data };
+
+  if (
+    formattedData.name as ReportingGraphName === ReportingGraphName.NetworkInterface
+    && formattedData.aggregations
+  ) {
+    delete formattedData.aggregations.min;
+  }
+
+  if (formattedData.name as ReportingGraphName === ReportingGraphName.Cpu) {
+    formattedData.legend = [...formattedData.legend].reverse();
+
+    formattedData.data = (formattedData.data as number[][]).map((row) => [
+      row[0],
+      ...row.slice(1).reverse(),
+    ]);
+
+    // we receieve an aggregate CPU load from the backend just called 'Cpu' instead
+    // of 'Cpu1' or 'Cpu2'. this doesn't really make sense to graph, since we draw a stacked graph
+    // for CPU usage, and the aggregate would stack underneath the *actual* usages and offset the peaks on the graph.
+    //
+    // so, we remove that data so it doesn't show up.
+    formattedData.legend.pop();
+    if (Array.isArray(formattedData.data)) {
+      formattedData.data.forEach((row) => row.pop());
+    }
+
+    if (formattedData.aggregations) {
+      // remove the average data from the aggregates too
+      formattedData.aggregations.min.pop();
+      formattedData.aggregations.max.pop();
+      formattedData.aggregations.mean.pop();
+
+      formattedData.aggregations.min = [...formattedData.aggregations.min].reverse();
+      formattedData.aggregations.max = [...formattedData.aggregations.max].reverse();
+      formattedData.aggregations.mean = [...formattedData.aggregations.mean].reverse();
+    }
+  }
+
+  // also, remove the average from the CPU temperature graph
+  if (formattedData.name as ReportingGraphName === ReportingGraphName.CpuTemp) {
+    formattedData.legend.pop();
+    if (Array.isArray(formattedData.data)) {
+      formattedData.data.forEach((row) => row.pop());
+    }
+
+    if (formattedData.aggregations) {
+      formattedData.aggregations.min.pop();
+      formattedData.aggregations.max.pop();
+      formattedData.aggregations.mean.pop();
+    }
+  }
+
+  return formattedData;
+}
+
+export const maxDecimals = (input: number, max = 2): number => {
+  const str = input.toString().split('.');
+  if (!str[1]) {
+    // Not a float
+    return input;
+  }
+  const decimals = str[1].length;
+  const output = decimals > max ? input.toFixed(max) : input;
+  const prepareInput = parseFloat(output as string);
+  return prepareInput < 1000 ? Number(prepareInput.toString().slice(0, 4)) : Math.round(prepareInput);
+};
+
+export function inferUnits(label: string): string {
+  const lowerLabel = label.toLowerCase();
+
+  if (label.includes('%') || lowerLabel.includes('percentage')) return '%';
+  if (label.includes('°') || lowerLabel.includes('celsius')) return '°';
+  if (lowerLabel.includes('mebibytes')) return 'mebibytes';
+  if (lowerLabel.includes('kibibytes')) return 'kibibytes';
+  if (lowerLabel.includes('kilobits')) return 'kilobits';
+  if (lowerLabel.includes('bytes')) return 'bytes';
+  if (lowerLabel.includes('bits')) return 'bits';
+
+  console.warn('Could not infer units from ' + label);
+  return label;
+}
+
+export function convertKmgt(input: number, units: string): { value: number; prefix: string; shortName: string } {
+  const unitsMap = [
+    { threshold: TiB, prefix: 'Tebi', shortName: 'TiB' },
+    { threshold: GiB, prefix: 'Gibi', shortName: 'GiB' },
+    { threshold: MiB, prefix: 'Mebi', shortName: 'MiB' },
+    { threshold: KiB, prefix: 'Kibi', shortName: 'KiB' },
+  ];
+
+  for (const unit of unitsMap) {
+    if (input >= unit.threshold) {
+      const value = input / unit.threshold;
+      let { shortName } = unit;
+      if (units === 'bits') {
+        shortName = shortName.replace('i', '');
+      }
+      return { value, prefix: unit.prefix, shortName };
+    }
+  }
+
+  return { value: input, prefix: '', shortName: 'B' };
+}
+
+export function convertByKilobits(input: number): { value: number; suffix: string } {
+  let value = input;
+  let suffix = 'b';
+
+  if (input >= 1_000_000) {
+    value = input / 1_000_000;
+    suffix = 'Mb';
+  } else if (input >= 1_000) {
+    value = input / 1_000;
+    suffix = 'kb';
+  }
+
+  return { value, suffix };
+}
+
+export function convertByThousands(input: number): { value: number; suffix: string } {
+  let value = input;
+  let suffix = '';
+
+  if (input >= 1_000_000) {
+    value = input / 1_000_000;
+    suffix = 'm';
+  } else if (input >= 1_000) {
+    value = input / 1_000;
+    suffix = 'k';
+  }
+
+  return { value, suffix };
+}
+
+export function formatValue(value: number, units: string): string {
+  const mebibytes = convertKmgt(value * MiB, 'bytes');
+  const kibibytes = convertKmgt(value * KiB, 'bytes');
+  const kilobits = convertByKilobits(value * 1000);
+  const bytes = convertKmgt(value, units);
+  const thousands = convertByThousands(value);
+
+  if (typeof value !== 'number') return String(value);
+
+  switch (units.toLowerCase()) {
+    case 'seconds':
+      return `${maxDecimals(value, 1)} s`;
+    case 'minutes':
+      return `${maxDecimals(value / timeConstants.minutes, 1)} m`;
+    case 'hours':
+      return `${maxDecimals(value / timeConstants.hours, 1)} h`;
+    case 'days':
+      return `${maxDecimals(value / timeConstants.days, 1)} d`;
+    case 'mebibytes':
+      return `${maxDecimals(mebibytes.value)} ${mebibytes.shortName}`;
+    case 'kibibytes':
+      return `${maxDecimals(kibibytes.value)} ${kibibytes.shortName}`;
+    case 'kilobits':
+      return `${maxDecimals(kilobits.value)} ${kilobits.suffix}`;
+    case 'bits':
+    case 'bytes':
+      return `${maxDecimals(bytes.value)} ${bytes.shortName}`;
+    default:
+      return `${maxDecimals(thousands.value)}${thousands.suffix}`;
+  }
+}
+
+export function convertAggregations(input: ReportingData, labelY: string): ReportingData {
+  const output = { ...input };
+  let units = inferUnits(labelY);
+  if (isUpsRuntimeWithData(input.identifier, input.data)) {
+    units = determineTimeUnit(input.data);
+  }
+  const keys = Object.keys(output.aggregations);
+
+  keys.forEach((key: ReportingAggregationKeys) => {
+    const values = output.aggregations[key];
+
+    if (Array.isArray(values)) {
+      values.forEach((value, index) => {
+        const formattedValue = formatValue(value as number, units);
+        const suffix = labelY.endsWith('/s') && formattedValue !== '0' ? '/s' : '';
+        (output.aggregations[key] as (string | number)[])[index] = formattedValue + suffix;
+      });
+    } else {
+      output.aggregations[key] = Object.values(values).map((value) => {
+        const formattedValue = formatValue(value as number, units);
+        const suffix = labelY.endsWith('/s') && formattedValue !== '0' ? '/s' : '';
+        return formattedValue + suffix;
+      });
+    }
+  });
+  return output;
+}
+
+export function optimizeLegend(input: ReportingData): ReportingData {
+  const output = { ...input, legend: [...input.legend] };
+
+  if (output.legend.includes('time')) {
+    output.legend.shift();
+  }
+
+  const replacements: Record<string, (label: string) => string> = {
+    upsbatterycharge: () => 'Percent Charge',
+    upsremainingbattery: () => 'Time remaining (Minutes)',
+    load: (label) => label.replace(/load_/, ''),
+    disktemp: () => 'Temperature',
+    memory: (label) => label.replace(/memory-|_value/g, ''),
+    swap: (label) => label.replace(/swap-|_value/g, ''),
+    interface: (label) => label.replace(/if_|octets_/g, (match) => (match === 'octets_' ? 'octets ' : '')),
+    nfsstat: (label) => label.replace(/nfsstat-|_value/g, ''),
+    nfsstatbytes: (label) => label.replace(/nfsstat-|_bytes_value/g, ''),
+    df: (label) => label.replace(/df_complex-|_value/g, ''),
+    processes: (label) => label.replace(/ps_state-|_value/g, ''),
+    uptime: (label) => label.replace(/_value/g, ''),
+    ctl: (label) => label.replace(/disk_octets_/, ''),
+    disk: (label) => label.replace(/disk_octets_/, ''),
+    diskgeombusy: () => 'Busy',
+    diskgeomlatency: (label) => label.replace(/geom_latency-/, ''),
+    diskgeomopsrwd: (label) => label.replace(/geom_ops_rwd-/, ''),
+    diskgeomqueue: (label) => label.replace(/geom_queue-/, ''),
+  };
+
+  if (replacements[output.name]) {
+    const replaceFn = replacements[output.name];
+    output.legend = output.legend.map((value) => toHumanReadableKey(replaceFn(value)));
+  }
+
+  return output;
+}
+
+export function determineTimeUnit(series: [number, number][]): TimeAxisUnit {
+  const value = series.reduce((acc, [_, y]) => (acc < y ? y : acc), 0);
+  if (value >= 2 * timeConstants.days) {
+    return 'days';
+  }
+
+  if (value >= 2 * timeConstants.hours) {
+    return 'hours';
+  }
+
+  if (value >= 2 * timeConstants.minutes) {
+    return 'minutes';
+  }
+
+  return 'seconds';
+}
+
+/**
+ * checks if the given data represents a UPS runtime graph with valid time-series data.
+ * UPS runtime graphs require dynamic time unit determination based on the data range.
+ *
+ * @param graphIdentifier - the graph name or identifier to check
+ * @param data - the reporting data to validate
+ * @returns true if this is a UPS runtime graph with valid array data and false otherwise
+ */
+export function isUpsRuntimeWithData(
+  graphIdentifier: string | ReportingGraphName,
+  data: unknown,
+): data is [number, number][] {
+  return graphIdentifier === ReportingGraphName.UpsRuntime.toString()
+    && Array.isArray(data)
+    && data.length > 0;
+}

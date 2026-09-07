@@ -1,0 +1,32 @@
+@import 'scss-imports/variables';
+@import 'mixins/forms';
+
+// Vertical rhythm between the step's rows comes from the `<tn-form-section>` body (flex column,
+// 1.25rem gap) that wraps them. The two grouping rows below lay their own children out: `.cloudsync`
+// is a horizontal pair of explorers, and `.direction-mode` stacks its fields with the same rhythm.
+.cloudsync {
+  display: flex;
+  gap: 8px;
+
+  // Each explorer is an `<ix-explorer>` projected into a `<tn-form-field>`, so the field is the
+  // flex child that carries the width.
+  tn-form-field {
+    width: 50%;
+
+    @media(max-width: $breakpoint-sm) {
+      width: 100%;
+    }
+  }
+}
+
+.direction-mode {
+  @include tn-form-stack();
+
+  > * {
+    width: 50%;
+
+    @media(max-width: $breakpoint-sm) {
+      width: 100%;
+    }
+  }
+}

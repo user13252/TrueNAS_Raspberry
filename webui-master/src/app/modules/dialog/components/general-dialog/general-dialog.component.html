@@ -1,0 +1,33 @@
+<tn-dialog-shell testId="general" [title]="(conf.title | translate) || ''">
+  <div class="general-dialog-content-container">
+    @if (conf.icon) {
+      <tn-icon class="general-dialog-icon" [name]="conf.icon"></tn-icon>
+    }
+    <div class="general-dialog-content">
+      @if (conf.is_html) {
+        <span [innerHTML]="conf.message | translate"></span>
+      } @else {
+        <span>{{ conf.message | translate }}</span>
+      }
+    </div>
+  </div>
+
+  <div tnDialogAction>
+    @if (!conf.hideCancel && conf.cancelBtnMsg) {
+      <tn-button
+        variant="outline"
+        testId="cancel"
+        [label]="conf.cancelBtnMsg | translate"
+        (onClick)="dialogRef.close(false)"
+      ></tn-button>
+    }
+    @if (conf.confirmBtnMsg) {
+      <tn-button
+        color="primary"
+        testId="close"
+        [label]="conf.confirmBtnMsg | translate"
+        (onClick)="dialogRef.close(true)"
+      ></tn-button>
+    }
+  </div>
+</tn-dialog-shell>

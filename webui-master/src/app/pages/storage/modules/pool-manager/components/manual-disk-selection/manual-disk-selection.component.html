@@ -1,0 +1,66 @@
+<tn-dialog-shell testId="manual-disk-selection" [title]="'Manual Selection' | translate">
+  <div class="container">
+    <div class="inner-container">
+      <div class="left-pane">
+        <ix-manual-selection-disks
+          [enclosures]="data.enclosures"
+          [isSedEncryption]="data.isSedEncryption || false"
+        ></ix-manual-selection-disks>
+      </div>
+      <tn-divider class="divider" [vertical]="true"></tn-divider>
+      <div class="right-pane">
+        <div class="header vdevs-header">
+          <h3>{{ 'VDEVs' | translate }}</h3>
+          @if (!(hideAddVdevButton$ | async)) {
+            <div class="header-actions">
+              <tn-button
+                *ixRequiresRoles="requiredRoles"
+                variant="outline"
+                testId="add"
+                [label]="'Add' | translate"
+                (onClick)="addVdev()"
+              ></tn-button>
+            </div>
+          }
+        </div>
+
+        <tn-divider class="header-divider"></tn-divider>
+        <div class="vdevs-container">
+          @if (!currentVdevs.length) {
+            <div class="no-vdevs">
+              <p>{{ 'Click Add to add first VDEV.' | translate }}</p>
+              <p>{{ 'Alternatively, you can start by configuring VDEVs in the wizard first and then opening Manual selection to make adjustments.' | translate }}</p>
+            </div>
+          } @else {
+            @for (vdev of currentVdevs; track trackVdevById($index, vdev)) {
+              <ix-manual-selection-vdev
+                [vdev]="vdev"
+                [layout]="data.layout"
+                [editable]="true"
+                [position]="$index + 1"
+                [enclosures]="data.enclosures"
+              ></ix-manual-selection-vdev>
+            }
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div tnDialogAction>
+    <tn-button
+      variant="outline"
+      testId="cancel"
+      [label]="'Cancel' | translate"
+      (onClick)="dialogRef.close(false)"
+    ></tn-button>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      testId="save-selection"
+      [label]="'Save Selection' | translate"
+      [disabled]="isSaveDisabled$ | async"
+      (onClick)="onSaveSelection()"
+    ></tn-button>
+  </div>
+</tn-dialog-shell>

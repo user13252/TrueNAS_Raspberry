@@ -1,0 +1,68 @@
+<div class="job-item">
+  <div class="job-icon">
+    @switch (job().state) {
+      @case (JobState.Success) {
+        <tn-icon
+          name="check-circle-outline"
+          library="mdi"
+          class="success"
+        ></tn-icon>
+      }
+      @case (JobState.Failed) {
+        <tn-icon
+          name="close-circle"
+          library="mdi"
+          class="failed"
+          [tnTooltip]="job().error"
+        ></tn-icon>
+      }
+      @case (JobState.Running) {
+        <tn-spinner
+          class="running"
+          mode="indeterminate"
+          [diameter]="22"
+          [tnTooltip]="job().progress.description"
+          [ariaLabel]="job().progress.description || ('Running' | translate)"
+        ></tn-spinner>
+      }
+      @case (JobState.Waiting) {
+        <tn-icon class="waiting" name="clock-outline" library="mdi"></tn-icon>
+      }
+      @case (JobState.Aborted) {
+        <tn-icon class="aborted" name="alert-circle" library="mdi"></tn-icon>
+      }
+    }
+  </div>
+
+  <div class="job-name-wrapper">
+    <div class="job-name">
+      <span>{{ job().description ? job().description : job().method }}</span>
+      @if (isRunning()) {
+        <small>
+          {{ job().progress.percent || 0 | number: '1.2-2' }}%
+        </small>
+      }
+    </div>
+
+    @if (isRunning()) {
+      <tn-progress-bar
+        class="job-progress"
+        [value]="job().progress.percent"
+        [mode]="job().progress.percent ? 'determinate' : 'indeterminate'"
+        [ariaLabel]="'Progress of {job}' | translate: { job: job().description || job().method }"
+        [tnTooltip]="job().progress.description"
+      ></tn-progress-bar>
+    }
+  </div>
+</div>
+
+@if (isRunning() && job().abortable) {
+  <tn-icon-button
+    name="close-circle"
+    library="mdi"
+    [testId]="abortTestId()"
+    [tooltip]="'Abort' | translate"
+    [ariaLabel]="'Abort' | translate"
+    (onClick)="onAborted()"
+  ></tn-icon-button>
+}

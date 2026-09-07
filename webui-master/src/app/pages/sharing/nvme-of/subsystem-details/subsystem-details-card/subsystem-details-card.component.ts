@@ -1,0 +1,112 @@
+import { Clipboard } from '@angular/cdk/clipboard';
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnChanges, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnCardComponent, TnInputComponent, TnTestIdDirective } from '@truenas/ui-components';
+import { finalize } from 'rxjs';
+import { UiSearchDirective } from 'app/directives/ui-search.directive';
+import { Role } from 'app/enums/role.enum';
+import { NvmeOfSubsystemDetails, UpdateNvmeOfSubsystem } from 'app/interfaces/nvme-of.interface';
+import { AuthService } from 'app/modules/auth/auth.service';
+import { DetailsItemComponent } from 'app/modules/details-table/details-item/details-item.component';
+import { DetailsTableComponent } from 'app/modules/details-table/details-table.component';
+import {
+  EditableSaveOnEnterDirective,
+} from 'app/modules/forms/editable/editable-save-on-enter/editable-save-on-enter.directive';
+import { EditableComponent } from 'app/modules/forms/editable/editable.component';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { NvmeOfService } from 'app/pages/sharing/nvme-of/services/nvme-of.service';
+import { NvmeOfStore } from 'app/pages/sharing/nvme-of/services/nvme-of.store';
+import { subsystemDetailsCardElements } from 'app/pages/sharing/nvme-of/subsystem-details/subsystem-details-card/subsystem-details-card.elements';
+
+@Component({
+  selector: 'ix-subsystem-details-card',
+  templateUrl: './subsystem-details-card.component.html',
+  styleUrl: './subsystem-details-card.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnCardComponent,
+    TnInputComponent,
+    TranslateModule,
+    DetailsItemComponent,
+    DetailsTableComponent,
+    EditableComponent,
+    FormsModule,
+    ReactiveFormsModule,
+    EditableSaveOnEnterDirective,
+    TnTestIdDirective,
+    UiSearchDirective,
+    AsyncPipe,
+  ],
+})
+export class SubsystemDetailsCardComponent implements OnChanges {
+  private formBuilder = inject(FormBuilder);
+  private translate = inject(TranslateService);
+  private snackbar = inject(SnackbarService);
+  private formErrorHandler = inject(FormErrorHandlerService);
+  private nvmeOfStore = inject(NvmeOfStore);
+  private nvmeOfService = inject(NvmeOfService);
+  private clipboard = inject(Clipboard);
+  private auth = inject(AuthService);
+  private destroyRef = inject(DestroyRef);
+
+  subsystem = input.required<NvmeOfSubsystemDetails>();
+  readonly nameUpdated = output<string>();
+
+  protected isSaving = signal(false);
+
+  protected form = this.formBuilder.group({
+    name: [''],
+    subnqn: [''],
+  });
+
+  protected hasRole$ = this.auth.hasRole(Role.SharingNvmeTargetWrite);
+
+  protected readonly searchableElements = subsystemDetailsCardElements;
+
+  ngOnChanges(): void {
+    this.form.patchValue({
+      name: this.subsystem().name,
+      subnqn: this.subsystem().subnqn,
+    });
+  }
+
+  protected copyNqn(): void {
+    const copied = this.clipboard.copy(this.subsystem().subnqn);
+    if (copied) {
+      this.snackbar.success(this.translate.instant('Subsystem NQN copied to clipboard'));
+    }
+  }
+
+  protected updateField(field: keyof SubsystemDetailsCardComponent['form']['value']): void {
+    if (this.form.value[field] === this.subsystem()[field]) {
+      return;
+    }
+
+    this.isSaving.set(true);
+    const update: UpdateNvmeOfSubsystem = {
+      [field]: this.form.value[field],
+    };
+
+    this.nvmeOfService.updateSubsystem(this.subsystem(), update)
+      .pipe(
+        finalize(() => this.isSaving.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.snackbar.success(this.translate.instant('Subsystem updated.'));
+          if (field === 'name' && updated) {
+            this.nameUpdated.emit(updated.name);
+          }
+          this.nvmeOfStore.initialize();
+        },
+        error: (error: unknown) => {
+          this.formErrorHandler.handleValidationErrors(error, this.form);
+        },
+      });
+  }
+}

@@ -1,0 +1,146 @@
+<tn-form-section [heading]="'Destination' | translate" [formGroup]="form">
+  <ix-explorer
+    formControlName="target_dataset"
+    [label]="'Destination' | translate"
+    [required]="true"
+    [rootNodes]="emptyRootNode"
+    [tooltip]="helptext.targetDatasetTooltip | translate"
+    [nodeProvider]="nodeProvider()"
+  >
+    @if (isLocal()) {
+      <ix-explorer-create-dataset></ix-explorer-create-dataset>
+    }
+  </ix-explorer>
+  <tn-form-field
+    [label]="'Destination Dataset Read-only Policy' | translate"
+    [tooltip]="helptext.readonlyTooltip | translate"
+    [required]="true"
+  >
+    <tn-select
+      testId="readonly"
+      formControlName="readonly"
+      [options]="(readonlyModes$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+  <tn-form-field [tooltip]="helptext.encryptionTooltip | translate">
+    <tn-checkbox
+      testId="encryption"
+      formControlName="encryption"
+      [label]="'Encryption' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+  @if (hasEncryption) {
+    <tn-form-field [tooltip]="helptext.encryptionInheritTooltip | translate">
+      <tn-checkbox
+        testId="encryption-inherit"
+        formControlName="encryption_inherit"
+        [label]="'Inherit Encryption' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+
+  @if (hasEncryption && !hasEncryptionInherit) {
+    <tn-form-field
+      [label]="'Encryption Key Format' | translate"
+      [tooltip]="helptext.encryptionKeyGenerateTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        testId="encryption-key-format"
+        formControlName="encryption_key_format"
+        [options]="(encryptionKeyFormats$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+    @if (isHex) {
+      <tn-form-field [tooltip]="helptext.encryptionKeyGenerateTooltip | translate">
+        <tn-checkbox
+          testId="encryption-key-generate"
+          formControlName="encryption_key_generate"
+          [label]="'Generate Encryption Key' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+    @if (isHex && !form.value.encryption_key_generate) {
+      <tn-form-field [label]="'Encryption Key' | translate" [tooltip]="helptext.encryptionKeyHexTooltip | translate">
+        <tn-input
+          name="encryption_key_hex"
+          testId="encryption-key-hex"
+          formControlName="encryption_key_hex"
+        ></tn-input>
+      </tn-form-field>
+    }
+    @if (!isHex) {
+      <tn-form-field [label]="'Passphrase' | translate" [tooltip]="helptext.encryptionKeyPassphraseTooltip | translate">
+        <tn-input
+          name="encryption_key_passphrase"
+          testId="encryption-key-passphrase"
+          formControlName="encryption_key_passphrase"
+          [inputType]="InputType.Password"
+          [showPasswordToggle]="true"
+        ></tn-input>
+      </tn-form-field>
+    }
+    <tn-form-field [tooltip]="helptext.encryptionKeyLocationTruenasdbTooltip | translate">
+      <tn-checkbox
+        testId="encryption-key-location-truenasdb"
+        formControlName="encryption_key_location_truenasdb"
+        [label]="'Store Encryption key in Sending TrueNAS database' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+    @if (!form.value.encryption_key_location_truenasdb) {
+      <tn-form-field
+        [label]="'Encryption Key Location in Target System' | translate"
+        [tooltip]="helptext.encryptionKeyLocationTooltip | translate"
+      >
+        <tn-input
+          name="encryption_key_location"
+          testId="encryption-key-location"
+          formControlName="encryption_key_location"
+        ></tn-input>
+      </tn-form-field>
+    }
+  }
+
+  <tn-form-field [tooltip]="helptext.allowFromScratchTooltip | translate">
+    <tn-checkbox
+      testId="allow-from-scratch"
+      formControlName="allow_from_scratch"
+      [label]="'Replication from scratch' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+  <tn-form-field
+    [label]="'Snapshot Retention Policy' | translate"
+    [tooltip]="helptext.retentionPolicyTooltip | translate"
+    [required]="true"
+  >
+    <tn-select
+      testId="retention-policy"
+      formControlName="retention_policy"
+      [options]="(retentionPolicies$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+  @if (form.value.retention_policy === RetentionPolicy.Custom) {
+    <div class="retention-policy">
+      <tn-form-field
+        [label]="'Snapshot Lifetime' | translate"
+        [tooltip]="helptext.lifetimeValueTooltip | translate"
+        [required]="true"
+      >
+        <tn-input
+          name="lifetime_value"
+          testId="lifetime-value"
+          formControlName="lifetime_value"
+          [inputType]="InputType.Number"
+          [required]="true"
+        ></tn-input>
+      </tn-form-field>
+      <tn-form-field [label]="'Unit' | translate" [required]="true">
+        <tn-select
+          testId="lifetime-unit"
+          formControlName="lifetime_unit"
+          [options]="(lifetimeUnits$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    </div>
+  }
+</tn-form-section>

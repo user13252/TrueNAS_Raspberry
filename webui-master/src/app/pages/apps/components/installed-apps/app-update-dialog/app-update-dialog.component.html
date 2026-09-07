@@ -1,0 +1,86 @@
+<tn-dialog-shell testId="app-update" [title]="'Update' | translate">
+<div>
+  <div class="logo-container">
+    <div class="logo">
+      <img [src]="dialogConfig.appInfo.metadata.icon" [src-fallback]="imagePlaceholder" />
+    </div>
+    <div class="name-container">
+      <strong class="app-name">{{ dialogConfig.appInfo.name }}</strong>
+      <span class="version"> {{ dialogConfig.appInfo.human_version }}</span>
+    </div>
+  </div>
+
+  @if (versionOptions.size > 0) {
+    <div class="version-info">
+      @if (hasAppVersionChange) {
+        <div class="version-row">
+          <span class="version-label">{{ 'Version' | translate }}:</span>
+          <span class="version-value">
+            {{ dialogConfig.appInfo.metadata.app_version }}
+            <tn-icon name="arrow-right" library="mdi"></tn-icon>
+            {{ latestAppVersion }}
+          </span>
+        </div>
+      }
+      <div class="version-row">
+        <span class="version-label">{{ 'Revision' | translate }}:</span>
+        <span class="version-value">
+          {{ dialogConfig.appInfo.version }}
+          <tn-icon name="arrow-right" library="mdi"></tn-icon>
+          {{ selectedVersion?.latest_version }}
+        </span>
+      </div>
+    </div>
+
+    @if (versionOptions.size > 1) {
+      <div class="resource">
+        <span>{{ 'Version to be updated to' | translate }}:</span>
+        <tn-select
+          class="form-element"
+          testId="versions"
+          [options]="versionSelectOptions"
+          [optionTestIdKey]="versionOptionTestId"
+          [(ngModel)]="selectedVersionKey"
+          (ngModelChange)="onVersionOptionChanged()"
+        ></tn-select>
+      </div>
+    }
+
+    @if (dialogConfig.appInfo.metadata.changelog_url) {
+      <div class="changelog-link">
+        <span class="changelog-label">{{ 'Changelog' | translate }}:</span>
+        <a
+          target="_blank"
+          rel="noopener noreferrer"
+          class="changelog-url"
+          [href]="dialogConfig.appInfo.metadata.changelog_url"
+          [attr.aria-label]="'View Upstream Release Notes (opens in new window)' | translate"
+        >
+          <tn-icon name="open-in-new" library="mdi" size="sm"></tn-icon>
+          {{ 'View Upstream Release Notes' | translate }}
+        </a>
+      </div>
+    }
+  } @else {
+    <div class="resource">
+      <span>{{ 'Only image(s) will be updated' | translate }}</span>
+    </div>
+  }
+
+</div>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="close"
+    [label]="'Close' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    testId="update"
+    [label]="'Update' | translate"
+    (onClick)="dialogRef.close(selectedVersionKey)"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

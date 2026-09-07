@@ -1,0 +1,8 @@
+<tn-button
+  [fullWidth]="fullWidth()"
+  [testId]="testId()"
+  [disabled]="disabled() || oauthWindowOpen()"
+  [color]="isLoggedIn() ? 'secondary' : 'primary'"
+  [label]="buttonText()"
+  (onClick)="onOauthClicked()"
+></tn-button>

@@ -1,0 +1,14 @@
+.host-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  .description {
+    font-weight: 600;
+  }
+
+  .hostnqn {
+    color: var(--fg2);
+    font-size: 0.875rem;
+  }
+}

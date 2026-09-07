@@ -1,0 +1,147 @@
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, input, OnChanges, OnInit, output, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  InputType, TnCheckboxComponent, TnFormFieldComponent, TnFormSectionComponent, TnInputComponent, TnSelectComponent,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { minimumPbkdf2Iterations } from 'app/constants/dataset.constants';
+import { DatasetEncryptionType } from 'app/enums/dataset.enum';
+import { EncryptionKeyFormat } from 'app/enums/encryption-key-format.enum';
+import { helptextDatasetForm } from 'app/helptext/storage/volumes/datasets/dataset-form';
+import { Dataset, DatasetCreate } from 'app/interfaces/dataset.interface';
+import { matchOthersFgValidator } from 'app/modules/forms/ix-forms/validators/password-validation/password-validation';
+import { exactLength } from 'app/modules/forms/ix-forms/validators/validators';
+import { ignoreTranslation } from 'app/modules/translate/translate.helper';
+
+@Component({
+  selector: 'ix-encryption-section',
+  templateUrl: './encryption-section.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnCheckboxComponent,
+    TnSelectComponent,
+    TnInputComponent,
+    TranslateModule,
+    AsyncPipe,
+  ],
+})
+export class EncryptionSectionComponent implements OnChanges, OnInit {
+  private formBuilder = inject(FormBuilder);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly parent = input<Dataset>();
+  readonly advancedMode = input<boolean>();
+
+  readonly formValidityChange = output<boolean>();
+
+  protected inheritEncryptionLabel = computed(() => {
+    return this.parent()?.encrypted
+      ? this.translate.instant('Inherit (encrypted)')
+      : this.translate.instant('Inherit (non-encrypted)');
+  });
+
+  // TODO: Add conditional validators
+  readonly form = this.formBuilder.nonNullable.group({
+    inherit_encryption: [true],
+    encryption: [true],
+    encryption_type: [DatasetEncryptionType.Default],
+    generate_key: [true],
+    key: ['', exactLength(64)],
+    passphrase: ['', Validators.minLength(8)],
+    confirm_passphrase: [''],
+    pbkdf2iters: [minimumPbkdf2Iterations, Validators.min(minimumPbkdf2Iterations)],
+  }, {
+    validators: [
+      matchOthersFgValidator(
+        'confirm_passphrase',
+        ['passphrase'],
+        this.translate.instant('Confirm Passphrase value must match Passphrase'),
+      ),
+    ],
+  });
+
+  readonly helptext = helptextDatasetForm;
+
+  encryptionTypeOptions$ = of([
+    { label: this.translate.instant('Key'), value: DatasetEncryptionType.Default },
+    { label: this.translate.instant('Passphrase'), value: DatasetEncryptionType.Passphrase },
+  ]);
+
+  get hasEncryption(): boolean {
+    return this.form.controls.encryption.value;
+  }
+
+  get isInheritingEncryption(): boolean {
+    return this.form.controls.inherit_encryption.value;
+  }
+
+  get isPassphrase(): boolean {
+    return this.form.controls.encryption_type.value === DatasetEncryptionType.Passphrase;
+  }
+
+  protected parentHasPassphrase = computed(() => {
+    const parent = this.parent();
+    return parent
+      && parent.encrypted
+      && parent.key_format.value === EncryptionKeyFormat.Passphrase;
+  });
+
+  ngOnChanges(): void {
+    if (this.parentHasPassphrase()) {
+      this.form.controls.encryption_type.setValue(DatasetEncryptionType.Passphrase);
+    }
+
+    this.disableEncryptionIfParentEncrypted();
+  }
+
+  ngOnInit(): void {
+    this.form.statusChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((status) => {
+      this.formValidityChange.emit(status === 'VALID');
+    });
+  }
+
+  getPayload(): Partial<DatasetCreate> {
+    if (this.isInheritingEncryption) {
+      return {};
+    }
+
+    if (!this.hasEncryption) {
+      return { encryption: false };
+    }
+
+    const values = this.form.value;
+    const encryptionOptions: DatasetCreate['encryption_options'] = {};
+
+    if (this.isPassphrase) {
+      encryptionOptions.pbkdf2iters = values.pbkdf2iters;
+      encryptionOptions.passphrase = values.passphrase;
+    } else if (values.generate_key) {
+      encryptionOptions.generate_key = true;
+    } else {
+      encryptionOptions.key = values.key;
+    }
+
+    return {
+      encryption: true,
+      encryption_options: encryptionOptions,
+      inherit_encryption: false,
+    };
+  }
+
+  private disableEncryptionIfParentEncrypted(): void {
+    if (!this.parent()?.encrypted) {
+      return;
+    }
+    this.form.controls.encryption.disable();
+  }
+
+  protected readonly ignoreTranslation = ignoreTranslation;
+  protected readonly InputType = InputType;
+}

@@ -1,0 +1,63 @@
+<tn-card class="card" [ixUiSearch]="searchableElements.elements.manualUpdate">
+  @if (isFormLoading()) {
+    <tn-progress-bar mode="indeterminate"></tn-progress-bar>
+  }
+
+  <form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+    <tn-form-section>
+      <p>
+        <b>{{ 'Current Version' | translate }}</b>: {{ currentVersion }}
+      </p>
+
+      <tn-form-field
+        [label]="helptext.filename.label | translate"
+        [tooltip]="helptext.filename.tooltip | translate"
+        [required]="true"
+      >
+        <tn-file-input
+          formControlName="updateFile"
+          accept=".tar,.update"
+          [showFileName]="true"
+          [ariaLabel]="helptext.filename.label | translate"
+          [testId]="'update-file'"
+        ></tn-file-input>
+      </tn-form-field>
+
+      @if (!isHaLicensed) {
+        <tn-form-field
+          [label]="helptext.filelocation.label | translate"
+          [tooltip]="helptext.filelocation.tooltip | translate"
+          [required]="true"
+        >
+          <tn-select
+            formControlName="filelocation"
+            [testId]="'filelocation'"
+            [options]="(fileLocationOptions$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+      }
+
+      @if (!isHaLicensed && isEnterprise()) {
+        <tn-form-field [tooltip]="helptext.rebootAfterManualUpdate.tooltip | translate">
+          <tn-checkbox
+            formControlName="rebootAfterManualUpdate"
+            [testId]="'rebootAfterManualUpdate'"
+            [label]="helptext.rebootAfterManualUpdate.label | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      }
+    </tn-form-section>
+  </form>
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      variant="filled"
+      [testId]="'apply-update'"
+      [label]="'Apply Update' | translate"
+      [disabled]="form.invalid || isFormLoading()"
+      (onClick)="onSubmit()"
+    ></tn-button>
+  </ng-template>
+</tn-card>

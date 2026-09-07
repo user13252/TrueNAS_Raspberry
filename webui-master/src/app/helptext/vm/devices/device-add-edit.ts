@@ -1,0 +1,67 @@
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+
+export const helptextDevice = {
+  cd_path_tooltip: T('Browse to a CD-ROM file present on the system storage.'),
+  zvol_path_tooltip: T('Define the path to an existing zvol for VM use.'),
+
+  mode_tooltip: T('<i>AHCI</i> emulates an AHCI hard disk for better\
+ software compatibility. <i>VirtIO</i> uses\
+ paravirtualized drivers and can provide better\
+ performance, but requires the operating system\
+ installed in the VM to support VirtIO disk devices.'),
+
+  sectorsize_tooltip: T('Select a sector size in bytes. <i>Default</i> leaves the\
+ sector size unset and uses the ZFS volume values. Setting a sector size\
+ changes both the logical and physical sector size.'),
+
+  adapter_type_tooltip: T('Emulating an <i>Intel e82545 (e1000)</i> Ethernet card\
+ provides compatibility with most operating systems. Change to\
+ <i>VirtIO</i> to provide better performance on systems\
+ with VirtIO paravirtualized network driver support.'),
+
+  mac_tooltip: T('By default, the VM receives an auto-generated random\
+ MAC address. Enter a custom address into the field to\
+ override the default. Click <b>Generate MAC Address</b>\
+ to add a new randomized address into this field.\
+ The address must be colon-separated, for example 00:a0:98:1b:2c:3d.'),
+
+  nic_attach_tooltip: T('Select a physical interface to associate with the VM.'),
+
+  raw_file_path_tooltip: T('Browse to a storage location and add the name of the\
+ new raw file on the end of the path.'),
+
+  mode_type_tooltip: T('<i>AHCI</i> emulates an AHCI hard disk for best\
+ software compatibility. <i>VirtIO</i> uses\
+ paravirtualized drivers and can provide better\
+ performance, but requires the operating system\
+ installed in the VM to support VirtIO disk devices.'),
+
+  raw_size_tooltip: T('Define the size of the raw file. (e.g. 500 MiB, 10 GiB, etc.)'),
+
+  pptdev_tooltip: T('Specify the PCI device to pass thru (bus#/slot#/fcn#).'),
+
+  rootpwd_tooltip: T('Enter a password for the <i>rancher</i> user. This\
+ is used to log in to the VM from the serial shell.'),
+
+  port_tooltip: T('Display server port for remote desktop client connections.'),
+
+  web_port_tooltip: T('Web console port for browser-based access to the VM display.'),
+
+  wait_placeholder: T('Delay VM Boot Until SPICE Connects'),
+  wait_tooltip: T('Wait to start VM until SPICE client connects.'),
+
+  enable_display_tooltip: T('Enable a SPICE display for web-based and client remote\
+ connections. Requires <i>UEFI</i> booting.'),
+  enable_vnc_tooltip: T('Enable a VNC display for client-only remote connections.\
+ Requires VNC client software. Cannot be accessed through web browser.'),
+  vnc_password_tooltip: T('VNC password (maximum 8 characters). Required for VNC connections.'),
+  vnc_bind_tooltip: T('Select an IP address for VNC connections. Leave as 0.0.0.0 to bind to all interfaces.'),
+  vnc_port_tooltip: T('Port for VNC connections. Leave empty to auto-assign an available port.'),
+  vnc_resolution_tooltip: T('Default screen resolution for VNC display.'),
+  resolution_tooltip: T('Select a screen resolution for the display.'),
+  bind_tooltip: T('Select an IP address to bind to for display connections.'),
+  password_tooltip: T('Enter a password for display authentication.'),
+  web_tooltip: T('Set to enable connecting to the SPICE web interface.'),
+
+  datastore_tooltip: T('Select a pool or dataset for the new zvol.'),
+};

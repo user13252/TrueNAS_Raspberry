@@ -1,0 +1,49 @@
+<div class="locked-sed-disks">
+  <div class="warning-box" role="alert">
+    <div class="warning-header">
+      <tn-icon name="lock" library="mdi"></tn-icon>
+      <span>{{ 'Locked SED Disks Detected' | translate }}</span>
+    </div>
+    <p class="warning-message">
+      {{ 'The system has detected locked Self-Encrypting Drives (SED). These disks must be unlocked before they can be used to import pools. Would you like to unlock them now?' | translate }}
+    </p>
+  </div>
+
+  <div class="disk-list" role="list" [attr.aria-label]="'Locked SED disks' | translate">
+    @for (disk of lockedDisks(); track disk.name) {
+      <div class="disk-item" role="listitem">
+        <div class="disk-info">
+          <tn-icon name="lock" library="mdi" class="disk-icon" [attr.aria-hidden]="true"></tn-icon>
+          <div class="disk-details">
+            <span class="disk-name">{{ disk.name }}</span>
+            <div class="disk-meta-row">
+              <span class="disk-meta">{{ disk.model }}</span>
+              <span class="disk-meta">{{ 'Serial' | translate }}: {{ disk.serial }}</span>
+            </div>
+          </div>
+        </div>
+        <span class="status-badge">
+          {{ 'Locked' | translate }}
+        </span>
+      </div>
+    }
+  </div>
+
+  <p class="instruction-text">
+    {{ 'You can choose to unlock these disks now, or skip this step and proceed with importing pools from unlocked disks only.' | translate }}
+  </p>
+
+  <div class="actions">
+    <tn-button
+      [testId]="'skip'"
+      [label]="'Skip' | translate"
+      (onClick)="onSkip()"
+    ></tn-button>
+    <tn-button
+      color="primary"
+      [testId]="'unlock'"
+      [label]="'Unlock' | translate"
+      (onClick)="onUnlock()"
+    ></tn-button>
+  </div>
+</div>

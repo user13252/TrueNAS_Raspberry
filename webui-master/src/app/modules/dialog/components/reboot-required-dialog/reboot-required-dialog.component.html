@@ -1,0 +1,96 @@
+<tn-dialog-shell
+  testId="reboot-required"
+  [title]="'Reboot Required' | translate"
+  [hideActions]="!thisNodeRebootReasons()?.length && !otherNodeRebootReasons()?.length"
+>
+  @if (isHaLicensed() && !canFailover()) {
+    <div class="failover-reasons">
+      <p class="dialog-message error">
+        <span>{{ 'Reboot will cause a failover event which may trigger temporary outages of services.' | translate }}</span>
+      </p>
+
+      @for (reason of failoverDisabledReasons(); track reason) {
+        <li>
+          {{ ((reason | mapValue: disabledReasonExplanations) || reason) | translate }}
+        </li>
+      }
+    </div>
+  }
+
+  @if(thisNodeRebootReasons()?.length) {
+    <div class="reasons">
+      <p class="dialog-message">
+        <span>
+          @if (isHaLicensed()) {
+            {{ 'Active Controller must be rebooted because' | translate }}:
+          } @else {
+            {{ 'The local node must be rebooted because' | translate }}:
+          }
+        </span>
+      </p>
+      @for (reason of thisNodeRebootReasons(); track reason) {
+        <li> {{ reason.reason }} </li>
+      }
+    </div>
+  }
+
+  @if(otherNodeRebootReasons()?.length) {
+    <div class="reasons">
+      <p class="dialog-message">
+        <span>
+          @if (isHaLicensed()) {
+            {{ 'Standby Controller must be rebooted because' | translate }}:
+          } @else {
+            {{ 'The remote node must be rebooted because' | translate }}:
+          }
+        </span>
+      </p>
+      @for (reason of otherNodeRebootReasons(); track reason) {
+        <li> {{ reason.reason }} </li>
+      }
+    </div>
+  }
+
+  @if (thisNodeRebootReasons()?.length || otherNodeRebootReasons()?.length) {
+    <tn-form-field>
+      <tn-checkbox
+        testId="confirm"
+        class="confirm"
+        [formControl]="form.controls.confirm"
+        [label]="'Confirm' | translate"
+        [required]="true"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+
+  <ix-form-actions tnDialogAction class="form-actions">
+    @if (thisNodeRebootReasons()?.length || otherNodeRebootReasons()?.length) {
+      <tn-button
+        variant="outline"
+        testId="cancel"
+        [label]="'Cancel' | translate"
+        (onClick)="dialogRef.close()"
+      ></tn-button>
+
+      @if(thisNodeRebootReasons()?.length) {
+        <tn-button
+          color="primary"
+          testId="reboot-local"
+          [label]="isHaLicensed() ? ('Reboot Active Controller' | translate) : ('Reboot Local' | translate)"
+          [disabled]="form.invalid"
+          (onClick)="rebootLocalNode()"
+        ></tn-button>
+      }
+
+      @if (otherNodeRebootReasons()?.length) {
+        <tn-button
+          color="primary"
+          testId="reboot-remote"
+          [label]="isHaLicensed() ? ('Reboot Standby Controller' | translate) : ('Reboot Remote' | translate)"
+          [disabled]="form.invalid"
+          (onClick)="rebootRemoteNode()"
+        ></tn-button>
+      }
+    }
+  </ix-form-actions>
+</tn-dialog-shell>

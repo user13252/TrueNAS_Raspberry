@@ -1,0 +1,218 @@
+import {
+  ChangeDetectionStrategy, Component, computed, DestroyRef, input, output, inject,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCardComponent, TnCardFooterActionsDirective,
+  TnIconComponent, TnTestIdDirective, TnTooltipDirective,
+} from '@truenas/ui-components';
+import { filter, switchMap } from 'rxjs';
+import { allCommands } from 'app/constants/all-commands.constant';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { UiSearchDirective } from 'app/directives/ui-search.directive';
+import { formatRoleNames, Role } from 'app/enums/role.enum';
+import { getDirectoryServiceTooltip, hasShellAccess } from 'app/helpers/user.helper';
+import { User } from 'app/interfaces/user.interface';
+import { AuthService } from 'app/modules/auth/auth.service';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { userAccessCardElements } from 'app/pages/credentials/users/all-users/user-details/user-access-card/user-access-card.elements';
+import { UserLastActionComponent } from 'app/pages/credentials/users/all-users/user-details/user-last-action/user-last-action.component';
+import {
+  ApiKeyFormComponent,
+} from 'app/pages/credentials/users/user-api-keys/components/api-key-form/api-key-form.component';
+import { DownloadService } from 'app/services/download.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { UrlOptionsService } from 'app/services/url-options.service';
+
+@Component({
+  selector: 'ix-user-access-card',
+  templateUrl: './user-access-card.component.html',
+  styleUrls: ['./user-access-card.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnButtonComponent,
+    TnCardComponent,
+    TnCardFooterActionsDirective,
+    TnIconComponent,
+    TnTooltipDirective,
+    TranslateModule,
+    RequiresRolesDirective,
+    TnTestIdDirective,
+    UserLastActionComponent,
+    RouterLink,
+    UiSearchDirective,
+  ],
+})
+export class UserAccessCardComponent {
+  private translate = inject(TranslateService);
+  private api = inject(ApiService);
+  private loader = inject(LoaderService);
+  private dialogService = inject(DialogService);
+  private errorHandler = inject(ErrorHandlerService);
+  private snackbar = inject(SnackbarService);
+  private formPanel = inject(FormSidePanelService);
+  private downloadService = inject(DownloadService);
+  private urlOptions = inject(UrlOptionsService);
+  private authService = inject(AuthService);
+  private destroyRef = inject(DestroyRef);
+
+  user = input.required<User>();
+  reloadUsers = output();
+
+  protected readonly Role = Role;
+  protected readonly unlockUserText = this.translate.instant('Unlock User');
+  protected readonly lockUserText = this.translate.instant('Lock User');
+
+  protected readonly searchableElements = userAccessCardElements;
+
+  protected readonly globalTwoFactorConfig = toSignal(this.authService.getGlobalTwoFactorConfig());
+  protected readonly currentUser = toSignal(this.authService.user$);
+
+  protected readonly isCurrentUser = computed(() => {
+    return this.currentUser()?.pw_name === this.user().username;
+  });
+
+  readonly sshAccessStatus = computed<string | null>(() => {
+    if (this.user().sshpubkey && this.user().ssh_password_enabled) {
+      return this.translate.instant('SSH Key Authentication & Password Login Enabled');
+    }
+    if (this.user().sshpubkey) {
+      return this.translate.instant('SSH Key Authentication Enabled');
+    }
+    if (this.user().ssh_password_enabled) {
+      return this.translate.instant('SSH Password Login Enabled');
+    }
+
+    return null;
+  });
+
+  readonly noShellAccess = computed(() => !hasShellAccess(this.user()));
+
+  readonly rolesAccessStatus = computed<string | null>(() => {
+    return formatRoleNames(this.user().roles, (key) => this.translate.instant(key)) || null;
+  });
+
+  protected canAddApiKeys = computed(() => {
+    // Matches the user picker in api-key-form. `roles` is always empty for directory service users
+    // (group membership is not available from nss_winbind during getpwall/getgrall), so it cannot be
+    // used to decide whether they may hold an API key — their privileges come from their groups.
+    const user = this.user();
+    return !user.local || user.roles.length > 0;
+  });
+
+  protected shouldShowLockButton = computed(() => {
+    const user = this.user();
+    return !user.locked && (!user.builtin || user.username === 'root');
+  });
+
+  private hasAccountWriteRole = computed(() => {
+    const roles = this.currentUser()?.privilege?.roles?.$set || [];
+    return roles.includes(Role.FullAdmin) || roles.includes(Role.AccountWrite);
+  });
+
+  // Actions section is shown when the user has relevant lockable or 2FA state
+  // and the current user has the AccountWrite role (since all action buttons require it).
+  // For directory service users who match these conditions, buttons are shown but disabled with tooltips.
+  protected shouldShowActions = computed(() => {
+    if (!this.hasAccountWriteRole()) return false;
+    const user = this.user();
+    return this.shouldShowLockButton() || user.locked || user.twofactor_auth_configured;
+  });
+
+  protected readonly directoryServiceTooltip = computed(() => {
+    return getDirectoryServiceTooltip(this.user(), this.translate);
+  });
+
+  protected get auditLink(): string {
+    return this.urlOptions.buildUrl('/system/audit', {
+      searchQuery: {
+        isBasicQuery: false,
+        filters: [['username', '=', this.user().username]],
+      },
+    });
+  }
+
+  protected toggleLockStatus(): void {
+    if (!this.user().local) return;
+    const { locked, username, id } = this.user();
+    const message = locked
+      ? this.translate.instant('Are you sure you want to unlock "{user}" user?', { user: username })
+      : this.translate.instant('Are you sure you want to lock "{user}" user?', { user: username });
+    const buttonText = locked ? this.unlockUserText : this.lockUserText;
+
+    this.dialogService.confirm({
+      message,
+      buttonText,
+      hideCheckbox: true,
+    }).pipe(
+      filter(Boolean),
+      switchMap(() => {
+        return this.api.call('user.update', [id, { locked: !locked }]).pipe(
+          this.loader.withLoader(),
+          this.errorHandler.withErrorHandler(),
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => {
+      this.snackbar.success(
+        locked
+          ? this.translate.instant('User unlocked')
+          : this.translate.instant('User locked'),
+      );
+      this.reloadUsers.emit();
+    });
+  }
+
+  protected onDownloadSshPublicKey(): void {
+    const name = this.user().username;
+    const key = this.user().sshpubkey;
+    const blob = new Blob([key], { type: 'text/plain' });
+    this.downloadService.downloadBlob(blob, `${name}_public_key_rsa`);
+  }
+
+  protected onAddApiKey(): void {
+    this.formPanel
+      .open(ApiKeyFormComponent, {
+        title: this.translate.instant('Add API Key'),
+        inputs: { presetUsername: this.user().username },
+      })
+      .onSuccess(() => this.reloadUsers.emit(), this.destroyRef);
+  }
+
+  protected onClearTwoFactorAuth(): void {
+    if (!this.user().local) return;
+    const username = this.user().username;
+    this.dialogService.confirm({
+      title: this.translate.instant('Clear Two-Factor Authentication'),
+      message: this.translate.instant('Are you sure you want to clear two-factor authentication settings for "{user}" user?', { user: username }),
+      hideCheckbox: true,
+      buttonText: this.translate.instant('Clear'),
+    }).pipe(
+      filter(Boolean),
+      switchMap(() => this.api.call('user.unset_2fa_secret', [username]).pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+      )),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => {
+      this.snackbar.success(this.translate.instant('Two-Factor Authentication settings cleared'));
+      this.reloadUsers.emit();
+    });
+  }
+
+  protected formatSudoCommands(commands: string[]): string {
+    if (!commands?.length) {
+      return '';
+    }
+
+    return commands
+      .map((cmd) => (cmd === allCommands ? this.translate.instant('All') : cmd))
+      .join(', ');
+  }
+}

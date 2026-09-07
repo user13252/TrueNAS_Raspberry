@@ -1,0 +1,16 @@
+.readonly-badge {
+  align-items: center;
+  background-color: var(--alt-fg1);
+  border-radius: 2px;
+  display: inline-flex;
+  font-size: 13px;
+  margin-left: 2px;
+  padding: 1px 7px 1px 2px;
+  vertical-align: middle;
+
+  tn-icon {
+    align-items: center;
+    display: flex;
+    margin-right: 2px;
+  }
+}

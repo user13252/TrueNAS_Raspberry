@@ -1,0 +1,49 @@
+<tn-dialog-shell testId="app-delete" [title]="'Delete application {name}' | translate: { name: data.name }">
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <p [innerHTML]="deleteMessage()"></p>
+
+  <p [innerHtml]="deleteAppHelpText()"></p>
+  <tn-form-field>
+    <tn-input
+      testId="confirm-app-name"
+      formControlName="confirmAppName"
+      [required]="true"
+    ></tn-input>
+  </tn-form-field>
+  
+  @if (data.showRemoveVolumes) {
+    <tn-form-field>
+      <tn-checkbox
+        testId="remove-volumes"
+        formControlName="removeVolumes"
+        [label]="'Remove iXVolumes' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+
+  <tn-form-field>
+    <tn-checkbox
+      testId="remove-images"
+      formControlName="removeImages"
+      [label]="'Remove Images' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+
+  </form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close()"
+  ></tn-button>
+
+  <tn-button
+    color="warn"
+    testId="delete"
+    [label]="'Delete' | translate"
+    [disabled]="form.invalid"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

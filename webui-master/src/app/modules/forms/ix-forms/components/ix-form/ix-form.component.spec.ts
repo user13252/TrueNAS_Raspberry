@@ -1,0 +1,1185 @@
+/* eslint-disable @angular-eslint/component-max-inline-declarations, max-classes-per-file */
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
+import { fakeAsync, tick } from '@angular/core/testing';
+import {
+  FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators,
+} from '@angular/forms';
+import { createComponentFactory, Spectator } from '@ngneat/spectator/jest'; // cspell:ignore ngneat
+import {
+  concat, EMPTY, NEVER, of, throwError,
+} from 'rxjs';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { Role } from 'app/enums/role.enum';
+import { IxFieldsetComponent } from 'app/modules/forms/ix-forms/components/ix-fieldset/ix-fieldset.component';
+import { IxInputComponent } from 'app/modules/forms/ix-forms/components/ix-input/ix-input.component';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { ixFormTestingProviders } from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { IxFormHarness } from 'app/modules/forms/ix-forms/testing/ix-form.harness';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { TranslatedString } from 'app/modules/translate/translate.helper';
+import {
+  defaultMinSubmitFeedbackMs, FormSubmitEvent, IxFormComponent, ixFormMinSubmitFeedbackMs, SubmitResult,
+} from './ix-form.component';
+
+describe('IxFormComponent', () => {
+  // Hosts call this via a closure (not `handleSubmit = submitHandlerSpy`) so the
+  // per-test reassignment in beforeEach is seen — don't inline the lambda.
+  let submitHandlerSpy: jest.Mock<SubmitResult<unknown>, [FormSubmitEvent]>;
+
+  @Component({
+    template: `
+      <ix-form
+        [formGroup]="form"
+        [editData]="editData"
+        [title]="'Test Form'"
+        [requiredRoles]="[role]"
+        [submitHandler]="handleSubmit"
+        [suppressSuccessSnackbar]="suppressSnackbar"
+      >
+        <ix-fieldset>
+          <ix-input formControlName="name" [label]="'Name'" />
+          <ix-input formControlName="description" [label]="'Description'" />
+        </ix-fieldset>
+      </ix-form>
+    `,
+    standalone: true,
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'ix-test-host',
+    imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+  })
+  class TestHostComponent {
+    ixForm = viewChild.required(IxFormComponent);
+    role = Role.FullAdmin;
+    editData: Record<string, unknown> | null = null;
+    suppressSnackbar = false;
+
+    private fb = inject(FormBuilder);
+
+    form = this.fb.group({
+      name: [''],
+      description: [''],
+    });
+
+    handleSubmit = (event: FormSubmitEvent): SubmitResult<unknown> => submitHandlerSpy(event);
+  }
+
+  @Component({
+    template: `
+      <ix-form
+        [formGroup]="form"
+        [editData]="editData"
+        [addTitle]="'Add Group'"
+        [editTitle]="'Edit Group'"
+        [requiredRoles]="[role]"
+        [submitHandler]="handleSubmit"
+      >
+        <ix-fieldset>
+          <ix-input formControlName="name" [label]="'Name'" />
+        </ix-fieldset>
+      </ix-form>
+    `,
+    standalone: true,
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'ix-auto-title-host',
+    imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+  })
+  class AutoTitleHostComponent {
+    ixForm = viewChild.required(IxFormComponent);
+    role = Role.FullAdmin;
+    editData: Record<string, unknown> | null = null;
+
+    private fb = inject(FormBuilder);
+
+    form = this.fb.group({
+      name: [''],
+    });
+
+    handleSubmit = (event: FormSubmitEvent): SubmitResult<unknown> => submitHandlerSpy(event);
+  }
+
+  let spectator: Spectator<TestHostComponent>;
+  let loader: HarnessLoader;
+
+  // Shared across describe blocks; reset per test (see beforeEach) so call
+  // counts don't leak between tests.
+  const createComponent = createComponentFactory({
+    component: TestHostComponent,
+    imports: [ReactiveFormsModule],
+    providers: [
+      ...ixFormTestingProviders(),
+      mockAuth(),
+    ],
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    submitHandlerSpy = jest.fn<SubmitResult<unknown>, [FormSubmitEvent]>(() => ({
+      request$: of(undefined),
+      successMessage: 'Saved!' as TranslatedString,
+    }));
+  });
+
+  describe('create mode', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('calls submitHandler with all values when no editData is provided', async () => {
+      const form = await loader.getHarness(IxFormHarness);
+      await form.fillForm({ Name: 'New', Description: 'Desc' });
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(submitHandlerSpy).toHaveBeenCalledWith({
+        isEdit: false,
+        allValues: { name: 'New', description: 'Desc' },
+        changedValues: { name: 'New', description: 'Desc' },
+      });
+    });
+
+    it('shows snackbar and closes the panel on success', () => {
+      const ixFormRef = spectator.component.ixForm();
+      const closedSpy = jest.spyOn(ixFormRef.closed, 'emit');
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Saved!');
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('passes the API result to onSuccess callback', () => {
+      const onSuccessSpy = jest.fn();
+      const apiResult = { id: 42, name: 'Created' };
+      submitHandlerSpy.mockReturnValue({
+        request$: of(apiResult),
+        successMessage: 'Saved!' as TranslatedString,
+        onSuccess: onSuccessSpy,
+      });
+
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(onSuccessSpy).toHaveBeenCalledWith(apiResult);
+    });
+
+    it('re-enables the save button when observable completes without emitting', () => {
+      submitHandlerSpy.mockReturnValue({
+        request$: EMPTY,
+        successMessage: 'Saved!' as TranslatedString,
+      });
+
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const ixFormRef = spectator.component.ixForm();
+      const closedSpy = jest.spyOn(ixFormRef.closed, 'emit');
+      ixFormRef.submit();
+      spectator.detectChanges();
+      spectator.detectChanges();
+
+      expect(ixFormRef.canSubmit()).toBe(true);
+      expect(spectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+      expect(closedSpy).not.toHaveBeenCalled();
+    });
+
+    it('uses closeWith to transform the close payload', () => {
+      const apiResult = { id: 42 };
+      const closeWithSpy = jest.fn(() => ({ navigateTo: '/items/42' }));
+      submitHandlerSpy.mockReturnValue({
+        request$: of(apiResult),
+        successMessage: 'Saved!' as TranslatedString,
+        closeWith: closeWithSpy,
+      });
+
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const ixFormRef = spectator.component.ixForm();
+      const closedSpy = jest.spyOn(ixFormRef.closed, 'emit');
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(closeWithSpy).toHaveBeenCalledWith(apiResult);
+      expect(closedSpy).toHaveBeenCalledWith({ navigateTo: '/items/42' });
+    });
+  });
+
+  describe('edit mode', () => {
+    const editData = { name: 'Original', description: 'Old desc' };
+
+    beforeEach(() => {
+      spectator = createComponent({ detectChanges: false });
+      spectator.component.editData = editData;
+      spectator.detectChanges();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('patches form with editData on init', () => {
+      expect(spectator.component.form.value).toEqual(editData);
+    });
+
+    it('provides only changed properties in changedValues', async () => {
+      const form = await loader.getHarness(IxFormHarness);
+      await form.fillForm({ Description: 'New desc' });
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(submitHandlerSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isEdit: true,
+          changedValues: { description: 'New desc' },
+        }),
+      );
+    });
+
+    it('provides empty changedValues when nothing changed', () => {
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(submitHandlerSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ changedValues: {} }),
+      );
+    });
+
+    it('does not flag disabled controls as changed when their value is unchanged', () => {
+      // Snapshot is captured via getRawValue(), so disabling a control after
+      // the snapshot was captured should not produce an entry in changedValues.
+      spectator.component.form.controls.description.disable();
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(submitHandlerSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ changedValues: {} }),
+      );
+    });
+
+    it('silently omits a control removed after the snapshot from changedValues', () => {
+      // Removed key is gone from getRawValue(), so the diff can't report it
+      // even though it was in the snapshot (getChangedValues iterates current keys).
+      (spectator.component.form as unknown as FormGroup).removeControl('description');
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      const event = submitHandlerSpy.mock.calls[0][0];
+      expect(event.changedValues).not.toHaveProperty('description');
+      expect(event.changedValues).toEqual({});
+    });
+
+    it('always flags a control added after the snapshot as changed', () => {
+      // Absent from the snapshot, so it appears in the diff despite being untouched.
+      (spectator.component.form as unknown as FormGroup).addControl('extra', new FormControl('untouched'));
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(submitHandlerSpy.mock.calls[0][0].changedValues).toEqual({ extra: 'untouched' });
+    });
+
+    it('excludes disabled controls from changedValues', () => {
+      spectator.component.form.controls.name.setValue('changed');
+      spectator.component.form.controls.name.disable();
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(submitHandlerSpy.mock.calls[0][0].changedValues).not.toHaveProperty('name');
+    });
+
+    describe('nested-group advisory', () => {
+      // Spy catches other dev warnings too; count only the nested-group one.
+      const countNestedWarnings = (warnSpy: jest.SpyInstance): unknown[][] => warnSpy.mock.calls.filter(
+        ([message]) => typeof message === 'string' && message.includes('nested FormGroup/FormArray'),
+      );
+
+      const addNestedControl = (): void => {
+        (spectator.component.form as unknown as FormGroup).addControl(
+          'attributes',
+          new FormGroup({ host: new FormControl('') }),
+        );
+      };
+
+      it('dev-warns once when a submit reading changedValues has a nested FormGroup', () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        submitHandlerSpy.mockImplementation((event) => {
+          expect(event.changedValues).toBeDefined();
+          return { request$: of(undefined), successMessage: 'Saved!' as TranslatedString };
+        });
+        addNestedControl();
+
+        const ixFormRef = spectator.component.ixForm();
+        ixFormRef.submit();
+        spectator.detectChanges();
+        ixFormRef.submit();
+        spectator.detectChanges();
+
+        const nestedWarnings = countNestedWarnings(warnSpy);
+        expect(nestedWarnings).toHaveLength(1);
+        expect(nestedWarnings[0][0]).toContain('"attributes"');
+        warnSpy.mockRestore();
+      });
+
+      it('stays quiet when the submit builds its payload from allValues', () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        addNestedControl();
+
+        const ixFormRef = spectator.component.ixForm();
+        ixFormRef.submit();
+        spectator.detectChanges();
+
+        // `changedValues` is never read, so the advisory — which only matters to a handler that
+        // relies on the diff — has nothing to warn about.
+        expect(countNestedWarnings(warnSpy)).toHaveLength(0);
+        warnSpy.mockRestore();
+      });
+    });
+  });
+
+  describe('dirty confirmation', () => {
+    // `hasUnsavedChanges()` is what the `<tn-side-panel>` host's closeGuard calls to decide
+    // whether to prompt before discarding.
+    it('reports no unsaved changes while the form is pristine', () => {
+      spectator = createComponent();
+
+      expect(spectator.component.ixForm().hasUnsavedChanges()).toBe(false);
+    });
+
+    it('reports unsaved changes once the form is dirty', () => {
+      spectator = createComponent();
+      spectator.component.form.markAsDirty();
+
+      expect(spectator.component.ixForm().hasUnsavedChanges()).toBe(true);
+    });
+  });
+
+  describe('submit guard', () => {
+    // The save button is disabled while loading/invalid, so we can't click it —
+    // pressing Enter in an input still fires the form's `submit` event, so
+    // exercise that path directly via the <form> element.
+    it('does not call submitHandler when submit fires while loading', () => {
+      // Start an in-flight submit (NEVER never emits/completes) — the wrapper
+      // sets its internal loading state, which should block subsequent submits.
+      submitHandlerSpy.mockReturnValueOnce({
+        request$: NEVER,
+        successMessage: 'Saved!' as TranslatedString,
+      });
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+      expect(submitHandlerSpy).toHaveBeenCalledTimes(1);
+
+      // Second submit via Enter (button is disabled while loading, so we can't
+      // click it) must be ignored — handler call count stays at 1.
+      spectator.dispatchFakeEvent(spectator.query('form')!, 'submit');
+      expect(submitHandlerSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call submitHandler when submit fires with an invalid form', () => {
+      spectator = createComponent();
+      spectator.component.form.controls.name.setErrors({ required: true });
+
+      spectator.dispatchFakeEvent(spectator.query('form')!, 'submit');
+
+      expect(submitHandlerSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('extraDisabled', () => {
+    @Component({
+      template: `
+        <ix-form
+          [formGroup]="form"
+          [title]="'Extra Disabled'"
+          [extraDisabled]="extraDisabled()"
+          [requiredRoles]="[role]"
+          [submitHandler]="handleSubmit"
+        >
+          <ix-fieldset>
+            <ix-input formControlName="name" [label]="'Name'" />
+          </ix-fieldset>
+        </ix-form>
+      `,
+      standalone: true,
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      selector: 'ix-extra-disabled-host',
+      imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+    })
+    class ExtraDisabledHostComponent {
+      ixForm = viewChild.required(IxFormComponent);
+      role = Role.FullAdmin;
+      extraDisabled = signal(true);
+
+      private fb = inject(FormBuilder);
+
+      form = this.fb.group({ name: ['filled'] });
+
+      handleSubmit = (event: FormSubmitEvent): SubmitResult<unknown> => submitHandlerSpy(event);
+    }
+
+    const createExtraDisabledComponent = createComponentFactory({
+      component: ExtraDisabledHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        ...ixFormTestingProviders(),
+        mockAuth(),
+      ],
+    });
+
+    it('disables Save when extraDisabled is true and re-enables when it flips', () => {
+      const extraSpectator = createExtraDisabledComponent();
+      const ixFormRef = extraSpectator.component.ixForm();
+
+      expect(ixFormRef.canSubmit()).toBe(false);
+
+      extraSpectator.component.extraDisabled.set(false);
+      extraSpectator.detectChanges();
+
+      expect(ixFormRef.canSubmit()).toBe(true);
+    });
+
+    it('ignores Enter-key submit while extraDisabled is true', () => {
+      const extraSpectator = createExtraDisabledComponent();
+
+      extraSpectator.dispatchFakeEvent(extraSpectator.query('form')!, 'submit');
+
+      expect(submitHandlerSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('transformEditData', () => {
+    interface MismatchedEntity {
+      label: string;
+      meta: { nestedDescription: string };
+    }
+
+    @Component({
+      template: `
+        <ix-form
+          [formGroup]="form"
+          [editData]="entity"
+          [transformEditData]="transform"
+          [title]="'Transform'"
+          [requiredRoles]="[role]"
+          [submitHandler]="handleSubmit"
+        >
+          <ix-fieldset>
+            <ix-input formControlName="name" [label]="'Name'" />
+            <ix-input formControlName="description" [label]="'Description'" />
+          </ix-fieldset>
+        </ix-form>
+      `,
+      standalone: true,
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      selector: 'ix-transform-host',
+      imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+    })
+    class TransformHostComponent {
+      ixForm = viewChild.required(IxFormComponent);
+      role = Role.FullAdmin;
+
+      entity: MismatchedEntity = {
+        label: 'Renamed',
+        meta: { nestedDescription: 'From nested' },
+      };
+
+      transform = (data: unknown): Record<string, unknown> => {
+        const entity = data as MismatchedEntity;
+        return {
+          name: entity.label,
+          description: entity.meta.nestedDescription,
+        };
+      };
+
+      private fb = inject(FormBuilder);
+
+      form = this.fb.group({
+        name: [''],
+        description: [''],
+      });
+
+      handleSubmit = (event: FormSubmitEvent): SubmitResult<unknown> => submitHandlerSpy(event);
+    }
+
+    const createTransformComponent = createComponentFactory({
+      component: TransformHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        ...ixFormTestingProviders(),
+        mockAuth(),
+      ],
+    });
+
+    it('runs the transform before patching the form', () => {
+      const transformSpectator = createTransformComponent();
+      expect(transformSpectator.component.form.getRawValue()).toEqual({
+        name: 'Renamed',
+        description: 'From nested',
+      });
+    });
+
+    it('captures the transformed result as the diff baseline', async () => {
+      const transformSpectator = createTransformComponent();
+      const transformLoader = TestbedHarnessEnvironment.loader(transformSpectator.fixture);
+
+      const form = await transformLoader.getHarness(IxFormHarness);
+      await form.fillForm({ Name: 'Edited' });
+
+      const ixFormRef = transformSpectator.component.ixForm();
+      ixFormRef.submit();
+      transformSpectator.detectChanges();
+
+      expect(submitHandlerSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ changedValues: { name: 'Edited' } }),
+      );
+    });
+  });
+
+  describe('onCancel', () => {
+    @Component({
+      template: `
+        <ix-form
+          [formGroup]="form"
+          [title]="'Cancel'"
+          [requiredRoles]="[role]"
+          [onCancel]="onCancel"
+          [submitHandler]="handleSubmit"
+        >
+          <ix-fieldset>
+            <ix-input formControlName="name" [label]="'Name'" />
+          </ix-fieldset>
+        </ix-form>
+      `,
+      standalone: true,
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      selector: 'ix-cancel-host',
+      imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+    })
+    class CancelHostComponent {
+      ixForm = viewChild.required(IxFormComponent);
+      role = Role.FullAdmin;
+      onCancel = jest.fn();
+
+      private fb = inject(FormBuilder);
+
+      form = this.fb.group({ name: [''] });
+
+      handleSubmit = (event: FormSubmitEvent): SubmitResult<unknown> => submitHandlerSpy(event);
+    }
+
+    const createCancelComponent = createComponentFactory({
+      component: CancelHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        ...ixFormTestingProviders(),
+        mockAuth(),
+      ],
+    });
+
+    it('fires when the component is destroyed without a submit', () => {
+      const cancelSpectator = createCancelComponent();
+      const onCancelFn = cancelSpectator.component.onCancel;
+
+      cancelSpectator.fixture.destroy();
+
+      expect(onCancelFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT fire when the component is destroyed after a successful submit', () => {
+      const cancelSpectator = createCancelComponent();
+      const onCancelFn = cancelSpectator.component.onCancel;
+
+      const ixFormRef = cancelSpectator.component.ixForm();
+      ixFormRef.submit();
+      cancelSpectator.detectChanges();
+
+      cancelSpectator.fixture.destroy();
+
+      expect(onCancelFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('suppressSuccessSnackbar', () => {
+    @Component({
+      template: `
+        <ix-form
+          [formGroup]="form"
+          [title]="'Suppressed'"
+          [suppressSuccessSnackbar]="true"
+          [requiredRoles]="[role]"
+          [submitHandler]="handleSubmit"
+        >
+          <ix-fieldset>
+            <ix-input formControlName="name" [label]="'Name'" />
+          </ix-fieldset>
+        </ix-form>
+      `,
+      standalone: true,
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      selector: 'ix-suppress-host',
+      imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+    })
+    class SuppressHostComponent {
+      ixForm = viewChild.required(IxFormComponent);
+      role = Role.FullAdmin;
+
+      private fb = inject(FormBuilder);
+
+      form = this.fb.group({ name: [''] });
+
+      handleSubmit = (event: FormSubmitEvent): SubmitResult<unknown> => submitHandlerSpy(event);
+    }
+
+    const createSuppressComponent = createComponentFactory({
+      component: SuppressHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        ...ixFormTestingProviders(),
+        mockAuth(),
+      ],
+    });
+
+    it('skips the snackbar but still closes the slide-in on success', () => {
+      const apiResult = { id: 1 };
+      submitHandlerSpy.mockReturnValue({
+        request$: of(apiResult),
+        successMessage: 'Saved!' as TranslatedString,
+      });
+
+      const suppressSpectator = createSuppressComponent();
+
+      const ixFormRef = suppressSpectator.component.ixForm();
+      const closedSpy = jest.spyOn(ixFormRef.closed, 'emit');
+      ixFormRef.submit();
+      suppressSpectator.detectChanges();
+
+      expect(suppressSpectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('still invokes onSuccess when the snackbar is suppressed', () => {
+      const onSuccessSpy = jest.fn();
+      const apiResult = { id: 1 };
+      submitHandlerSpy.mockReturnValue({
+        request$: of(apiResult),
+        successMessage: 'Saved!' as TranslatedString,
+        onSuccess: onSuccessSpy,
+      });
+
+      const suppressSpectator = createSuppressComponent();
+
+      const ixFormRef = suppressSpectator.component.ixForm();
+      ixFormRef.submit();
+      suppressSpectator.detectChanges();
+
+      expect(onSuccessSpy).toHaveBeenCalledWith(apiResult);
+      expect(suppressSpectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('error handling', () => {
+    it('handles errors from submitHandler request', () => {
+      const error = new Error('Validation failed');
+      submitHandlerSpy.mockReturnValue({
+        request$: throwError(() => error),
+        successMessage: 'Saved!' as TranslatedString,
+      });
+
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      // Save button re-enables after the error path runs.
+      expect(ixFormRef.canSubmit()).toBe(true);
+      expect(spectator.inject(FormErrorHandlerService).handleValidationErrors)
+        .toHaveBeenCalledWith(error, spectator.component.form);
+    });
+
+    it('skips default error handling when onError returns true', () => {
+      const error = new Error('Custom handled');
+      const onErrorSpy = jest.fn(() => true);
+      submitHandlerSpy.mockReturnValue({
+        request$: throwError(() => error),
+        successMessage: 'Saved!' as TranslatedString,
+        onError: onErrorSpy,
+      });
+
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(onErrorSpy).toHaveBeenCalledWith(error);
+      expect(spectator.inject(FormErrorHandlerService).handleValidationErrors).not.toHaveBeenCalled();
+    });
+
+    it('falls back to default error handling when onError returns false', () => {
+      const error = new Error('Not handled');
+      const onErrorSpy = jest.fn(() => false);
+      submitHandlerSpy.mockReturnValue({
+        request$: throwError(() => error),
+        successMessage: 'Saved!' as TranslatedString,
+        onError: onErrorSpy,
+      });
+
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      expect(onErrorSpy).toHaveBeenCalledWith(error);
+      expect(spectator.inject(FormErrorHandlerService).handleValidationErrors)
+        .toHaveBeenCalledWith(error, spectator.component.form);
+    });
+
+    it('does not fire success lifecycle if request errors after emitting', () => {
+      const error = new Error('After emit');
+      const onSuccessSpy = jest.fn();
+      submitHandlerSpy.mockReturnValue({
+        request$: concat(of('first'), throwError(() => error)),
+        successMessage: 'Saved!' as TranslatedString,
+        onSuccess: onSuccessSpy,
+      });
+
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const ixFormRef = spectator.component.ixForm();
+      ixFormRef.submit();
+      spectator.detectChanges();
+
+      // next should settle the subscription, error afterwards should be ignored
+      expect(onSuccessSpy).toHaveBeenCalledTimes(1);
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledTimes(1);
+      expect(spectator.inject(FormErrorHandlerService).handleValidationErrors).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('auto title', () => {
+    const createAutoTitleComponent = createComponentFactory({
+      component: AutoTitleHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        ...ixFormTestingProviders(),
+        mockAuth(),
+      ],
+    });
+
+    it('uses addTitle in create mode', () => {
+      const autoTitleSpectator = createAutoTitleComponent();
+      const ixForm = autoTitleSpectator.component.ixForm();
+      expect(ixForm.resolvedTitle()).toBe('Add Group');
+    });
+
+    it('uses editTitle in edit mode', () => {
+      const autoTitleSpectator = createAutoTitleComponent({ detectChanges: false });
+      autoTitleSpectator.component.editData = { name: 'wheel' };
+      autoTitleSpectator.detectChanges();
+      const ixForm = autoTitleSpectator.component.ixForm();
+      expect(ixForm.resolvedTitle()).toBe('Edit Group');
+    });
+
+    it('prefers explicit title over addTitle/editTitle', () => {
+      spectator = createComponent();
+      const ixForm = spectator.component.ixForm();
+      expect(ixForm.resolvedTitle()).toBe('Test Form');
+    });
+  });
+
+  describe('external loading', () => {
+    @Component({
+      template: `
+        <ix-form
+          [formGroup]="form"
+          [title]="'External'"
+          [externalLoading]="externalLoading()"
+          [requiredRoles]="[role]"
+          [submitHandler]="handleSubmit"
+        >
+          <ix-fieldset>
+            <ix-input formControlName="name" [label]="'Name'" />
+          </ix-fieldset>
+        </ix-form>
+      `,
+      standalone: true,
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      selector: 'ix-external-loading-host',
+      imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+    })
+    class ExternalLoadingHostComponent {
+      ixForm = viewChild.required(IxFormComponent);
+      role = Role.FullAdmin;
+      externalLoading = signal(false);
+
+      private fb = inject(FormBuilder);
+
+      form = this.fb.group({
+        name: [''],
+      });
+
+      handleSubmit = (event: FormSubmitEvent): SubmitResult<unknown> => submitHandlerSpy(event);
+    }
+
+    const createExternalLoadingComponent = createComponentFactory({
+      component: ExternalLoadingHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        ...ixFormTestingProviders(),
+        mockAuth(),
+      ],
+    });
+
+    it('reflects externalLoading in isLoading and disables save', () => {
+      const externalSpectator = createExternalLoadingComponent();
+
+      const ixForm = externalSpectator.component.ixForm();
+      expect(ixForm.isLoading()).toBe(false);
+
+      externalSpectator.component.externalLoading.set(true);
+      externalSpectator.detectChanges();
+
+      expect(ixForm.isLoading()).toBe(true);
+
+      const ixFormRef = externalSpectator.component.ixForm();
+      expect(ixFormRef.canSubmit()).toBe(false);
+
+      externalSpectator.component.externalLoading.set(false);
+      externalSpectator.detectChanges();
+
+      expect(ixForm.isLoading()).toBe(false);
+      expect(ixFormRef.canSubmit()).toBe(true);
+    });
+  });
+
+  describe('initialFormSnapshot precedence', () => {
+    @Component({
+      template: `
+        <ix-form
+          [formGroup]="form"
+          [editData]="editData"
+          [initialFormSnapshot]="snapshot"
+          [title]="'Snap'"
+          [requiredRoles]="[role]"
+          [submitHandler]="handleSubmit"
+        >
+          <ix-fieldset>
+            <ix-input formControlName="name" [label]="'Name'" />
+          </ix-fieldset>
+        </ix-form>
+      `,
+      standalone: true,
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      selector: 'ix-snapshot-host',
+      imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+    })
+    class SnapshotHostComponent {
+      ixForm = viewChild.required(IxFormComponent);
+      role = Role.FullAdmin;
+      editData = { name: 'FromEditData' };
+      snapshot: Record<string, unknown> = { name: 'FromSnapshot' };
+
+      private fb = inject(FormBuilder);
+
+      form = this.fb.group({ name: [''] });
+
+      handleSubmit = (): SubmitResult => ({
+        request$: of(undefined),
+        successMessage: 'Saved!' as TranslatedString,
+      });
+    }
+
+    const createSnapshotComponent = createComponentFactory({
+      component: SnapshotHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        ...ixFormTestingProviders(),
+        mockAuth(),
+      ],
+    });
+
+    it('skips editData auto-patch when initialFormSnapshot is provided', () => {
+      const snapshotSpectator = createSnapshotComponent();
+      expect(snapshotSpectator.component.form.value).toEqual({ name: '' });
+      expect(snapshotSpectator.component.ixForm().isEdit()).toBe(true);
+    });
+  });
+
+  describe('isEditMode override', () => {
+    @Component({
+      template: `
+        <ix-form
+          [formGroup]="form"
+          [initialFormSnapshot]="snapshot"
+          [isEditMode]="editMode"
+          [addTitle]="'Add X'"
+          [editTitle]="'Edit X'"
+          [requiredRoles]="[role]"
+          [submitHandler]="handleSubmit"
+        >
+          <ix-fieldset>
+            <ix-input formControlName="name" [label]="'Name'" />
+          </ix-fieldset>
+        </ix-form>
+      `,
+      standalone: true,
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      selector: 'ix-edit-mode-host',
+      imports: [ReactiveFormsModule, IxFormComponent, IxInputComponent, IxFieldsetComponent],
+    })
+    class EditModeHostComponent {
+      ixForm = viewChild.required(IxFormComponent);
+      role = Role.FullAdmin;
+      snapshot: Record<string, unknown> | null = null;
+      editMode: boolean | null = true;
+
+      private fb = inject(FormBuilder);
+
+      form = this.fb.group({ name: [''] });
+
+      handleSubmit = (): SubmitResult => ({
+        request$: of(undefined),
+        successMessage: 'Saved!' as TranslatedString,
+      });
+    }
+
+    const createEditModeComponent = createComponentFactory({
+      component: EditModeHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        ...ixFormTestingProviders(),
+        mockAuth(),
+      ],
+    });
+
+    it('reports edit mode before snapshot loads when isEditMode is true', () => {
+      const editSpectator = createEditModeComponent();
+      const ixForm = editSpectator.component.ixForm();
+      expect(ixForm.isEdit()).toBe(true);
+      expect(ixForm.resolvedTitle()).toBe('Edit X');
+    });
+
+    it('overrides inferred edit state when isEditMode is false', () => {
+      const editSpectator = createEditModeComponent({ detectChanges: false });
+      editSpectator.component.editMode = false;
+      editSpectator.component.snapshot = { name: 'existing' };
+      editSpectator.detectChanges();
+
+      const ixForm = editSpectator.component.ixForm();
+      expect(ixForm.isEdit()).toBe(false);
+      expect(ixForm.resolvedTitle()).toBe('Add X');
+    });
+  });
+
+  describe('canSubmit (host-owned Save)', () => {
+    it('stays submittable while async validators are pending, not only when VALID', () => {
+      spectator = createComponent();
+      const form = spectator.component.form;
+
+      // An edit form runs async validators (e.g. name/path uniqueness) against unchanged,
+      // already-valid data on open; hold a control PENDING as those in-flight checks do
+      // before they settle.
+      form.controls.name.setAsyncValidators(() => NEVER);
+      form.controls.name.updateValueAndValidity();
+      spectator.detectChanges();
+
+      expect(form.status).toBe('PENDING');
+      // Regression: gating on `formStatus === 'VALID'` disabled the `<tn-side-panel>` footer
+      // Save through this window ("Save disabled until I change something" on WebShare Edit).
+      expect(spectator.component.ixForm().canSubmit()).toBe(true);
+    });
+
+    it('is not submittable while INVALID', () => {
+      spectator = createComponent();
+      const form = spectator.component.form;
+
+      form.controls.name.setValidators(Validators.required);
+      form.controls.name.setValue('');
+      form.controls.name.updateValueAndValidity();
+      spectator.detectChanges();
+
+      expect(form.status).toBe('INVALID');
+      expect(spectator.component.ixForm().canSubmit()).toBe(false);
+    });
+  });
+
+  describe('minimum submit feedback (side-panel host)', () => {
+    // Success is held for a minimum duration so the host's progress bar / dim overlay stay visible
+    // long enough to see. The `tick()`s below step across this boundary.
+    const createSidePanelComponent = createComponentFactory({
+      component: TestHostComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        // This block asserts the delay itself, so keep the real duration that
+        // `ixFormTestingProviders()` zeroes for every other spec.
+        ...ixFormTestingProviders({ realSubmitFeedback: true }),
+        mockAuth(),
+      ],
+    });
+
+    it('holds submitting and defers close + snackbar until the minimum duration elapses', fakeAsync(() => {
+      submitHandlerSpy.mockReturnValue({
+        request$: of({ id: 1 }),
+        successMessage: 'Saved!' as TranslatedString,
+      });
+
+      const sidePanelSpectator = createSidePanelComponent();
+      const ixForm = sidePanelSpectator.component.ixForm();
+      const closedSpy = jest.fn();
+      ixForm.closed.subscribe(closedSpy);
+
+      ixForm.submit();
+
+      // The request resolves synchronously, but success handling waits on the min-duration timer:
+      // the loader stays up and nothing closes yet.
+      expect(ixForm.isSubmitting()).toBe(true);
+      expect(closedSpy).not.toHaveBeenCalled();
+      expect(sidePanelSpectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+
+      tick(defaultMinSubmitFeedbackMs - 1);
+      expect(ixForm.isSubmitting()).toBe(true);
+      expect(closedSpy).not.toHaveBeenCalled();
+
+      tick(1);
+      expect(ixForm.isSubmitting()).toBe(false);
+      expect(closedSpy).toHaveBeenCalledWith(true);
+      expect(sidePanelSpectator.inject(SnackbarService).success).toHaveBeenCalledWith('Saved!');
+    }));
+
+    it('surfaces a submit error immediately, without waiting out the minimum duration', fakeAsync(() => {
+      submitHandlerSpy.mockReturnValue({
+        request$: throwError(() => new Error('nope')),
+        successMessage: 'Saved!' as TranslatedString,
+      });
+
+      const sidePanelSpectator = createSidePanelComponent();
+      const ixForm = sidePanelSpectator.component.ixForm();
+      const closedSpy = jest.fn();
+      ixForm.closed.subscribe(closedSpy);
+
+      ixForm.submit();
+
+      // No `tick()` above: the failure is reported before a single millisecond of the min-duration
+      // timer, so a broken save never sits behind the loader waiting it out.
+      expect(ixForm.isSubmitting()).toBe(false);
+      expect(sidePanelSpectator.inject(FormErrorHandlerService).handleValidationErrors).toHaveBeenCalled();
+      expect(closedSpy).not.toHaveBeenCalled();
+      expect(sidePanelSpectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+
+      // The paired timer is torn down with the errored forkJoin, so nothing closes or confirms
+      // late once the duration would have elapsed (and `fakeAsync` would throw on a leftover timer).
+      tick(defaultMinSubmitFeedbackMs);
+
+      expect(closedSpy).not.toHaveBeenCalled();
+      expect(sidePanelSpectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+    }));
+
+    it('emits the closeWith payload through closed, so the host can hand it to its opener', () => {
+      const apiResult = { id: 42 };
+      submitHandlerSpy.mockReturnValue({
+        request$: of(apiResult),
+        successMessage: 'Saved!' as TranslatedString,
+        closeWith: (result: unknown) => ({ saved: result }),
+      });
+
+      const sidePanelSpectator = createSidePanelComponent({
+        providers: [{ provide: ixFormMinSubmitFeedbackMs, useValue: 0 }],
+      });
+      const ixForm = sidePanelSpectator.component.ixForm();
+      const closedSpy = jest.fn();
+      ixForm.closed.subscribe(closedSpy);
+
+      ixForm.submit();
+
+      expect(closedSpy).toHaveBeenCalledWith({ saved: apiResult });
+    });
+
+    it('skips the snackbar for a null successMessage, and warns that the save is silent', () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation();
+      submitHandlerSpy.mockReturnValue({ request$: of({ id: 1 }), successMessage: null });
+
+      const sidePanelSpectator = createSidePanelComponent({
+        providers: [{ provide: ixFormMinSubmitFeedbackMs, useValue: 0 }],
+      });
+      sidePanelSpectator.component.ixForm().submit();
+
+      expect(sidePanelSpectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('null successMessage'));
+      warn.mockRestore();
+    });
+
+    it('stays silent for a null successMessage when the snackbar is suppressed', () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation();
+      submitHandlerSpy.mockReturnValue({ request$: of({ id: 1 }), successMessage: null });
+
+      const sidePanelSpectator = createSidePanelComponent({
+        providers: [{ provide: ixFormMinSubmitFeedbackMs, useValue: 0 }],
+        detectChanges: false,
+      });
+      sidePanelSpectator.component.suppressSnackbar = true;
+      sidePanelSpectator.detectChanges();
+
+      sidePanelSpectator.component.ixForm().submit();
+
+      expect(sidePanelSpectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it('builds the snackbar from the request result when successMessage is a function', () => {
+      submitHandlerSpy.mockReturnValue({
+        request$: of({ id: 1, name: 'saved-record' }),
+        successMessage: (result: { name: string }) => `Saved «${result.name}».` as TranslatedString,
+      });
+
+      const sidePanelSpectator = createSidePanelComponent({
+        providers: [{ provide: ixFormMinSubmitFeedbackMs, useValue: 0 }],
+      });
+      sidePanelSpectator.component.ixForm().submit();
+
+      expect(sidePanelSpectator.inject(SnackbarService).success).toHaveBeenCalledWith('Saved «saved-record».');
+    });
+
+    it('stays silent without warning when a successMessage function returns null', () => {
+      // A function returning `null` decided, for this result, that no confirmation is wanted (the
+      // dataset form does exactly that when the save navigates on to the ACL editor). That's an
+      // explicit choice, unlike a statically `null` message, so it must not dev-warn.
+      const warn = jest.spyOn(console, 'warn').mockImplementation();
+      submitHandlerSpy.mockReturnValue({ request$: of({ id: 1 }), successMessage: () => null });
+
+      const sidePanelSpectator = createSidePanelComponent({
+        providers: [{ provide: ixFormMinSubmitFeedbackMs, useValue: 0 }],
+      });
+      sidePanelSpectator.component.ixForm().submit();
+
+      expect(sidePanelSpectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('null successMessage'));
+      warn.mockRestore();
+    });
+  });
+});

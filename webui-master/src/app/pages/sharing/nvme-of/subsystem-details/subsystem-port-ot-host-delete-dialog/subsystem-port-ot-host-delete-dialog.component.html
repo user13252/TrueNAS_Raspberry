@@ -1,0 +1,26 @@
+<tn-dialog-shell testId="subsystem-port-ot-host-delete" [title]="('Delete' | translate) + ' ' + type">
+
+<div>
+  <p class="message">
+    {{
+      'Are you sure you want to delete {type}: {name}?' | translate: { type, name: data.name }
+    }}
+  </p>
+
+  @if (data.subsystemsInUse?.length) {
+    <p class="message">
+      {{ '{type} is currently in use by the following subsystems:' | translate: { type } }}
+    </p>
+    <ul>
+      @for (subsystem of data.subsystemsInUse; track subsystem.name) {
+        <li>{{ subsystem.name }}</li>
+      }
+    </ul>
+  }
+</div>
+
+<ix-form-actions tnDialogAction class="form-actions">
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close({ confirmed: false })"></tn-button>
+  <tn-button *ixRequiresRoles="requiredRoles" color="warn" testId="delete" [label]="data.subsystemsInUse?.length > 0 ? ('Delete Anyway' | translate) : ('Delete' | translate)" (onClick)="delete()"></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

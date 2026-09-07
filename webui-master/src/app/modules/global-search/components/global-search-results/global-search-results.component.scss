@@ -1,0 +1,134 @@
+@import 'scss-imports/cssvars';
+@import 'mixins/text';
+
+:host {
+  background-color: var(--bg2);
+  border-radius: 8px;
+  display: block;
+  max-width: 70vw;
+  min-width: 35vw;
+  position: absolute;
+  top: 41px;
+  width: max-content;
+
+  @media(max-width: $breakpoint-sm) {
+    left: 0;
+    max-width: 100%;
+    position: fixed;
+    width: 100%;
+  }
+
+  &::ng-deep {
+    .highlight {
+      color: var(--fg1);
+    }
+
+    .dimmed-text {
+      opacity: 0.5;
+    }
+
+    ix-empty {
+      tn-icon {
+        height: 60px !important;
+        margin: 10px 0 30px;
+        width: 60px !important;
+      }
+    }
+  }
+}
+
+.search-results-card {
+  border: 0;
+  border-radius: 2px;
+  box-shadow: none;
+  margin: 0;
+  max-height: 60vh;
+  overflow: auto;
+
+  .section {
+    background-color: var(--bg2);
+    border-bottom: 1px solid var(--lines);
+    font-size: 18px;
+    margin: 16px 16px 0 3px;
+    padding: 15px 17px;
+    padding-left: 17px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  .section-content {
+    padding: 6px 0;
+  }
+
+  // Plain button (was mat-button): the reset below replaces the Material
+  // text-button chrome it used to inherit.
+  .toggle-show-more {
+    appearance: none;
+    background-color: var(--bg2);
+    border: 0;
+    bottom: 0;
+    color: var(--primary);
+    cursor: pointer;
+    font: inherit;
+    min-height: 36px;
+    position: sticky;
+    width: 100%;
+    z-index: 1;
+
+    &:hover {
+      background-color: var(--bg1);
+    }
+
+    &:focus-visible {
+      background-color: var(--bg1);
+      outline: none !important;
+    }
+  }
+
+  .search-result {
+    align-items: center;
+    border-radius: 2px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    padding: 13px 20px;
+
+    tn-icon {
+      margin-left: 15px;
+
+      &:focus,
+      &:hover {
+        border-radius: 50%;
+        outline: 1.5px solid var(--primary);
+      }
+    }
+
+    &.highlighted-result {
+      background-color: var(--bg1);
+    }
+
+    &:hover {
+      background-color: var(--bg1);
+    }
+
+    &:focus-visible {
+      background-color: var(--bg1);
+      outline: none;
+    }
+
+    .title {
+      @include line-clamp(2);
+      color: var(--fg1);
+      font-size: 16px;
+    }
+  }
+}
+
+.no-results {
+  padding: 20px 20px 5px;
+}

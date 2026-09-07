@@ -1,0 +1,67 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnCheckboxComponent, TnFormFieldComponent, TnDialogShellComponent } from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { Group } from 'app/interfaces/group.interface';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-delete-group-dialog',
+  templateUrl: './delete-group-dialog.component.html',
+  styleUrls: ['./delete-group-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    TnCheckboxComponent, TnFormFieldComponent,
+    ReactiveFormsModule,
+    FormActionsComponent,
+    TnButtonComponent,
+    RequiresRolesDirective,
+    TranslateModule,
+  ],
+})
+export class DeleteGroupDialog {
+  private loader = inject(LoaderService);
+  private api = inject(ApiService);
+  private snackbar = inject(SnackbarService);
+  private translate = inject(TranslateService);
+  protected dialogRef = inject<DialogRef<unknown, DeleteGroupDialog>>(DialogRef);
+  group = inject<Group>(DIALOG_DATA);
+  private errorHandler = inject(ErrorHandlerService);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.AccountWrite];
+
+  deleteUsersCheckbox = new FormControl(false, { nonNullable: true });
+
+  readonly deleteMessage = T('Are you sure you want to delete group <b>"{name}"</b>?');
+
+  get deleteUsersMessage(): string {
+    return this.translate.instant(
+      'Delete {n, plural, one {# user} other {# users}} with this primary group?',
+      { n: this.group.users.length },
+    );
+  }
+
+  onDelete(): void {
+    this.api.call('group.delete', [this.group.id, { delete_users: this.deleteUsersCheckbox.value }])
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.snackbar.success(this.translate.instant('Group deleted'));
+        this.dialogRef.close(true);
+      });
+  }
+}

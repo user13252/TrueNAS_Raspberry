@@ -1,0 +1,70 @@
+@import 'scss-imports/variables';
+
+:host ::ng-deep {
+  .table-wrapper {
+    @media(max-width: $breakpoint-sm) {
+      overflow: auto;
+    }
+
+    // TEMP: tn-table does not expose sticky-header or row line-height as public inputs — track via @truenas/ui-components issue.
+    table thead {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    tr td {
+      line-height: 22px;
+    }
+  }
+
+  tn-form-section {
+    padding: 0;
+
+    @media(min-width: $breakpoint-sm) {
+      padding: 0 15px 0 0;
+      position: sticky;
+      top: 0;
+    }
+
+    // The global `tn-dialog-shell tn-form-field` rule (_tn-styles.scss) adds the
+    // ix-* dialog rhythm (12px margin + 8px padding) to every field, which is too
+    // airy for this compact filter sidebar. Drop it and let the section's own
+    // `gap` space the fields.
+    tn-form-field {
+      margin: 0;
+      padding: 0;
+    }
+  }
+}
+
+form {
+  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  height: 43vh;
+  margin-bottom: 20px;
+  overflow: auto;
+
+  @media(max-width: $breakpoint-md) {
+    grid-template-columns: 200px 1fr;
+  }
+
+  @media(max-width: $breakpoint-sm) {
+    display: block;
+  }
+
+  // The divider lives on the table side: the filter section must stay
+  // content-height for `position: sticky` to have room to move, so it cannot
+  // carry a full-height border itself.
+  .table-wrapper {
+    @media(min-width: $breakpoint-sm) {
+      border-left: 1px solid var(--lines);
+      min-height: 100%;
+    }
+  }
+}
+
+tr td:last-child {
+  text-align: right;
+}

@@ -1,0 +1,30 @@
+<tn-dialog-shell testId="start-service" [title]="'Start {service} Service' | translate: { service: serviceHumanName }">
+  <ix-fake-progress-bar [loading]="isLoading"></ix-fake-progress-bar>
+
+  <p class="description">
+    {{ '{service} Service is not currently running. Start the service now?' | translate: { service: serviceHumanName } }}
+  </p>
+
+  <ix-slide-toggle
+    [formControl]="startAutomaticallyControl"
+    [label]="'Enable this service to start automatically.' | translate"
+  ></ix-slide-toggle>
+
+  <ix-form-actions tnDialogAction class="form-actions">
+    <tn-button
+      variant="outline"
+      testId="do-not-start"
+      [label]="'No' | translate"
+      [disabled]="isLoading"
+      (onClick)="onCancel()"
+    ></tn-button>
+
+    <tn-button
+      color="primary"
+      testId="enable-service"
+      [label]="'Start' | translate"
+      [disabled]="isLoading"
+      (onClick)="onSubmit()"
+    ></tn-button>
+  </ix-form-actions>
+</tn-dialog-shell>

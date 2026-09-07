@@ -1,0 +1,121 @@
+<div class="message-list-container">
+  <div class="message-list-header">
+    <div class="header-controls">
+      <tn-input
+        class="filter-field"
+        testId="websocket-debug-filter"
+        [placeholder]="'Filter by method' | translate"
+        [(ngModel)]="filterText"
+        (ngModelChange)="applyFilter()">
+      </tn-input>
+      <tn-checkbox
+        testId="websocket-debug-auto-scroll"
+        tnTooltip="Auto-scroll to latest message"
+        label="Auto-scroll"
+        [(ngModel)]="autoScroll"
+      ></tn-checkbox>
+      <tn-checkbox
+        testId="websocket-debug-duplicate-notifications"
+        tnTooltip="Show snackbar when duplicate API calls are detected"
+        label="Duplicate alerts"
+        [ngModel]="duplicateNotificationsEnabled()"
+        (ngModelChange)="toggleDuplicateNotifications()"
+      ></tn-checkbox>
+      <tn-icon-button
+        name="delete-outline"
+        library="mdi"
+        tooltip="Clear messages"
+        class="clear-button"
+        testId="websocket-debug-clear-messages"
+        [ariaLabel]="'Clear messages'"
+        (click)="clearMessages()"
+      ></tn-icon-button>
+    </div>
+  </div>
+
+  @if (!hasMessages) {
+    <div class="empty-state">
+      <tn-icon name="message-text-outline" library="mdi" class="empty-icon" customSize="48px"></tn-icon>
+      <p>No messages yet</p>
+    </div>
+  } @else {
+    <div #messageViewport class="message-viewport">
+      @for (message of filteredMessagesArray; track message.id) {
+        <div class="message-item"
+             [class.outgoing]="message.direction === 'out'"
+             [class.incoming]="message.direction === 'in'"
+             [class.mocked]="message.isMocked"
+             [class.expanded]="message.isExpanded">
+          
+          <div class="message-header">
+          <span class="direction-icon">
+            @if (message.direction === 'out') {
+              <tn-icon name="arrow-right" library="mdi" class="icon-out"></tn-icon>
+            } @else {
+              <tn-icon name="arrow-left" library="mdi" class="icon-in"></tn-icon>
+            }
+          </span>
+          
+          <span class="method-name">{{ message.methodName }}</span>
+          
+          @if (message.isMocked) {
+            <span class="mocked-badge">MOCKED</span>
+          }
+          
+          <span class="timestamp">{{ message.formattedTime }}</span>
+          
+          @if (canCreateMock(message)) {
+            <tn-icon-button
+              name="plus"
+              library="mdi"
+              tooltip="Create mock from response"
+              class="mock-button"
+              testId="websocket-debug-create-mock"
+              [attr.aria-label]="'Create mock from response'"
+              (click)="createMockFromMessage(message); $event.stopPropagation()"
+            ></tn-icon-button>
+          }
+
+          <tn-icon-button
+            name="content-copy"
+            library="mdi"
+            tooltip="Copy message"
+            class="copy-button"
+            testId="websocket-debug-copy-message"
+            [attr.aria-label]="'Copy message'"
+            (click)="copyMessage(message); $event.stopPropagation()"
+          ></tn-icon-button>
+
+          <tn-icon-button
+            library="mdi"
+            class="toggle-button"
+            testId="websocket-debug-toggle-message"
+            tooltip="Toggle message details"
+            [name]="message.isExpanded ? 'chevron-down' : 'chevron-right'"
+            [attr.aria-label]="message.isExpanded ? 'Collapse message details' : 'Expand message details'"
+            [attr.aria-expanded]="message.isExpanded"
+            (click)="toggleMessage(message.id)"
+          ></tn-icon-button>
+        </div>
+        
+        @if (!message.isExpanded) {
+          <div class="message-preview">
+            {{ message.messagePreview }}
+          </div>
+        }
+        
+        @if (message.isExpanded) {
+          <div class="message-expanded">
+            <ix-code-editor
+              [ngModel]="message.message | json"
+              [ngModelOptions]="{ standalone: true }"
+              [language]="CodeEditorLanguage.Json"
+              [disabled]="true"
+            ></ix-code-editor>
+          </div>
+        }
+      </div>
+      }
+    </div>
+  }
+</div>

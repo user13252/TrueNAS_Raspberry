@@ -1,0 +1,24 @@
+.row-with-action {
+  align-items: center;
+  display: flex;
+  width: 100%;
+}
+
+.production-toggle {
+  margin-left: auto;
+}
+
+.proactive-status {
+  display: flex;
+  align-items: center;
+
+  .edit-contacts-wrapper {
+    margin-left: auto;
+  }
+}
+
+.fingerprint-actions {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}

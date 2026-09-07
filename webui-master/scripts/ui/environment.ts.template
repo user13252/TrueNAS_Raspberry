@@ -1,0 +1,9 @@
+import { WebUiEnvironment } from 'environments/environment.interface';
+
+export const environment: WebUiEnvironment = {
+  environmentVersion: '0.0.3',
+  remote: _REMOTE_,
+  buildYear: _BUILD_YEAR_,
+  port: 4200,
+  production: false,
+};

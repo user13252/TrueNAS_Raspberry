@@ -1,0 +1,27 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  [suppressSuccessSnackbar]="true"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field [label]="'Name' | translate" [required]="true">
+      <tn-input
+        name="release_name"
+        testId="release-name"
+        formControlName="release_name"
+        [required]="true"
+        [readonly]="!isNew"
+      ></tn-input>
+    </tn-form-field>
+    <ix-code-editor
+      formControlName="custom_compose_config_string"
+      [language]="CodeEditorLanguage.Yaml"
+      [label]="'Custom Config' | translate"
+      [tooltip]="'Custom app config in YAML format.' | translate"
+      [required]="true"
+    ></ix-code-editor>
+  </tn-form-section>
+</ix-form>

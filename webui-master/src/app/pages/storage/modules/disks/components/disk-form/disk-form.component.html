@@ -1,0 +1,79 @@
+<ix-form
+  [formGroup]="form"
+  [editData]="diskToEdit()"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section [heading]="helptext.generalTitle | translate">
+    <tn-form-field [label]="'Name' | translate">
+      <tn-input
+        formControlName="name"
+        [readonly]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [label]="'Serial' | translate">
+      <tn-input
+        formControlName="serial"
+        [readonly]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [label]="'Description' | translate">
+      <tn-input formControlName="description"></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+  <tn-form-section [heading]="helptext.powerManagementTitle | translate">
+    <tn-form-field
+      [label]="'HDD Standby' | translate"
+      [tooltip]="helptext.standbyTooltip | translate"
+      [required]="isHddStandbyRequired"
+    >
+      <tn-select
+        formControlName="hddstandby"
+        [options]="hddstandbyOptions"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Advanced Power Management' | translate"
+      [required]="isAdvPowerManagementRequired"
+    >
+      <tn-select
+        formControlName="advpowermgmt"
+        [options]="advpowermgmtOptions"
+        [optionTestIdKey]="optionLabelTestId"
+      ></tn-select>
+    </tn-form-field>
+  </tn-form-section>
+
+  @if (showSedSection()) {
+    <tn-form-section [heading]="helptext.sedTitle | translate">
+      <tn-form-field
+        [label]="'SED Password' | translate"
+        [tooltip]="helptext.passwordTooltip | translate"
+      >
+        <!--
+          `showPasswordToggle` is opt-in on tn-input, but the legacy ix-input rendered the
+          reveal button unconditionally for password fields — keep it so a mistyped SED
+          password can still be checked.
+        -->
+        <tn-input
+          formControlName="passwd"
+          [testId]="'passwd'"
+          [inputType]="InputType.Password"
+          [showPasswordToggle]="true"
+        ></tn-input>
+      </tn-form-field>
+
+      <tn-form-field>
+        <tn-checkbox
+          formControlName="clear_pw"
+          [label]="'Clear SED Password' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </tn-form-section>
+  }
+</ix-form>

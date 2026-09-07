@@ -1,0 +1,44 @@
+@import 'scss-imports/variables';
+@import 'mixins/layout';
+
+.container {
+  gap: 16px;
+}
+
+:host ::ng-deep {
+  .header-container .title-container .actions-container {
+    gap: 0 16px;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  .user-avatar,
+  .user-avatar>div {
+    align-items: center;
+    display: flex;
+
+    span {
+      margin: 0 0 0 8px !important;
+    }
+  }
+}
+
+.details-container {
+  flex: 1;
+  max-width: 100%;
+  padding-bottom: 53px;
+  top: 53px;
+}
+
+.controller-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.controller-toggle__label {
+  font-size: 14px;
+  font-weight: 500;
+}

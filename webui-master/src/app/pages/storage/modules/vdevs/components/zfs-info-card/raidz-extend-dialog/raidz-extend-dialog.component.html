@@ -1,0 +1,31 @@
+<tn-dialog-shell testId="raidz-extend" [title]="'Extend Vdev' | translate">
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit($event)">
+  <div>{{ 'Only disks that are at least {size} are shown.' | translate: { size: minimumSize() | ixFileSize } }}</div>
+
+  <ix-unused-disk-select
+    formControlName="newDisk"
+    [label]="'New Disk' | translate"
+    [diskFilteringFn]="filterMinimumSizeFn()"
+    [required]="true"
+    [tooltip]="helptext.dialogFormFields.newDisk.tooltip | translate"
+  ></ix-unused-disk-select>
+
+  <div>{{ helptext.raidzExtendMessage | translate }}</div>
+
+</form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+  <tn-button
+    color="primary"
+    testId="extend"
+    [label]="'Extend' | translate"
+    [disabled]="form.invalid"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

@@ -1,0 +1,42 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section [heading]="'Basic Info' | translate">
+    <tn-form-field [label]="labels.comment | translate">
+      <tn-input formControlName="comment"></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+  <tn-form-section [heading]="'IP Address' | translate">
+    <ix-list
+      formArrayName="ip"
+      [formArray]="form.get('ip')"
+      [empty]="listen.length === 0"
+      [label]="'Add listen' | translate"
+      [required]="true"
+      (add)="onAdd()"
+    >
+      @for (item of listen; track item; let i = $index) {
+        <ix-list-item
+          [label]="'IP Address' | translate"
+          (delete)="onDelete(i)"
+        >
+          <tn-form-field
+            [label]="labels.ip | translate"
+            [tooltip]="tooltips.ip | translate"
+            [required]="true"
+          >
+            <tn-select
+              [formControlName]="i"
+              [options]="(listenOptions$ | async) ?? []"
+            ></tn-select>
+          </tn-form-field>
+        </ix-list-item>
+      }
+    </ix-list>
+  </tn-form-section>
+</ix-form>

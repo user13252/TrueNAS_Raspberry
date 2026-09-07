@@ -1,0 +1,30 @@
+@if (hasMoreThanOneSide()) {
+  @if (enclosure().front_loaded) {
+    <tn-button
+      [testId]="['front', 'side']"
+      [label]="'Front' | translate"
+      (onClick)="onSideChange(EnclosureSide.Front)"
+    ></tn-button>
+  }
+  @if (enclosure().top_loaded) {
+    <tn-button
+      [testId]="['top', 'side']"
+      [label]="'Top' | translate"
+      (onClick)="onSideChange(EnclosureSide.Top)"
+    ></tn-button>
+  }
+  @if (enclosure().rear_slots) {
+    <tn-button
+      [testId]="['rear', 'side']"
+      [label]="'Rear' | translate"
+      (onClick)="onSideChange(EnclosureSide.Rear)"
+    ></tn-button>
+  }
+  @if (enclosure().internal_slots) {
+    <tn-button
+      [testId]="['internal', 'side']"
+      [label]="'Internal' | translate"
+      (onClick)="onSideChange(EnclosureSide.Internal)"
+    ></tn-button>
+  }
+}

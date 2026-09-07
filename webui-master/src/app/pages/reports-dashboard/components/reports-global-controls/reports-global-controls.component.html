@@ -1,0 +1,43 @@
+@if (allTabs.length) {
+  <form class="reports-toolbar" [formGroup]="form">
+    @if (activeTab?.value === ReportType.Disk) {
+      <tn-select
+        formControlName="devices"
+        testId="devices"
+        [ariaLabel]="'Devices' | translate"
+        [placeholder]="'Devices' | translate"
+        [options]="diskDevices()"
+        [multiple]="true"
+      ></tn-select>
+
+      <tn-select
+        formControlName="metrics"
+        testId="metrics"
+        [ariaLabel]="'Metrics' | translate"
+        [placeholder]="'Metrics' | translate"
+        [options]="diskMetrics()"
+        [multiple]="true"
+      ></tn-select>
+    }
+
+    <tn-slide-toggle
+      formControlName="autoRefresh"
+      color="primary"
+      testId="auto-refresh"
+      [label]="'Auto Refresh' | translate"
+    ></tn-slide-toggle>
+
+    <tn-select
+      formControlName="tab"
+      testId="category"
+      [ariaLabel]="'Category' | translate"
+      [options]="tabOptions()"
+      [ixUiSearch]="searchableElements.elements.selectReporting"
+    ></tn-select>
+    <tn-button
+      testId="exporters-nav"
+      [label]="'Exporters' | translate"
+      [routerLink]="['/reportsdashboard','exporters']"
+    ></tn-button>
+  </form>
+}

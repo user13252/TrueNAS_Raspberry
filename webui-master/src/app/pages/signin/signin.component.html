@@ -1,0 +1,61 @@
+<div class="page-wrap login-form">
+  <div class="session-form-hold">
+    @if (!(isConnected$ | async) && (isConnectedDelayed$ | async) !== null) {
+      <tn-card [padContent]="false">
+        <tn-progress-bar
+          class="session-progress"
+          [value]="0"
+          [mode]="'indeterminate'"
+        ></tn-progress-bar>
+        <ix-disconnected-message></ix-disconnected-message>
+      </tn-card>
+    } @else if (isConnected$ | async) {
+        @if (hasAuthToken && (isTokenWithinTimeline$ | async)) {
+          <tn-card [padContent]="false">
+            <tn-progress-bar
+              class="session-progress"
+              [value]="0"
+              [mode]="hasLoadingIndicator() ? 'indeterminate' : 'determinate'"
+            ></tn-progress-bar>
+            <div class="logo-wrapper">
+              <tn-icon name="tn-truenas-logo" class="logo" [fullSize]="true"></tn-icon>
+            </div>
+            <h3 class="logging-in">{{ 'Logging in...' | translate }}</h3>
+          </tn-card>
+        } @else {
+          <tn-card [padContent]="false">
+            <tn-progress-bar
+              class="session-progress"
+              [value]="0"
+              [mode]="hasLoadingIndicator() ? 'indeterminate' : 'determinate'"
+            ></tn-progress-bar>
+            <div>
+              <div class="logo-wrapper">
+                <tn-icon name="tn-truenas-logo" class="logo" [fullSize]="true"></tn-icon>
+              </div>
+
+              <div class="card-bottom">
+                <div class="form-container">
+                  @if (wasAdminSet$ | async) {
+                    <ix-signin-form [disabled]="!(canLogin$ | async)"></ix-signin-form>
+                  } @else {
+                    <ix-set-admin-password-form></ix-set-admin-password-form>
+                  }
+                </div>
+
+                <ix-true-command-status></ix-true-command-status>
+
+                <ix-copyright-line class="copyright" [skipType]="true"></ix-copyright-line>
+              </div>
+            </div>
+          </tn-card>
+        }
+    } @else {
+      <div class="logo-with-animation-wrapper">
+        <div>
+          <tn-icon name="tn-truenas-logo-mark" [fullSize]="true"></tn-icon>
+        </div>
+      </div>
+    }
+  </div>
+</div>

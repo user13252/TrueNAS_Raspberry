@@ -1,0 +1,57 @@
+<form [formGroup]="form">
+  @if (form.controls.rating.enabled) {
+    <ix-star-rating
+      formControlName="rating"
+      [label]="'Select Rating' | translate"
+      [required]="true"
+    ></ix-star-rating>
+  }
+
+  <ix-textarea
+    formControlName="message"
+    [label]="'Message' | translate"
+    [rows]="5"
+    [placeholder]="messagePlaceholderText"
+  ></ix-textarea>
+
+  <tn-form-field [tooltip]="'Capture and attach screenshot to the review' | translate">
+    <tn-checkbox
+      formControlName="take_screenshot"
+      [label]="'Take screenshot of the current page' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+
+  @if (form.controls.attach_images.enabled) {
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="attach_images"
+        [label]="'Attach additional images' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+
+  @if (form.controls.attach_images.value) {
+    <ix-file-input
+      formControlName="images"
+      class="attach-images"
+      [label]="'Attach images (optional)' | translate"
+      [tooltip]="'Select images you want attach to review' | translate"
+      [multiple]="true"
+      [acceptedFiles]="acceptedFiles"
+    ></ix-file-input>
+  }
+</form>
+
+@if (!isEnterprise()) {
+  <p [innerHTML]="voteForNewFeaturesText"></p>
+}
+
+<ng-template #dialogActions>
+  <tn-button
+    color="primary"
+    testId="submit"
+    [label]="'Submit' | translate"
+    [disabled]="form.invalid || isLoading()"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ng-template>

@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../out-tsc/spec",
+    "esModuleInterop": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "isolatedModules": true,
+    "types": [
+      "jest",
+      "node"
+    ]
+  },
+  "files": [
+    "polyfills.ts"
+  ],
+  "include": [
+    "**/*.spec.ts",
+    "**/*.d.ts"
+  ]
+}

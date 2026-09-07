@@ -1,0 +1,31 @@
+<div class="checkboxes" [formGroup]="saveParameters">
+  <tn-form-field
+    class="recursive-checkbox"
+    [tooltip]="helptext.applyRecursivelyTooltip | translate"
+  >
+    <tn-checkbox
+      formControlName="recursive"
+      [label]="helptext.applyRecursivelyLabel | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+
+  @if (saveParameters.value.recursive) {
+    <tn-form-field [tooltip]="helptext.traverseTooltip | translate">
+      <tn-checkbox
+        formControlName="traverse"
+        [label]="helptext.traverseLabel | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+
+</div>
+
+<tn-button
+  *ixRequiresRoles="[Role.FilesystemAttrsWrite, Role.FilesystemFullControl]"
+  color="primary"
+  class="save-button"
+  testId="save-acl"
+  [label]="'Save Access Control List' | translate"
+  [disabled]="!canBeSaved()"
+  (onClick)="onSavePressed()"
+></tn-button>

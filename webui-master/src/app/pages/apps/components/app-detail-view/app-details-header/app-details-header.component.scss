@@ -1,0 +1,103 @@
+@import 'scss-imports/cssvars';
+
+:host {
+  display: flex;
+  gap: 24px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  width: 200px;
+}
+
+.app-info {
+  display: flex;
+  flex-direction: column;
+  max-width: 240px;
+  min-width: 240px;
+
+  @media(max-width: $breakpoint-md) {
+    padding: 0;
+  }
+
+  .catalog-header {
+    margin-bottom: 0.5rem;
+  }
+}
+
+.catalog-container {
+  opacity: 0.5;
+}
+
+$app-image-size: 144px;
+
+.app-image-holder {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+  min-height: $app-image-size;
+  width: 100%;
+
+  img {
+    display: inline-block;
+    height: auto;
+    object-fit: contain;
+    width: 100%;
+  }
+}
+
+.app-list-item {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0.1rem 0;
+  word-wrap: break-word;
+
+  a,
+  span {
+    max-width: 100%;
+  }
+}
+
+.app-description {
+  flex-basis: 1;
+  overflow-y: auto;
+}
+
+.app-image-loader {
+  ::ng-deep span {
+    border-radius: 50%;
+    height: $app-image-size;
+    margin: 0;
+    width: $app-image-size;
+  }
+}
+
+.description-wrapper {
+  font-size: 13px;
+  white-space: pre-line;
+
+  ::ng-deep {
+    p:first-child {
+      margin-top: 0;
+    }
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.app-info {
+  ngx-skeleton-loader {
+    display: inline-flex;
+    width: 35%;
+
+    ::ng-deep span {
+      margin: 0;
+    }
+  }
+}

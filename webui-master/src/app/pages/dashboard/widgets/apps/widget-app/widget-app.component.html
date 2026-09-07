@@ -1,0 +1,44 @@
+<tn-card class="card" [padContent]="false">
+  <div *ixWithLoadingState="app() as application" class="card-content">
+    <div class="header">
+      <h3>{{ 'App' | translate }}</h3>
+      <ix-app-controls [app]="app() | async"></ix-app-controls>
+    </div>
+
+    <div [class]="['container', 'grid', size()]">
+      <ix-app-card-logo
+        [url]="application?.metadata?.icon"
+      ></ix-app-card-logo>
+
+      <ix-app-card-info
+        [app]="app() | async"
+        [job]="job() | async"
+      ></ix-app-card-info>
+
+      @if (stats$) {
+        <ix-app-cpu-info
+          class="square"
+          [stats]="stats$ | async"
+        ></ix-app-cpu-info>
+
+        <ix-app-network-info
+          class="rectangle"
+          [stats]="stats$ | async"
+        ></ix-app-network-info>
+
+        <ix-app-memory-info
+          class="square"
+          [stats]="stats$ | async"
+        ></ix-app-memory-info>
+
+        <ix-app-disk-info
+          class="rectangle"
+          [stats]="stats$ | async"
+        ></ix-app-disk-info>
+      }
+
+    </div>
+  </div>
+</tn-card>
+
+

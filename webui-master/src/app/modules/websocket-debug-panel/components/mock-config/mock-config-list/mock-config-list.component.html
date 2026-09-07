@@ -1,0 +1,103 @@
+<div class="mock-config-list">
+  <div class="mock-config-header">
+    <div class="header-actions">
+      <input
+        #fileInput
+        type="file"
+        accept=".json"
+        style="display: none"
+        tnTestIdType="input"
+        [tnTestId]="'import-file-input'"
+        (change)="importConfigs($event)"
+      />
+      <tn-icon-button
+        name="upload"
+        library="mdi"
+        testId="import-button"
+        [tooltip]="'Import' | translate"
+        [ariaLabel]="'Import' | translate"
+        (click)="fileInput.click()"
+      ></tn-icon-button>
+      <tn-icon-button
+        name="download"
+        library="mdi"
+        testId="export-button"
+        [tooltip]="'Export' | translate"
+        [ariaLabel]="'Export' | translate"
+        [disabled]="mockConfigs().length === 0"
+        (click)="exportConfigs()"
+      ></tn-icon-button>
+      <tn-button
+        testId="add-mock-button"
+        color="primary"
+        [label]="'Add Mock' | translate"
+        (onClick)="addNewConfig()"
+      ></tn-button>
+    </div>
+  </div>
+
+  <div class="mock-config-content">
+    @if (showForm) {
+      <ix-mock-config-form
+        [config]="editingConfig"
+        [prefilledData]="prefilledMockData"
+        (submitted)="onFormSubmit($event)"
+        (cancelled)="onFormCancel()"
+      />
+    } @else {
+      @if (hasEnabledMocks()) {
+        <div class="active-indicator">
+          <tn-icon name="radiobox-marked" library="mdi" class="active-icon"></tn-icon>
+          {{ 'Mocking Active' | translate }}
+        </div>
+      }
+
+      <div class="config-list">
+        @for (config of mockConfigs(); track config.id) {
+          <div class="config-item" [class.enabled]="config.enabled">
+            <tn-slide-toggle
+              [checked]="config.enabled"
+              [ariaLabel]="(config.enabled ? 'Disable mock for {name}' : 'Enable mock for {name}') | translate: { name: config.methodName }"
+              [tnTooltip]="config.enabled ? ('Disable' | translate) : ('Enable' | translate)"
+              (change)="toggleConfig(config.id)"
+            ></tn-slide-toggle>
+
+            <div class="config-info">
+              <div class="method-name">
+                {{ config.methodName }}
+                <span class="response-type" [class.error-type]="config.response?.type === 'error'">
+                  [{{ getResponseTypeLabel(config) }}]
+                </span>
+              </div>
+              <div class="config-type">{{ getConfigDescription(config) }}</div>
+            </div>
+
+            <div class="config-actions">
+              <tn-icon-button
+                name="pencil"
+                library="mdi"
+                testId="edit-config-button"
+                [tooltip]="'Edit' | translate"
+                [ariaLabel]="'Edit mock for {name}' | translate: { name: config.methodName }"
+                (click)="editConfig(config)"
+              ></tn-icon-button>
+              <tn-icon-button
+                name="delete"
+                library="mdi"
+                testId="delete-config-button"
+                [tooltip]="'Delete' | translate"
+                [ariaLabel]="'Delete mock for {name}' | translate: { name: config.methodName }"
+                (click)="deleteConfig(config.id)"
+              ></tn-icon-button>
+            </div>
+          </div>
+        } @empty {
+          <div class="empty-state">
+            <p>{{ 'No mock configurations' | translate }}</p>
+            <p class="hint">{{ 'Click "Add Mock" to create your first mock configuration' | translate }}</p>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

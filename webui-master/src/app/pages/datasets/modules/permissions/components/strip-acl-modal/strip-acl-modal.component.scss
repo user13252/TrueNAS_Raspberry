@@ -1,0 +1,14 @@
+@import 'scss-imports/variables';
+
+.modal-body {
+  max-width: 550px;
+
+  @media (max-width: $breakpoint-tablet) {
+    width: inherit;
+  }
+}
+
+.traverse-checkbox {
+  margin-bottom: 0;
+}
+

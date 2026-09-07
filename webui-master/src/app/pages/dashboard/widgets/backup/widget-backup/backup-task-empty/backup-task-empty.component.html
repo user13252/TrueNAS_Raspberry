@@ -1,0 +1,64 @@
+<div>
+  @if (!isLoading()) {
+    <div class="empty-card-content">
+      <div class="empty-message">
+        <tn-icon name="format-list-text" library="mdi" class="empty-icon" [fullSize]="true"></tn-icon>
+        <div class="backup-actions">
+          <ng-template *ngTemplateOutlet="backupActions() || null"></ng-template>
+        </div>
+      </div>
+
+      <div class="details-item">
+        <div class="label">{{ 'Actions' | translate }}</div>
+      </div>
+      <div class="details-item">
+        <a
+          *ixRequiresRoles="[Role.CloudSyncWrite]"
+          class="action"
+          tabIndex="0"
+          tnTestIdType="link"
+          [tnTestId]="'cloud-sync'"
+          (click)="addCloudSyncTask.emit()"
+          (keydown.enter)="addCloudSyncTask.emit()"
+        >
+          {{ 'Cloud Sync to Storj or similar provider' | translate }}
+        </a>
+      </div>
+      <div class="details-item">
+        <a
+          *ixRequiresRoles="[Role.ReplicationTaskWrite, Role.ReplicationTaskWritePull]"
+          class="action"
+          tabIndex="0"
+          tnTestIdType="link"
+          [tnTestId]="'replication'"
+          (click)="addReplicationTask.emit()"
+          (keydown.enter)="addReplicationTask.emit()"
+        >
+          {{ 'ZFS Replication to another TrueNAS' | translate }}
+        </a>
+      </div>
+      <div class="details-item">
+        <a
+          *ixRequiresRoles="[Role.SnapshotTaskWrite]"
+          class="action"
+          tabIndex="0"
+          tnTestIdType="link"
+          [tnTestId]="'rsync'"
+          (click)="addRsyncTask.emit()"
+          (keydown.enter)="addRsyncTask.emit()"
+        >
+          {{ 'Rsync to another server' | translate }}
+        </a>
+      </div>
+    </div>
+  } @else {
+    <div class="loading-card-content">
+      @for (item of [1,2,3]; track item) {
+        <ngx-skeleton-loader
+          class="skeleton"
+          [theme]="{ height: '90px', marginBottom: 0, background: 'var(--alt-bg2)', opacity: 0.25 }"
+        ></ngx-skeleton-loader>
+      }
+    </div>
+  }
+</div>

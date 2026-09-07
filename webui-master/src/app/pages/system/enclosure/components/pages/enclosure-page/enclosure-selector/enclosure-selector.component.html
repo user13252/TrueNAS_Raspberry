@@ -1,0 +1,19 @@
+@for (link of selectorLinks(); track link.enclosure.id; let i = $index) {
+  <a
+    class="enclosure"
+    tnTestIdType="link"
+    [class.active]="link.enclosure.id === selectedEnclosure()"
+    [tnTestId]="link.testId"
+    [routerLink]="['/system', 'viewenclosure', link.enclosure.id]"
+  >
+    <ix-enclosure-side
+      class="enclosure-image"
+      [enclosure]="link.enclosure"
+      [enableMouseEvents]="false"
+      [slotTintFn]="diskStatusTint"
+    ></ix-enclosure-side>
+    <div class="enclosure-label">
+      {{ link.enclosure.label || link.enclosure.model }} ({{ i + 1 }})
+    </div>
+  </a>
+}

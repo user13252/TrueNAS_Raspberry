@@ -1,0 +1,11 @@
+<canvas
+  baseChart
+  [datasets]="chartData()"
+  [options]="chartOptions"
+></canvas>
+<div class="label-container">
+  <div class="label">{{ label() }}</div>
+  @if (sublabel()) {
+    <div class="sublabel">{{ sublabel() }}</div>
+  }
+</div>

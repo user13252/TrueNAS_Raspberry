@@ -1,0 +1,16 @@
+@import 'scss-imports/cssvars';
+
+ix-app-card-logo {
+  align-items: center;
+  background: var(--bg1);
+  display: inline-flex;
+  padding: 0;
+  place-content: center center;
+}
+
+ix-app-network-info {
+  align-items: center;
+  background: var(--bg1);
+  display: inline-flex;
+  place-content: center center;
+}

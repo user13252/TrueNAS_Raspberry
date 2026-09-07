@@ -1,0 +1,78 @@
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, input, inject } from '@angular/core';
+import { ControlValueAccessor, NgControl, ReactiveFormsModule } from '@angular/forms';
+import { MatIconButton } from '@angular/material/button';
+import { TranslateModule } from '@ngx-translate/core';
+import { tnIconMarker, TnIconComponent } from '@truenas/ui-components';
+import { IxErrorsComponent } from 'app/modules/forms/ix-forms/components/ix-errors/ix-errors.component';
+import { IxLabelComponent } from 'app/modules/forms/ix-forms/components/ix-label/ix-label.component';
+import { registeredDirectiveConfig } from 'app/modules/forms/ix-forms/directives/registered-control.directive';
+import { TestDirective } from 'app/modules/test-id/test.directive';
+import { TranslatedString } from 'app/modules/translate/translate.helper';
+
+@Component({
+  selector: 'ix-star-rating',
+  templateUrl: './ix-star-rating.component.html',
+  styleUrls: ['./ix-star-rating.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    IxLabelComponent,
+    MatIconButton,
+    TnIconComponent,
+    IxErrorsComponent,
+    ReactiveFormsModule,
+    TranslateModule,
+    TestDirective,
+  ],
+  hostDirectives: [
+    { ...registeredDirectiveConfig },
+  ],
+})
+export class IxStarRatingComponent implements ControlValueAccessor {
+  controlDirective = inject(NgControl);
+  private cdr = inject(ChangeDetectorRef);
+
+  readonly label = input<TranslatedString>('');
+  readonly hint = input<TranslatedString>('');
+  readonly tooltip = input<TranslatedString>('');
+  readonly required = input(false);
+  readonly maxRating = input(5);
+
+  isDisabled = false;
+  value: number;
+
+  protected readonly ratings = computed(() => {
+    return Array.from({ length: this.maxRating() });
+  });
+
+  constructor() {
+    this.controlDirective.valueAccessor = this;
+  }
+
+  onChange: (value: number) => void = (): void => {};
+  onTouch: () => void = (): void => {};
+
+  writeValue(value: number): void {
+    this.value = value > this.maxRating() ? this.maxRating() : value;
+    this.cdr.markForCheck();
+  }
+
+  registerOnChange(onChange: (value: number) => void): void {
+    this.onChange = onChange;
+  }
+
+  registerOnTouched(onTouched: () => void): void {
+    this.onTouch = onTouched;
+  }
+
+  setDisabledState(isDisabled: boolean): void {
+    this.isDisabled = isDisabled;
+    this.cdr.markForCheck();
+  }
+
+  onValueChanged(value: number): void {
+    this.value = value > this.maxRating() ? this.maxRating() : value;
+    this.onChange(this.value);
+  }
+
+  protected readonly tnIconMarker = tnIconMarker;
+}

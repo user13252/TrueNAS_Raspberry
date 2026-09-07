@@ -1,0 +1,48 @@
+@if (canChangeLayout()) {
+  <div class="layout-container">
+    <tn-form-field
+      [label]="'Layout' | translate"
+      [required]="true"
+      [tooltip]="'Select VDEV layout. This is the first step in setting up your VDEVs.' | translate"
+      [hint]="layoutRestrictionHint()"
+    >
+      <tn-select
+        [testId]="['layout']"
+        [formControl]="layoutControl"
+        [options]="(vdevLayoutOptions$ | translateOptions | async) ?? []"
+        [optionTestIdKey]="layoutOptionTestIdKey"
+      ></tn-select>
+    </tn-form-field>
+  </div>
+} @else {
+  @if (isDataVdev()) {
+    <tn-form-field
+      [label]="'Layout' | translate"
+      [tooltip]="dataLayoutTooltip()"
+    >
+      <tn-input
+        [testId]="['layout']"
+        [formControl]="layoutControl"
+        [readonly]="true"
+      ></tn-input>
+    </tn-form-field>
+  }
+}
+
+@if (usesDraidLayout) {
+  <ix-draid-selection
+    [layout]="layoutControl.value | cast"
+    [inventory]="inventory()"
+    [type]="type()"
+    [isStepActive]="isStepActive()"
+  ></ix-draid-selection>
+} @else {
+  <ix-normal-selection
+    [layout]="layoutControl.value"
+    [inventory]="inventory()"
+    [type]="type()"
+    [isStepActive]="isStepActive()"
+    [minMirrorWidth]="minMirrorWidth()"
+  ></ix-normal-selection>
+}
+

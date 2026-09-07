@@ -1,0 +1,79 @@
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-section>
+    <tn-form-field [tooltip]="tooltips.fqdn_syslog | translate">
+      <tn-checkbox
+        formControlName="fqdn_syslog"
+        [label]="'Use FQDN for Logging' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Syslog Level' | translate"
+      [tooltip]="tooltips.sysloglevel | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="sysloglevel"
+        [options]="levelOptions"
+      ></tn-select>
+    </tn-form-field>
+
+    <div formArrayName="syslogservers" role="group" [attr.aria-label]="'Syslog Servers List' | translate">
+      @for (server of syslogServersArray.controls; track server; let i = $index) {
+        <div class="server-group" [formGroupName]="i" [attr.aria-label]="('Syslog Server' | translate) + ' ' + (i + 1)">
+          <h4 [id]="'server-heading-' + i">{{ 'Syslog Server' | translate }} {{ i + 1 }}</h4>
+          <tn-form-field [label]="'Host' | translate" [tooltip]="tooltips.syslogserver | translate">
+            <tn-input formControlName="host"></tn-input>
+          </tn-form-field>
+
+          <tn-form-field [label]="'Transport' | translate" [tooltip]="tooltips.syslog_transport | translate">
+            <tn-select
+              formControlName="transport"
+              [options]="transportOptions"
+            ></tn-select>
+          </tn-form-field>
+
+          @if (server.value.transport === 'TLS') {
+            <tn-form-field [label]="'TLS Certificate' | translate" [tooltip]="tooltips.syslog_tls_certificate | translate">
+              <tn-select
+                formControlName="tls_certificate"
+                [options]="(certificateOptions$ | async) ?? []"
+              ></tn-select>
+            </tn-form-field>
+          }
+
+          @if (canRemoveServer) {
+            <tn-button
+              color="warn"
+              [testId]="['remove-server', i + 1]"
+              [ariaLabel]="('Remove Syslog Server' | translate) + ' ' + (i + 1)"
+              [label]="'Remove Server' | translate"
+              (onClick)="removeServer(i)"
+            ></tn-button>
+          }
+        </div>
+      }
+    </div>
+
+    @if (canAddServer) {
+      <tn-button
+        class="add-server-button"
+        testId="add-server"
+        [ariaLabel]="'Add another syslog server' | translate"
+        [label]="('Add Syslog Server' | translate) + ' (' + syslogServersArray.length + '/2)'"
+        (onClick)="addServer()"
+      ></tn-button>
+    } @else {
+      <p class="server-limit-message" role="status" aria-live="polite">
+        {{ 'Maximum of 2 syslog servers allowed' | translate }}
+      </p>
+    }
+
+    <tn-form-field [tooltip]="tooltips.syslog_audit | translate">
+      <tn-checkbox
+        formControlName="syslog_audit"
+        [label]="'Include Audit Logs' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+</form>

@@ -1,0 +1,50 @@
+<!-- Implicit (Enter-key) submission routes through the host-facing submit() — not onSubmit() —
+     so the panel footer's Save still latches to "Saving…" if this form ever drops to one field. -->
+<form class="ix-form-container" [formGroup]="form" (submit)="submit()">
+  <tn-form-section [heading]="'Tiering Configuration' | translate">
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="enabled"
+        [label]="'Enabled' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    @if (showEnabledWarning()) {
+      <tn-banner
+        type="warning"
+        [heading]="enabledWarningHeading | translate"
+        [message]="enabledWarningMessage | translate"
+      ></tn-banner>
+    }
+
+    <tn-form-field
+      [label]="'Max Concurrent Jobs' | translate"
+      [hint]="helptext.maxConcurrentJobs | translate: concurrentJobsRange"
+    >
+      <tn-input
+        formControlName="max_concurrent_jobs"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Max Used Percentage' | translate"
+      [hint]="helptext.maxUsedPercentage | translate: maxUsedRange"
+    >
+      <tn-input
+        formControlName="max_used_percentage"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Performance Tier Reserve' | translate"
+      [hint]="helptext.performanceTierReserve | translate: reserveRange"
+    >
+      <tn-input
+        formControlName="special_class_metadata_reserve_pct"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+</form>

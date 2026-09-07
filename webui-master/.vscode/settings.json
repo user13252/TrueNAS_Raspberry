@@ -1,0 +1,9 @@
+{
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "typescript.preferences.importModuleSpecifier": "non-relative",
+    "eslint.validate": [
+        "typescript",
+        "html"
+    ],
+    "angular.enable-strict-mode-prompt": false
+}

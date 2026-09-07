@@ -1,0 +1,16 @@
+@if (nonUniqueSerialDisks().length) {
+  <ix-checkbox
+    [formControl]="allowDuplicateSerials"
+    [label]="'Allow non-unique serialed disks (not recommended)' | translate"
+    [tooltip]="nonUniqueSerialDisksTooltip()"
+    [required]="true"
+  ></ix-checkbox>
+}
+
+<ix-combobox
+  [label]="label()"
+  [required]="required()"
+  [provider]="disksProvider"
+  [tooltip]="tooltip()"
+></ix-combobox>
+

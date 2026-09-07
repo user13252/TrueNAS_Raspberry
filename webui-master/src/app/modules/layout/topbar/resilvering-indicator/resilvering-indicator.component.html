@@ -1,0 +1,15 @@
+@if (isResilvering$ | async) {
+  <tn-icon-button
+    id="resilver"
+    class="topbar-button-right"
+    name="autorenew"
+    library="mdi"
+    size="lg"
+    iconClass="spin"
+    testId="resilvering"
+    [dense]="true"
+    [tooltip]="tooltips.resilvering | translate"
+    [ariaLabel]="tooltips.resilvering | translate"
+    (onClick)="showDetails()"
+  ></tn-icon-button>
+}

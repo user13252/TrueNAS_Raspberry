@@ -1,0 +1,244 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { AsyncPipe, KeyValue, KeyValuePipe } from '@angular/common';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, inject, signal, TrackByFunction,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnExpansionPanelComponent, TnFormFieldComponent,
+  TnIconComponent, TnSelectComponent,
+} from '@truenas/ui-components';
+import { ImgFallbackModule } from 'ngx-img-fallback';
+import { NgxSkeletonLoaderModule } from 'ngx-skeleton-loader';
+import {
+  filter, map, Observable, of, pairwise, startWith,
+} from 'rxjs';
+import { appImagePlaceholder } from 'app/constants/catalog.constants';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { App, AppUpgradeParams } from 'app/interfaces/app.interface';
+import { AppUpgradeSummary } from 'app/interfaces/application.interface';
+import { Option } from 'app/interfaces/option.interface';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { BulkListItemComponent } from 'app/modules/lists/bulk-list-item/bulk-list-item.component';
+import { BulkListItem, BulkListItemState } from 'app/modules/lists/bulk-list-item/bulk-list-item.interface';
+import { FakeProgressBarComponent } from 'app/modules/loader/components/fake-progress-bar/fake-progress-bar.component';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ApplicationsService } from 'app/pages/apps/services/applications.service';
+import { extractAppVersion, formatVersionWithRevision, resolveAppVersion } from 'app/pages/apps/utils/version-formatting.utils';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-app-bulk-update',
+  templateUrl: './app-bulk-update.component.html',
+  styleUrls: ['./app-bulk-update.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    TnDialogShellComponent,
+    ReactiveFormsModule,
+    TranslateModule,
+    TnExpansionPanelComponent,
+    FakeProgressBarComponent,
+    BulkListItemComponent,
+    TnIconComponent,
+    ImgFallbackModule,
+    KeyValuePipe,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    RequiresRolesDirective,
+    TnButtonComponent,
+    FormActionsComponent,
+    NgxSkeletonLoaderModule,
+  ],
+})
+export class AppBulkUpdateComponent {
+  private formBuilder = inject(FormBuilder);
+  private api = inject(ApiService);
+  private translate = inject(TranslateService);
+  protected dialogRef = inject<DialogRef<unknown, AppBulkUpdateComponent>>(DialogRef);
+  private appService = inject(ApplicationsService);
+  private snackbar = inject(SnackbarService);
+  private errorHandler = inject(ErrorHandlerService);
+  private apps = inject<App[]>(DIALOG_DATA);
+  private destroyRef = inject(DestroyRef);
+
+  readonly expandedItems = signal<string[]>([]);
+  readonly loadingMap = signal<Map<string, boolean>>(new Map());
+
+  form = this.formBuilder.group<Record<string, string>>({});
+  bulkItems = new Map<string, BulkListItem<App>>();
+  optionsMap = new Map<string, Observable<Option[]>>();
+  upgradeSummaryMap = new Map<string, AppUpgradeSummary>();
+
+  readonly trackByKey: TrackByFunction<KeyValue<string, BulkListItem<App>>> = (_, entry) => entry.key;
+  readonly imagePlaceholder = appImagePlaceholder;
+  protected readonly requiredRoles = [Role.AppsWrite];
+
+  constructor() {
+    this.apps = this.apps.filter((app) => app.upgrade_available);
+
+    this.setInitialValues();
+    this.detectFormChanges();
+  }
+
+  hasErrors(name: string): boolean {
+    const item = this.bulkItems.get(name);
+    if (!item) {
+      return false;
+    }
+    return item.state === BulkListItemState.Error && Boolean(item.message);
+  }
+
+  onExpand(row: KeyValue<string, BulkListItem<App>>): void {
+    this.expandedItems.set([...this.expandedItems(), row.key]);
+    if (this.upgradeSummaryMap.has(row.key)) {
+      return;
+    }
+
+    this.getUpgradeSummary(row.value.item);
+  }
+
+  isItemExpanded(row: KeyValue<string, BulkListItem<App>>): boolean {
+    return this.expandedItems().includes(row.key);
+  }
+
+  hasMultipleVersionOptions(appName: string): boolean {
+    const summary = this.upgradeSummaryMap.get(appName);
+    return (summary?.available_versions_for_upgrade?.length || 0) > 1;
+  }
+
+  protected readonly extractAppVersion = extractAppVersion;
+
+  getVersionInfo(app: App, appName: string): {
+    currentAppVersion: string;
+    currentCatalogVersion: string;
+    latestAppVersion: string;
+    latestCatalogVersion: string;
+    hasAppVersionChange: boolean;
+  } {
+    const currentAppVersion = extractAppVersion(app.human_version, app.version);
+    const currentCatalogVersion = app.version;
+
+    const summary = this.upgradeSummaryMap.get(appName);
+    const selectedVersion = this.form.value[appName];
+
+    // Find the selected version's app_version from available_versions_for_upgrade
+    const selectedAvailableVersion = summary?.available_versions_for_upgrade?.find(
+      (vrs) => vrs.version === selectedVersion,
+    );
+    const directAppVersion = selectedAvailableVersion?.app_version
+      ?? (selectedVersion === summary?.latest_version ? summary?.latest_app_version : undefined);
+    const selectedHumanVersion = selectedAvailableVersion?.human_version ?? summary?.latest_human_version;
+    const latestAppVersion = resolveAppVersion({
+      appVersion: directAppVersion,
+      humanVersion: selectedHumanVersion,
+      libraryVersion: summary?.latest_version || app.latest_version,
+    });
+    const latestCatalogVersion = selectedVersion || app.latest_version;
+
+    return {
+      currentAppVersion,
+      currentCatalogVersion,
+      latestAppVersion,
+      latestCatalogVersion,
+      hasAppVersionChange: currentAppVersion !== latestAppVersion,
+    };
+  }
+
+  private getUpgradeSummary(app: App, version?: string): void {
+    const name = app.name;
+    this.loadingMap.update((currentMap) => new Map(currentMap).set(name, true));
+
+    this.appService
+      .getAppUpgradeSummary(name, version)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (summary) => {
+          const availableOptions = summary.available_versions_for_upgrade?.map((item) => {
+            // Use app_version from API if available for accurate display
+            const humanVersionForLabel = item.app_version
+              ? `${item.app_version}_${item.version}`
+              : item.human_version;
+
+            // Format label consistently: "Version: X / Revision: Y"
+            const label = formatVersionWithRevision(item.version, humanVersionForLabel);
+
+            return { value: item.version, label } as Option;
+          }) || [];
+          this.upgradeSummaryMap.set(name, summary);
+          this.optionsMap.set(name, of(availableOptions));
+          this.form.patchValue({
+            [name]: version || String(availableOptions[0].value),
+          });
+          this.loadingMap.update((currentMap) => new Map(currentMap).set(name, false));
+        },
+        error: (error: unknown) => {
+          this.loadingMap.update((currentMap) => new Map(currentMap).set(name, false));
+          const item = this.bulkItems.get(name);
+          if (item) {
+            item.state = BulkListItemState.Error;
+            item.message = error instanceof Error ? error.message : T('Failed to load upgrade information');
+          }
+        },
+      });
+  }
+
+  originalOrder(): number {
+    return 0;
+  }
+
+  onSubmit(): void {
+    const payload: AppUpgradeParams[] = Object.entries(this.form.value).map(([name, version]) => {
+      this.bulkItems.set(name, { ...this.bulkItems.get(name), state: BulkListItemState.Running });
+      const params: AppUpgradeParams = [name];
+      if (this.expandedItems().includes(name)) {
+        params.push({ app_version: version || undefined });
+      }
+      return params;
+    });
+
+    this.api
+      .job('core.bulk', ['app.upgrade', payload])
+      .pipe(
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.dialogRef.close(true);
+        this.snackbar.success(
+          this.translate.instant('Updating Apps. Please check on the progress in Task Manager.'),
+        );
+      });
+  }
+
+  private setInitialValues(): void {
+    this.apps.forEach((app) => {
+      this.bulkItems.set(app.name, { state: BulkListItemState.Initial, item: app });
+      this.form.addControl(app.name, this.formBuilder.control<string>(app.latest_version));
+    });
+  }
+
+  private detectFormChanges(): void {
+    this.form.valueChanges
+      .pipe(
+        startWith(this.form.value),
+        pairwise(),
+        map(([oldValues, newValues]) => {
+          return Object.entries(newValues).find(([app, version]) => oldValues[app] !== version);
+        }),
+        filter(Boolean),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(([appName, version]) => {
+        const app = this.bulkItems.get(appName)?.item;
+        if (app) {
+          this.getUpgradeSummary(app, version || undefined);
+        }
+      });
+  }
+}

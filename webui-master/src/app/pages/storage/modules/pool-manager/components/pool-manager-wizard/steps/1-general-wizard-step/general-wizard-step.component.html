@@ -1,0 +1,100 @@
+<ng-container [formGroup]="form">
+  <tn-form-field [label]="'Name' | translate" [required]="true">
+    <tn-input
+      formControlName="name"
+      [readonly]="isAddingVdevs()"
+    ></tn-input>
+  </tn-form-field>
+
+  @if (!isAddingVdevs()) {
+    <!-- Encryption type radio group -->
+    <tn-form-field [label]="'Encryption' | translate">
+      <!--
+        Options are projected rather than passed via `[options]` so each one can carry the
+        legacy `radio-button-*` test id; see "Radio groups" in the tn-migration playbook.
+      -->
+      <tn-radio-group formControlName="encryptionType">
+        @for (option of encryptionTypeOptions(); track option.value) {
+          <tn-radio
+            [label]="option.label"
+            [value]="option.value"
+            [testId]="['radio-button', 'encryption-type', option.label]"
+          ></tn-radio>
+        }
+      </tn-radio-group>
+    </tn-form-field>
+
+    <!-- Info box when SED disks are available but Software encryption is selected -->
+    @if (form.controls.encryptionType.value === EncryptionType.Software) {
+      @if (hasSedCapableDisks$ | async; as hasSedDisks) {
+        @if (hasSedDisks && (isEnterprise$ | async)) {
+          <ix-warning color="green" [message]="helptext.sedInfoMessage | translate"></ix-warning>
+        }
+      }
+    }
+
+    <!-- SED Password fields -->
+    @if (form.controls.encryptionType.value === EncryptionType.Sed) {
+      <!-- Show info if no password is set, warning if password exists -->
+      @if (isSedPasswordSet$ | async; as isPasswordSet) {
+        <ix-warning [message]="helptext.sedGlobalPasswordWarning | translate"></ix-warning>
+
+        <tn-form-field
+          [label]="helptext.sedPasswordLabel | translate"
+          [tooltip]="'Leave blank to keep the existing password, or enter a new password to update it.' | translate"
+        >
+          <tn-input
+            formControlName="sedPassword"
+            [inputType]="InputType.Password"
+          ></tn-input>
+        </tn-form-field>
+
+        <tn-form-field [label]="helptext.sedPasswordConfirmLabel | translate">
+          <tn-input
+            formControlName="sedPasswordConfirm"
+            [inputType]="InputType.Password"
+          ></tn-input>
+        </tn-form-field>
+      } @else {
+        <ix-warning color="green" [message]="helptext.sedGlobalPasswordInfo | translate"></ix-warning>
+
+        <tn-form-field
+          [label]="helptext.sedPasswordLabel | translate"
+          [required]="true"
+          [tooltip]="helptext.sedPasswordTooltip | translate"
+        >
+          <tn-input
+            formControlName="sedPassword"
+            [inputType]="InputType.Password"
+          ></tn-input>
+        </tn-form-field>
+
+        <tn-form-field [label]="helptext.sedPasswordConfirmLabel | translate" [required]="true">
+          <tn-input
+            formControlName="sedPasswordConfirm"
+            [inputType]="InputType.Password"
+          ></tn-input>
+        </tn-form-field>
+      }
+    }
+  } @else {
+    <!-- Message when adding VDEVs to SED pool -->
+    @if (pool()?.all_sed) {
+      <ix-warning color="green" [message]="helptext.sedPoolVdevMessage | translate"></ix-warning>
+    }
+  }
+
+  <ix-pool-warnings></ix-pool-warnings>
+
+  <ix-form-actions>
+    <div class="step-buttons">
+      <tn-button
+        tnStepperNext
+        color="primary"
+        [testId]="'next-general'"
+        [label]="'Next' | translate"
+        [disabled]="form.invalid"
+      ></tn-button>
+    </div>
+  </ix-form-actions>
+</ng-container>

@@ -1,0 +1,34 @@
+<form [formGroup]="form">
+  <tn-form-section>
+    <ix-explorer
+      formControlName="iso_path"
+      [label]="'Optional: Choose installation media image' | translate"
+      [nodeProvider]="fileNodeProvider"
+      [tooltip]="helptext.iso_path_tooltip | translate"
+    ></ix-explorer>
+
+    <div class="upload-button">
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        [testId]="'upload-image-file'"
+        [label]="'Upload New Image File' | translate"
+        (onClick)="onUploadIsoClicked()"
+      ></tn-button>
+    </div>
+  </tn-form-section>
+
+  <ix-form-actions>
+    <tn-button
+      tnStepperPrevious
+      [testId]="'back'"
+      [label]="'Back' | translate"
+    ></tn-button>
+    <tn-button
+      tnStepperNext
+      color="primary"
+      [testId]="'next'"
+      [label]="'Next' | translate"
+      [disabled]="form.invalid"
+    ></tn-button>
+  </ix-form-actions>
+</form>

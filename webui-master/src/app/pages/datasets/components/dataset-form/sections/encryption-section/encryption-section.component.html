@@ -1,0 +1,78 @@
+@if (advancedMode()) {
+  <tn-form-section [heading]="'Encryption Options' | translate" [formGroup]="form">
+    <tn-form-field [tooltip]="helptext.encryption.inheritTooltip | translate">
+      <tn-checkbox
+        formControlName="inherit_encryption"
+        [label]="inheritEncryptionLabel()"
+      ></tn-checkbox>
+    </tn-form-field>
+    @if (!isInheritingEncryption) {
+      <tn-form-field [tooltip]="helptext.encryption.encryptionTooltip | translate">
+        <tn-checkbox
+          formControlName="encryption"
+          [label]="'Encryption' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+      @if (hasEncryption) {
+        @if (!parentHasPassphrase()) {
+          <tn-form-field
+            [label]="'Encryption Type' | translate"
+            [tooltip]="helptext.encryption.typeTooltip | translate"
+            [required]="true"
+          >
+            <tn-select
+              formControlName="encryption_type"
+              [options]="(encryptionTypeOptions$ | async) ?? []"
+            ></tn-select>
+          </tn-form-field>
+        }
+        @if (!isPassphrase) {
+          <tn-form-field [tooltip]="helptext.encryption.generateKeyTooltip | translate">
+            <tn-checkbox
+              formControlName="generate_key"
+              [label]="'Generate Key' | translate"
+            ></tn-checkbox>
+          </tn-form-field>
+        }
+        @if (!isPassphrase && !form.value.generate_key) {
+          <tn-form-field [label]="'Key' | translate" [required]="true">
+            <tn-input
+              formControlName="key"
+              [multiline]="true"
+            ></tn-input>
+          </tn-form-field>
+        }
+        @if (isPassphrase) {
+          <tn-form-field
+            [label]="'Passphrase' | translate"
+            [tooltip]="helptext.encryption.passphraseTooltip | translate"
+          >
+            <tn-input
+              formControlName="passphrase"
+              [inputType]="InputType.Password"
+            ></tn-input>
+          </tn-form-field>
+        }
+        @if (isPassphrase) {
+          <tn-form-field [label]="'Confirm Passphrase' | translate">
+            <tn-input
+              formControlName="confirm_passphrase"
+              [inputType]="InputType.Password"
+            ></tn-input>
+          </tn-form-field>
+        }
+        @if (isPassphrase) {
+          <tn-form-field
+            [label]="ignoreTranslation('pbkdf2iters')"
+            [tooltip]="helptext.encryption.pbkdf2itersTooltip | translate"
+          >
+            <tn-input
+              formControlName="pbkdf2iters"
+              [inputType]="InputType.Number"
+            ></tn-input>
+          </tn-form-field>
+        }
+      }
+    }
+  </tn-form-section>
+}

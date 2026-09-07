@@ -1,0 +1,224 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import {
+  byText, createComponentFactory, Spectator, mockProvider,
+} from '@ngneat/spectator/jest';
+import {
+  TnButtonHarness, TnDialog, TnMenuHarness, TnMenuTesting,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { mockApi, mockCall, mockJob } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { DiskStandby } from 'app/enums/disk-standby.enum';
+import { DiskType } from 'app/enums/disk-type.enum';
+import { TopologyItemType, VDevType } from 'app/enums/v-dev-type.enum';
+import { TopologyItemStatus } from 'app/enums/vdev-status.enum';
+import { Disk } from 'app/interfaces/disk.interface';
+import {
+  TopologyDisk, VDev,
+} from 'app/interfaces/storage.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  ExtendDialog,
+} from 'app/pages/storage/modules/vdevs/components/zfs-info-card/extend-dialog/extend-dialog.component';
+import { ZfsInfoCardComponent } from 'app/pages/storage/modules/vdevs/components/zfs-info-card/zfs-info-card.component';
+import { VDevsStore } from 'app/pages/storage/modules/vdevs/stores/vdevs-store.service';
+
+describe('ZfsInfoCardComponent', () => {
+  let spectator: Spectator<ZfsInfoCardComponent>;
+  let loader: HarnessLoader;
+  const createComponent = createComponentFactory({
+    component: ZfsInfoCardComponent,
+    providers: [
+      mockApi([
+        mockCall('pool.detach'),
+        mockCall('pool.offline'),
+        mockCall('pool.online'),
+        mockJob('pool.remove'),
+      ]),
+      mockProvider(DialogService, {
+        confirm: jest.fn(() => of(true)),
+        jobDialog: jest.fn(() => ({
+          afterClosed: () => of(null),
+        })),
+      }),
+      mockProvider(TnDialog, {
+        open: jest.fn(() => ({
+          closed: of(),
+        })),
+      }),
+      mockProvider(VDevsStore, {
+        reloadList: jest.fn(),
+      }),
+      mockAuth(),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent({
+      props: {
+        poolId: 1,
+        topologyItem: {
+          disk: 'ix-disk-1',
+          type: TopologyItemType.Disk,
+          guid: 'disk-guid',
+          children: [] as TopologyDisk[],
+          status: TopologyItemStatus.Online,
+          stats: {
+            read_errors: 3,
+            write_errors: 2,
+            checksum_errors: 1,
+          },
+        } as TopologyDisk,
+        topologyParentItem: {
+          name: 'mirror-0',
+          type: TopologyItemType.Mirror,
+        } as VDev,
+        disk: {
+          description: '',
+          hddstandby: DiskStandby.AlwaysOn,
+          model: 'VMware_Virtual_S',
+          name: 'sda',
+          rotationrate: null,
+          serial: 'ABCD1',
+          size: 10737418240,
+          transfermode: 'Auto',
+          type: DiskType.Hdd,
+          zfs_guid: '11254578662959974657',
+        } as Disk,
+      },
+    });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  async function openCardMenu(): Promise<TnMenuHarness> {
+    spectator.click(spectator.query('[data-test="button-zfs-actions"]')!);
+    return TnMenuTesting.rootLoader(spectator.fixture).getHarness(TnMenuHarness);
+  }
+
+  describe('disks', () => {
+    it('shows errors of the current disk', () => {
+      const parent = spectator.query(byText('Parent:', { exact: true }))!;
+      expect(parent.nextElementSibling).toHaveText('MIRROR-0');
+
+      const readErrors = spectator.query(byText('Read Errors:', { exact: true }))!;
+      expect(readErrors.nextElementSibling).toHaveText('3');
+
+      const writeErrors = spectator.query(byText('Write Errors:', { exact: true }))!;
+      expect(writeErrors.nextElementSibling).toHaveText('2');
+
+      const checksumErrors = spectator.query(byText('Checksum Errors:', { exact: true }))!;
+      expect(checksumErrors.nextElementSibling).toHaveText('1');
+    });
+
+    // TODO: https://ixsystems.atlassian.net/browse/NAS-117094
+    it('removes device with confirmation when Remove button is pressed', async () => {
+      spectator.setInput('topologyParentItem', {
+        name: 'mirror-0',
+        type: TopologyItemType.Spare,
+      } as VDev);
+      const removeButton = await loader.getHarness(TnButtonHarness.with({ label: 'Remove' }));
+      await removeButton.click();
+
+      expect(spectator.inject(DialogService).confirm).toHaveBeenCalled();
+      expect(spectator.inject(DialogService).jobDialog).toHaveBeenCalled();
+      expect(spectator.inject(ApiService).job).toHaveBeenCalledWith('pool.remove', [1, { label: 'disk-guid' }]);
+      expect(spectator.inject(VDevsStore).reloadList).toHaveBeenCalled();
+    });
+
+    it('shows remove button for Spare, Cache, and Log topology with RAIDZ parent', async () => {
+      spectator.setInput('topologyParentItem', {
+        name: 'mirror-0',
+        type: TopologyItemType.Spare,
+      } as VDev);
+      spectator.setInput('hasTopLevelRaidz', true);
+      spectator.setInput('topologyCategory', VDevType.Log);
+
+      spectator.detectChanges();
+      expect(
+        await loader.getHarness(TnButtonHarness.with({ label: 'Remove' })),
+      ).toBeTruthy();
+
+      spectator.setInput('topologyCategory', VDevType.Spare);
+      spectator.detectChanges();
+      expect(
+        await loader.getHarness(TnButtonHarness.with({ label: 'Remove' })),
+      ).toBeTruthy();
+
+      spectator.setInput('topologyCategory', VDevType.Cache);
+      spectator.detectChanges();
+      expect(
+        await loader.getHarness(TnButtonHarness.with({ label: 'Remove' })),
+      ).toBeTruthy();
+    });
+
+    it('detaches a device with confirmation when Detach is pressed from the card menu', async () => {
+      const menu = await openCardMenu();
+      await menu.clickItem({ label: 'Detach' });
+
+      expect(spectator.inject(DialogService).confirm).toHaveBeenCalled();
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('pool.detach', [1, { label: 'disk-guid' }]);
+    });
+
+    it('offlines a device with confirmation when Offline is pressed from the card menu', async () => {
+      const menu = await openCardMenu();
+      await menu.clickItem({ label: 'Offline' });
+
+      expect(spectator.inject(DialogService).confirm).toHaveBeenCalled();
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('pool.offline', [1, { label: 'disk-guid' }]);
+    });
+
+    // Guards the e2e contract: moving these actions into the kebab menu must preserve their
+    // legacy data-test ids (the menu renders them with the `button-` prefix, not `menu-item-`).
+    it('preserves button-prefixed data-test ids on the card menu items', async () => {
+      await openCardMenu();
+      const ids = Array.from(document.querySelectorAll('.tn-menu-item'))
+        .map((item) => item.getAttribute('data-test'));
+      expect(ids).toEqual(['button-detach', 'button-offline']);
+    });
+  });
+
+  describe('vdev', () => {
+    beforeEach(() => {
+      spectator.setInput({
+        poolId: 1,
+        topologyItem: {
+          name: 'mirror-1',
+          type: TopologyItemType.Mirror,
+          guid: '1296356085009973566',
+          stats: {
+            timestamp: 336344468118275,
+            read_errors: 1,
+            write_errors: 2,
+            checksum_errors: 3,
+          },
+          children: [] as TopologyDisk[],
+        } as VDev,
+      });
+    });
+
+    it('shows error summary for a vdev', () => {
+      const readErrors = spectator.query(byText('Read Errors:', { exact: true }))!;
+      expect(readErrors.nextElementSibling).toHaveText('1');
+
+      const writeErrors = spectator.query(byText('Write Errors:', { exact: true }))!;
+      expect(writeErrors.nextElementSibling).toHaveText('2');
+
+      const checksumErrors = spectator.query(byText('Checksum Errors:', { exact: true }))!;
+      expect(checksumErrors.nextElementSibling).toHaveText('3');
+    });
+
+    it('opens an expand dialog when Extend is pressed on a Mirror', async () => {
+      const expandButton = await loader.getHarness(TnButtonHarness.with({ label: 'Extend' }));
+      await expandButton.click();
+
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(ExtendDialog, {
+        data: {
+          poolId: 1,
+          targetVdevGuid: '1296356085009973566',
+        },
+      });
+    });
+  });
+});

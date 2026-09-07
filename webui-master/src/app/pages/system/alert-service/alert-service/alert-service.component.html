@@ -1,0 +1,42 @@
+<ix-form
+  [formGroup]="commonForm"
+  [isEditMode]="!isNew"
+  [addTitle]="'Add Alert Service' | translate"
+  [editTitle]="'Edit Alert Service' | translate"
+  [requiredRoles]="requiredRoles"
+  [extraDisabled]="childFormInvalid()"
+  [externalLoading]="testAlertLoading()"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section [heading]="'Name and Type' | translate">
+    <tn-form-field [label]="'Name' | translate">
+      <tn-input formControlName="name"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="enabled"
+        [label]="'Enabled' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [label]="'Type' | translate" [tooltip]="helptext.typeTooltip | translate">
+      <tn-select
+        formControlName="type"
+        [options]="(services$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field [label]="'Level' | translate" [tooltip]="helptext.levelTooltip | translate">
+      <tn-select
+        formControlName="level"
+        [options]="(levels$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+  </tn-form-section>
+
+  <tn-form-section [heading]="'Settings' | translate">
+    <ng-container #alertServiceContainer></ng-container>
+  </tn-form-section>
+</ix-form>

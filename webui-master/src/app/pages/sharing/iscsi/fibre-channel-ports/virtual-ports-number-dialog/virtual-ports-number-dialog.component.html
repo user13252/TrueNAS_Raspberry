@@ -1,0 +1,28 @@
+<tn-dialog-shell testId="virtual-ports-number" [title]="'Change Number Of Virtual Ports' | translate">
+<form class="ix-form-container" [formGroup]="form" (submit)="submit()">
+  <tn-form-field [label]="'Virtual Ports' | translate">
+    <tn-input
+      testId="virtual-ports"
+      formControlName="virtualPorts"
+      [inputType]="InputType.Number"
+      [required]="true"
+    ></tn-input>
+  </tn-form-field>
+</form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close()"
+  ></tn-button>
+
+  <tn-button
+    color="primary"
+    testId="delete"
+    [label]="'Change' | translate"
+    [disabled]="form.invalid"
+    (onClick)="submit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

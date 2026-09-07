@@ -1,0 +1,34 @@
+@if (similarIssues$ | async; as issues) {
+  <div class="similar-issues">
+    @if (issues.length) {
+      <div class="similar-issues-header">
+        <div class="similar-issues-title">
+          {{ 'The following issues were already reported.' | translate }}
+        </div>
+        <div class="similar-issues-subtitle">
+          {{ 'Do any of them look similar?' | translate }}
+        </div>
+      </div>
+    }
+    <div
+      class="similar-issues-body"
+      [class.outdated]="isLoading$ | async"
+    >
+      @for (issue of issues; track issue) {
+        <a
+          class="similar-issue"
+          target="_blank"
+          [href]="issue.url"
+          [ixTest]="['similar-issue', issue.id]"
+        >
+          <span
+            class="issue-type-icon"
+            [style.background-image]="'url(' + jiraHostname + issue.img + ')'"
+          ></span>
+          <span class="issue-summary">{{ issue.summaryText }}</span>
+          <tn-icon name="open-in-new" library="mdi" size="sm" style="margin-top: -2px"></tn-icon>
+        </a>
+      }
+    </div>
+  </div>
+}

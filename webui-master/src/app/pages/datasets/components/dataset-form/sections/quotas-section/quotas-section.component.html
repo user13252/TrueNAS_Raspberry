@@ -1,0 +1,80 @@
+<div class="columns" [formGroup]="form">
+  <tn-form-section [heading]="'This Dataset' | translate">
+    <tn-form-field
+      [label]="'Quota for this dataset' | translate"
+      [tooltip]="helptext.refquotaTooltip | translate"
+    >
+      <tn-input formControlName="refquota" [inputType]="InputType.Size"></tn-input>
+    </tn-form-field>
+
+    <div class="with-inherit-field">
+      <tn-form-field [label]="'Quota warning alert at, %' | translate">
+        <tn-input formControlName="refquota_warning" [inputType]="InputType.Number"></tn-input>
+      </tn-form-field>
+      <tn-form-field class="inherit-field" [tooltip]="helptext.refquotaWarningTooltip | translate">
+        <tn-checkbox
+          formControlName="refquota_warning_inherit"
+          [label]="'Inherit' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </div>
+
+    <div class="with-inherit-field">
+      <tn-form-field [label]="'Quota critical alert at, %' | translate">
+        <tn-input formControlName="refquota_critical" [inputType]="InputType.Number"></tn-input>
+      </tn-form-field>
+      <tn-form-field class="inherit-field" [tooltip]="helptext.refquotaCriticalTooltip | translate">
+        <tn-checkbox
+          formControlName="refquota_critical_inherit"
+          [label]="'Inherit' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </div>
+
+    <tn-form-field
+      [label]="'Reserved space for this dataset' | translate"
+      [tooltip]="helptext.refreservationTooltip | translate"
+    >
+      <tn-input formControlName="refreservation" [inputType]="InputType.Size"></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+  <tn-form-section [heading]="'This Dataset and Child Datasets' | translate">
+    <tn-form-field
+      [label]="'Quota for this dataset and all children' | translate"
+      [tooltip]="helptext.quotaTooltip | translate"
+    >
+      <tn-input formControlName="quota" [inputType]="InputType.Size"></tn-input>
+    </tn-form-field>
+
+    <div class="with-inherit-field">
+      <tn-form-field [label]="'Quota warning alert at, %' | translate">
+        <tn-input formControlName="quota_warning" [inputType]="InputType.Number"></tn-input>
+      </tn-form-field>
+      <tn-form-field class="inherit-field" [tooltip]="helptext.quotaWarningTooltip | translate">
+        <tn-checkbox
+          formControlName="quota_warning_inherit"
+          [label]="'Inherit' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </div>
+
+    <div class="with-inherit-field">
+      <tn-form-field [label]="'Quota critical alert at, %' | translate">
+        <tn-input formControlName="quota_critical" [inputType]="InputType.Number"></tn-input>
+      </tn-form-field>
+      <tn-form-field class="inherit-field" [tooltip]="helptext.quotaCriticalTooltip | translate">
+        <tn-checkbox
+          formControlName="quota_critical_inherit"
+          [label]="'Inherit' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </div>
+
+    <tn-form-field
+      [label]="'Reserved space for this dataset and all children' | translate"
+    >
+      <tn-input formControlName="reservation" [inputType]="InputType.Size"></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+</div>

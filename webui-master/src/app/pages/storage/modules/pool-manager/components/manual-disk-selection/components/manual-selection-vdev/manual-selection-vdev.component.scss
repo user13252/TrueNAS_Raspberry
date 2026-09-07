@@ -1,0 +1,77 @@
+.container {
+  display: block;
+
+  background: var(--alt-bg1);
+  padding: 16px 24px;
+}
+
+.outer-container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.vdev-container {
+  flex-grow: 1;
+  flex-wrap: wrap;
+}
+
+.vdev-container {
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  margin: 0 10px;
+}
+
+.disk-icons {
+  display: flex;
+  flex-wrap: wrap;
+
+  ix-disk-icon {
+    margin: 1.5px;
+  }
+}
+
+p {
+  margin: 5px 0;
+}
+
+// tn-icon-button brings its own hit area, cursor and focus ring; all that is left is centring it
+// against the (taller) disk grid it sits beside.
+.delete-container {
+  align-self: center;
+}
+
+.grabbed {
+  cursor: grabbing;
+}
+
+.drag-container {
+  border: 1px solid transparent;
+}
+
+.drag-active {
+  border: 1px dotted #999;
+  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.4);
+
+  &.dndDragover {
+    background-color: var(--alt-bg2);
+  }
+}
+
+.drag-hint {
+  justify-content: center;
+}
+
+.no-enclosure {
+  margin: 6.5px 2px;
+}
+
+.error {
+  color: red;
+  font-size: 12px;
+}
+
+.type-container {
+  min-width: 200px;
+}

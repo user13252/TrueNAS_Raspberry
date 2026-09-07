@@ -1,0 +1,79 @@
+import { Component, ChangeDetectionStrategy, computed, DestroyRef, input, output, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnButtonComponent, TnDialog, TnTooltipDirective } from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { Group } from 'app/interfaces/group.interface';
+import {
+  DeleteGroupDialog,
+} from 'app/pages/credentials/groups/group-details-row/delete-group-dialog/delete-group-dialog.component';
+
+@Component({
+  selector: 'ix-group-details-row',
+  templateUrl: './group-details-row.component.html',
+  styleUrls: ['./group-details-row.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnButtonComponent,
+    RequiresRolesDirective,
+    TranslateModule,
+    TnTooltipDirective,
+  ],
+})
+export class GroupDetailsRowComponent {
+  private router = inject(Router);
+  private tnDialog = inject(TnDialog);
+  private destroyRef = inject(DestroyRef);
+  private translate = inject(TranslateService);
+
+  readonly group = input.required<Group>();
+
+  readonly delete = output<number>();
+  readonly edit = output<Group>();
+  protected readonly Role = Role;
+
+  protected doEdit(group: Group): void {
+    this.edit.emit(group);
+  }
+
+  protected readonly isDeleteDisabled = computed(() => {
+    const group = this.group();
+    return !group?.local
+      || Boolean(group?.roles?.length)
+      || Boolean(group?.users?.length);
+  });
+
+  protected readonly deleteTooltip = computed(() => {
+    const group = this.group();
+    if (!group?.local) {
+      return this.translate.instant('This group is managed by a directory service and cannot be deleted.');
+    }
+    if (group?.roles?.length || group?.users?.length) {
+      return this.translate.instant('Groups with privileges or members cannot be deleted.');
+    }
+    return '';
+  });
+
+  protected openGroupMembersForm(): void {
+    if (this.group().immutable) {
+      return;
+    }
+    this.router.navigate(['/', 'credentials', 'groups', this.group().id, 'members']);
+  }
+
+  protected doDelete(group: Group): void {
+    if (this.isDeleteDisabled()) return;
+    this.tnDialog.open(DeleteGroupDialog, { data: group })
+      .closed
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((wasDeleted) => {
+        if (!wasDeleted) {
+          return;
+        }
+
+        this.delete.emit(group.id);
+      });
+  }
+}

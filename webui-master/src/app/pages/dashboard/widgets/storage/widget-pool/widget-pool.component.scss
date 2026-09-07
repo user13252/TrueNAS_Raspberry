@@ -1,0 +1,83 @@
+@import 'scss-imports/cssvars';
+
+.card {
+  box-sizing: border-box;
+  display: block;
+  height: 100%;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+
+  h3 {
+    font-size: 24px;
+  }
+}
+
+// Replicates the legacy global "mat-card-content > div" padding from _material-reduction.scss.
+.card-content > div {
+  padding: 16px;
+}
+
+.card .card-content > div.container {
+  padding-top: 0;
+}
+
+.container {
+  &.full,
+  &.half {
+    &::ng-deep {
+      @media (max-width: $breakpoint-xs) {
+        .pool-info-top .right {
+          display: none;
+        }
+
+        .pool-info-bottom .item {
+          min-height: 100%;
+          text-align: center;
+        }
+
+        .pool-info-bottom .item .value {
+          font-size: 20px;
+        }
+      }
+    }
+  }
+
+  .pool-info-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    @media (max-width: $breakpoint-xs) {
+      gap: 10px;
+    }
+
+    .pool-info-bottom {
+      display: flex;
+      gap: 12px;
+
+      @media (max-width: $breakpoint-xs) {
+        gap: 10px;
+      }
+
+      > * {
+        display: block;
+        width: 100%;
+      }
+
+      @media (max-width: $breakpoint-xs) {
+        .value {
+          font-size: 20px;
+        }
+      }
+    }
+  }
+}

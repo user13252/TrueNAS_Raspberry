@@ -1,0 +1,104 @@
+@import 'scss-imports/variables';
+@import 'mixins/layout';
+@import 'mixins/cards';
+
+// Vertical flex chain applied from .detail-content down to the projected [detail]
+// root so that nested scroll containers inside the details panel can size correctly.
+@mixin detail-flex-column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+:host {
+  &::ng-deep {
+    @include tree-node-with-details-container;
+
+    .cards {
+      @include details-cards();
+
+      .card {
+        @include details-card();
+        margin: 0;
+      }
+    }
+
+    .detail-disabled {
+      opacity: 0.25;
+      pointer-events: none;
+    }
+
+    // Every consumer projects a single root element into [detail]; it must
+    // participate in the flex column chain so its inner scroll regions work.
+    .detail-content > * {
+      @include detail-flex-column;
+    }
+
+    // The master list is wrapped in a tn-card; its inner wrapper and content
+    // slot must carry the flex column chain so the projected table fills the
+    // card height and its own sticky-header/scroll regions keep working.
+    // TEMP (NAS-141021): tn-card exposes no supported content-height/fill API,
+    // so we reach into its internal `.tn-card__content` class. Replace with a
+    // library-supported API once available — a rename upstream breaks this.
+    .table-container > div,
+    .table-container .tn-card__content {
+      @include detail-flex-column;
+    }
+  }
+}
+
+.details-container {
+  flex-direction: column;
+  overflow: auto;
+
+  @media (min-width: $breakpoint-md) {
+    padding-right: 8px;
+  }
+}
+
+.detail-content {
+  @include detail-flex-column;
+}
+
+.header-container {
+  align-items: center;
+  background: var(--bg1);
+  color: var(--fg2);
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0;
+  padding: 15px 0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+
+  @media (max-width: calc($breakpoint-hidden - 1px)) {
+    border-bottom: solid 1px var(--lines);
+    margin: 0 16px 16px 0;
+    padding-top: 0;
+    position: static;
+  }
+
+  .header {
+    width: 100%;
+  }
+}
+
+// The master list sizes to its content instead of stretching to the details column's
+// height. The details column is given an explicit viewport-based height (ixDetailsHeight),
+// and the row's default `align-items: stretch` made the master card match it — leaving a
+// large empty card below the last row whenever the list is short. Hugging the content
+// keeps the card ending at its last row; a list taller than the viewport still scrolls
+// with the page (same approach as the datasets tree, see dataset-management.component.scss).
+.table-container {
+  align-self: flex-start;
+}
+
+// Collapse the detail-header row when the page projects no title into it (Installed Apps
+// shows one only in mobile view). The empty h3 still reserved ~30px, which pushed the
+// details cards below the top of the master card; hiding it lines both columns up.
+// The mobile back button lives in the same row, so keep the row whenever it is rendered.
+.header-container:not(:has(ix-mobile-back-button)):has(.header:empty) {
+  display: none;
+}

@@ -1,0 +1,116 @@
+@import 'scss-imports/cssvars';
+
+// Replicates the legacy global "mat-card-content > div" padding from _material-reduction.scss.
+.card-content > div {
+  padding: 16px;
+}
+
+// Scoped (not ::ng-deep) so it actually beats the legacy "> div" padding rule above —
+// the old :host ::ng-deep form lost that specificity contest and never applied.
+.card-content > .container {
+  &.half,
+  &.quarter {
+    padding-top: 0;
+  }
+}
+
+:host ::ng-deep .container {
+  &.full {
+    .pool-info-top {
+      flex-wrap: wrap;
+      gap: 10px;
+      height: 307px;
+      justify-content: center;
+      text-align: center;
+
+      .left .pool-name .stats {
+        display: none;
+      }
+
+      .left .lines {
+        gap: 3px !important;
+      }
+
+      .left .lines .line {
+        justify-content: center;
+      }
+    }
+  }
+
+  &.half {
+    .right {
+      @media (max-width: $breakpoint-xs) {
+        display: none;
+      }
+    }
+  }
+
+  &.half,
+  &.quarter {
+    .pool-info-top {
+      height: 115px;
+      opacity: 0.7;
+
+      .left {
+        .pool-name,
+        .divider {
+          display: none;
+        }
+
+        .lines {
+          gap: 2px !important;
+          height: 100%;
+          justify-content: center;
+        }
+      }
+
+      .left .lines .line.pool-usage {
+        @media (max-width: $breakpoint-xs) {
+          display: block !important;
+        }
+      }
+
+      .right {
+        align-items: flex-start;
+
+        ix-gauge-chart .label {
+          font-size: 22px;
+          margin: 0;
+        }
+      }
+    }
+  }
+
+  &.quarter {
+    .pool-info-top {
+      height: 85px;
+      justify-content: center;
+      opacity: 0.7;
+
+      .left {
+        display: none;
+      }
+
+      .right {
+        ix-gauge-chart .label {
+          font-size: 20px;
+        }
+      }
+    }
+
+    ix-gauge-chart,
+    ngx-skeleton-loader {
+      position: relative;
+      top: -6px;
+    }
+
+    .divider-label {
+      background-color: var(--bg1);
+      border-top: 2px solid var(--bg2);
+      margin: 0;
+      opacity: 0.7;
+      padding: 8px;
+      text-align: center;
+    }
+  }
+}

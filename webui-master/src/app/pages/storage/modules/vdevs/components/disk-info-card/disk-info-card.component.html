@@ -1,0 +1,67 @@
+<tn-card
+  padding="small"
+  [title]="'Disk Info' | translate"
+  [primaryAction]="replaceAction()"
+  [secondaryAction]="editAction()"
+>
+  @if (isAvailable()) {
+    <div class="details-item">
+      <div class="label">{{ 'Disk Size' | translate }}:</div>
+      @if (disk()?.size) {
+        <div class="value">
+          {{ disk().size | ixFileSize }}
+        </div>
+      } @else {
+        <div class="value">{{ 'N/A' | translate }}</div>
+      }
+    </div>
+    <div class="details-item">
+      <div class="label">{{ 'Transfer Mode' | translate }}:</div>
+      <div class="value">
+        {{ disk()?.transfermode | orNotAvailable }}
+      </div>
+    </div>
+    <div class="details-item">
+      <div class="label">{{ 'Serial' | translate }}:</div>
+      <div class="value">
+        {{ disk()?.serial }}
+        <ix-copy-button [text]="disk()?.serial || ''"></ix-copy-button>
+      </div>
+    </div>
+    <div class="details-item">
+      <div class="label">{{ 'Model' | translate }}:</div>
+      <div class="value">
+        {{ disk()?.model | orNotAvailable }}
+      </div>
+    </div>
+
+    @if (isHdd()) {
+      <div class="details-item">
+        <div class="label">{{ 'Rotation Rate' | translate }}:</div>
+        @let rotationRate = disk()?.rotationrate;
+        @if (rotationRate) {
+          <div class="value">
+            {{ '{n} RPM' | translate: { n: rotationRate } }}
+          </div>
+        } @else {
+          <div class="value">{{ 'N/A' | translate }}</div>
+        }
+      </div>
+    }
+
+    <div class="details-item">
+      <div class="label">{{ 'Type' | translate }}:</div>
+      <div class="value">{{ disk()?.type | orNotAvailable }}</div>
+    </div>
+    <div class="details-item">
+      <div class="label">{{ 'HDD Standby' | translate }}:</div>
+      <div class="value">{{ disk()?.hddstandby | orNotAvailable }}</div>
+    </div>
+    <div class="details-item">
+      <div class="label">{{ 'Description' | translate }}:</div>
+      <div class="value">{{ disk()?.description || ('N/A' | translate) }}</div>
+    </div>
+  } @else {
+    <div>{{ 'Disk is unavailable' | translate }}</div>
+  }
+</tn-card>

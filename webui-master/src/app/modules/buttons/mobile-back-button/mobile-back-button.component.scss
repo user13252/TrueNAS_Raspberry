@@ -1,0 +1,10 @@
+@import 'scss-imports/variables';
+
+:host {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}

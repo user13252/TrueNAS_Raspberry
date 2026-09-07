@@ -1,0 +1,116 @@
+@import 'scss-imports/cssvars';
+
+:host ::ng-deep ix-with-loading-state-error {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  font-size: 24px;
+  font-weight: bold;
+  height: 100%;
+  padding: 16px;
+  place-content: center center;
+  text-align: center;
+  width: 100%;
+}
+
+.card {
+  display: block;
+  height: 100%;
+
+  // TEMP: the loading-state loader renders as a direct child of tn-card's content
+  // wrapper; .tn-card__content is not public API — replace once tn-card exposes
+  // a public content hook (tracked with the NAS-141021 library follow-ups).
+  ::ng-deep .tn-card__content > ix-with-loading-state-loader {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    height: 100%;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .header {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    min-height: 54px;
+    padding: 16px 8px 8px 16px;
+  }
+
+  .card-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 8px 16px;
+  }
+}
+
+.container {
+  overflow: hidden;
+
+  &.grid {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: 25% 75%;
+    grid-template-rows: auto;
+    height: 100%;
+    padding-bottom: 6px;
+    padding-top: 6px;
+    // The 25% + 75% columns plus the 6px gap would otherwise overflow the container.
+    width: calc(100% - 6px);
+  }
+
+  &.empty {
+    align-items: center;
+    place-content: center center;
+    text-align: center;
+
+    &.full {
+      padding: 0 16px 48px;
+    }
+  }
+
+  &.quarter {
+    padding: 8px;
+  }
+}
+
+ix-app-card-logo {
+  align-items: center;
+  background: var(--bg1);
+  display: inline-flex;
+  padding: 0;
+  place-content: center center;
+}
+
+.app-stats-row {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+
+  h4 {
+    font-size: 16px;
+  }
+
+  strong {
+    font-size: 12px;
+  }
+}
+
+.square {
+  align-items: center;
+  background: var(--bg1);
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  text-align: center;
+}
+
+.rectangle {
+  align-items: center;
+  background: var(--bg1);
+  display: inline-flex;
+  place-content: center center;
+}

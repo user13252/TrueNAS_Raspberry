@@ -1,0 +1,33 @@
+<div class="tree-node-grid">
+  <div class="cell cell-name">
+    <div class="icon-container">
+      <ix-topology-item-icon
+        [topologyItem]="topologyItem()"
+        [disk]="disk()"
+      ></ix-topology-item-icon>
+    </div>
+    <div class="name">
+      <span>{{ name() }}</span>
+      @if (hasDescendantWarning()) {
+        <tn-icon
+          role="img"
+          name="alert-circle"
+          library="mdi"
+          class="descendant-warning-icon"
+          [ngClass]="descendantWarningClass()"
+          [attr.aria-label]="descendantWarningTooltip()"
+          [tnTooltip]="descendantWarningTooltip()"
+        ></tn-icon>
+      }
+    </div>
+  </div>
+  <div class="cell cell-status" [ngClass]="statusClass()">
+    <span>{{ status() }}</span>
+  </div>
+  <div class="cell cell-capacity">
+    <span>{{ capacity() }}</span>
+  </div>
+  <div class="cell cell-errors">
+    <span>{{ errors() }}</span>
+  </div>
+</div>

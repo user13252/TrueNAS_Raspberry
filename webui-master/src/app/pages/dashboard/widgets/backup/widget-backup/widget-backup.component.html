@@ -1,0 +1,90 @@
+<tn-card class="card" [padContent]="false">
+  <div class="card-content">
+    <div class="header">
+      <div class="title">
+        <h3>{{ name | translate }}</h3>
+
+        @if (!!allCount) {
+          <div class="status-container">
+            @if (!!failedCount) {
+              <tn-icon
+                name="alert"
+                library="mdi"
+                class="icon warning"
+              ></tn-icon>
+              <span>
+                {{ '{failedCount} of {allCount, plural, =1 {# task} other {# tasks}} failed' | translate : { failedCount, allCount } }}
+              </span>
+            } @else {
+              <tn-icon
+                name="check-circle"
+                library="mdi"
+                class="icon healthy"
+              ></tn-icon>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="controls">
+        <a
+          class="reports-link"
+          tnTestIdType="link"
+          tnTooltipPosition="above"
+          [tnTestId]="'go-to-backups'"
+          [attr.aria-label]="'Data Protection' | translate"
+          [tnTooltip]="'Data Protection' | translate"
+          [routerLink]="['/data-protection']"
+        >
+          <tn-icon name="open-in-new" library="mdi" size="lg"></tn-icon>
+        </a>
+      </div>
+    </div>
+
+    <div [class]="['container', size()]">
+      @if (backupsTiles.length) {
+        <div class="container-content">
+          <div
+            class="tiles-grid"
+            [class.two-columns]="backupsTiles.length > 3"
+            [style.--tile-height.px]="hasSendTasks ? 105 : 90"
+          >
+            @for (tile of backupsTiles; track trackByTile($index, tile)) {
+              <div class="tile-cell">
+                <ix-backup-task-tile
+                  [tile]="tile"
+                  [hasSendTasks]="hasSendTasks"
+                  [backupActions]="backupActions"
+                ></ix-backup-task-tile>
+              </div>
+            }
+          </div>
+          @if (!hasSendTasks) {
+            <div class="banner">
+              <ng-template *ngTemplateOutlet="backupActions"></ng-template>
+            </div>
+          }
+        </div>
+      }
+
+      @if (!backupsTiles.length || isLoading) {
+        <ix-backup-task-empty
+          [isLoading]="isLoading"
+          [backupActions]="backupActions"
+          (addReplicationTask)="addReplicationTask()"
+          (addCloudSyncTask)="addCloudSyncTask()"
+          (addRsyncTask)="addRsyncTask()"
+        ></ix-backup-task-empty>
+      }
+    </div>
+  </div>
+</tn-card>
+
+<ng-template #backupActions>
+  <ix-backup-task-actions
+    [allCount]="allCount"
+    (taskAdded)="getBackups()"
+    (addReplicationTask)="addReplicationTask()"
+    (addCloudSyncTask)="addCloudSyncTask()"
+  ></ix-backup-task-actions>
+</ng-template>

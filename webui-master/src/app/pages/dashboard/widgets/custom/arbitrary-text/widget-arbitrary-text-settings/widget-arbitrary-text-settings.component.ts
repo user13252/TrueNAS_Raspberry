@@ -1,0 +1,71 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder } from '@ngneat/reactive-forms';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnFormFieldComponent, TnInputComponent } from '@truenas/ui-components';
+import { getAllFormErrors } from 'app/modules/forms/ix-forms/utils/get-form-errors.utils';
+import { WidgetSettingsComponent } from 'app/pages/dashboard/types/widget-component.interface';
+import { WidgetSettingsRef } from 'app/pages/dashboard/types/widget-settings-ref.interface';
+import { WidgetArbitraryTextSettings } from 'app/pages/dashboard/widgets/custom/arbitrary-text/widget-arbitrary-text.definition';
+
+@Component({
+  selector: 'ix-widget-arbitrary-text-settings',
+  templateUrl: './widget-arbitrary-text-settings.component.html',
+  styleUrl: './widget-arbitrary-text-settings.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TranslateModule,
+  ],
+})
+export class WidgetArbitraryTextSettingsComponent implements
+  WidgetSettingsComponent<WidgetArbitraryTextSettings>, OnInit {
+  widgetSettingsRef = inject<WidgetSettingsRef<WidgetArbitraryTextSettings>>(WidgetSettingsRef);
+  private fb = inject(FormBuilder);
+  private destroyRef = inject(DestroyRef);
+
+  form = this.fb.nonNullable.group({
+    widgetTitle: [null as string | null, [Validators.required, Validators.maxLength(20)]],
+    widgetText: [null as string | null, [Validators.required, Validators.maxLength(130)]],
+    widgetSubText: [null as string | null, [Validators.maxLength(64)]],
+  });
+
+  private readonly formFieldNames = ['widgetTitle', 'widgetText', 'widgetSubText'];
+
+  ngOnInit(): void {
+    this.setupSettingsUpdate();
+    this.setCurrentSettings();
+  }
+
+  private setCurrentSettings(): void {
+    const settings = this.widgetSettingsRef.getSettings();
+    if (!settings) {
+      return;
+    }
+    this.form.controls.widgetTitle.setValue(settings.widgetTitle || null);
+    this.form.controls.widgetText.setValue(settings.widgetText || null);
+    this.form.controls.widgetSubText.setValue(settings?.widgetSubText || null);
+  }
+
+  private setupSettingsUpdate(): void {
+    this.widgetSettingsRef.updateValidity(
+      getAllFormErrors(this.form, this.formFieldNames),
+    );
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (settings) => {
+        this.widgetSettingsRef.updateSettings({
+          widgetTitle: settings.widgetTitle || '',
+          widgetText: settings.widgetText || '',
+          widgetSubText: settings.widgetSubText || '',
+        });
+
+        this.widgetSettingsRef.updateValidity(
+          getAllFormErrors(this.form, this.formFieldNames),
+        );
+      },
+    });
+  }
+}

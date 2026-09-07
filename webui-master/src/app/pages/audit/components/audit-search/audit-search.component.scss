@@ -1,0 +1,53 @@
+@import 'scss-imports/variables';
+@import 'mixins/layout';
+
+.actions-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .top-row {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+
+    .service-select {
+      align-items: center;
+      display: flex;
+      flex-shrink: 0;
+      gap: 8px;
+
+      .service-label {
+        font-size: 15px;
+        white-space: nowrap;
+      }
+
+      tn-select {
+        min-width: 130px;
+      }
+    }
+
+    .export-container {
+      align-items: center;
+      display: flex;
+    }
+  }
+
+  .search-row {
+    align-items: flex-start;
+    display: flex;
+    gap: 12px;
+    width: 100%;
+
+    .search-input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    button {
+      flex-shrink: 0;
+    }
+  }
+}

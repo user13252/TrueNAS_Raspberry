@@ -1,0 +1,265 @@
+import { DialogRef, DIALOG_DATA } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnDialogHarness, TnIconButtonHarness, TnProgressBarComponent } from '@truenas/ui-components';
+import { BehaviorSubject, of } from 'rxjs';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { JobState } from 'app/enums/job-state.enum';
+import { Job } from 'app/interfaces/job.interface';
+import {
+  JobProgressDialog,
+  JobProgressDialogConfig,
+} from 'app/modules/dialog/components/job-progress/job-progress-dialog.component';
+import { ignoreTranslation } from 'app/modules/translate/translate.helper';
+import { ApiService } from 'app/modules/websocket/api.service';
+
+describe('JobProgressDialogComponent', () => {
+  let spectator: Spectator<JobProgressDialog<unknown>>;
+  let loader: HarnessLoader;
+  let dialogHarness: TnDialogHarness;
+
+  const createComponent = createComponentFactory({
+    component: JobProgressDialog<unknown>,
+    providers: [
+      mockApi([
+        mockCall('core.job_abort'),
+      ]),
+      mockProvider(DialogRef),
+    ],
+  });
+
+  const testJob = {
+    id: 23,
+    state: JobState.Running,
+    method: 'pool.create',
+    description: 'Creating pool',
+    abortable: false,
+    progress: {
+      percent: 50,
+    },
+  } as Job;
+
+  async function setupTest(data: Partial<JobProgressDialogConfig<unknown>> = {}): Promise<void> {
+    spectator = createComponent({
+      providers: [
+        {
+          provide: DIALOG_DATA,
+          useValue: {
+            job$: of(testJob),
+            ...data,
+          } as JobProgressDialogConfig<unknown>,
+        },
+      ],
+    });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    dialogHarness = await loader.getHarness(TnDialogHarness);
+  }
+
+  it('shows title from data when it is provided', async () => {
+    await setupTest({
+      title: ignoreTranslation('Test job'),
+    });
+    expect(await dialogHarness.getTitle()).toBe('Test job');
+  });
+
+  it('shows description from data when it is provided', async () => {
+    await setupTest({
+      description: ignoreTranslation('Test description'),
+    });
+    expect(spectator.query('.job-description')).toHaveExactText('Test description');
+  });
+
+  it('uses job method as a title when title is not provided', async () => {
+    await setupTest();
+    expect(await dialogHarness.getTitle()).toBe('pool.create');
+  });
+
+  it('shows a progress bar with a percentage once job is active', async () => {
+    await setupTest();
+    const progressBar = spectator.query(TnProgressBarComponent);
+
+    expect(progressBar.value()).toBe(50);
+  });
+
+  it('should update job description and progress when job updates', async () => {
+    await setupTest({
+      job$: of({
+        ...testJob,
+        progress: {
+          percent: 74,
+          description: 'Confabulating bits',
+        },
+      } as Job),
+    });
+
+    const progressBar = spectator.query(TnProgressBarComponent);
+    expect(progressBar.value()).toBe(74);
+    expect(spectator.query('.job-description')).toHaveExactText('Confabulating bits');
+  });
+
+  it('should emit jobProgress when job progress update is received', async () => {
+    const job$ = new BehaviorSubject(testJob);
+    await setupTest({ job$ });
+    const emitSpy = jest.spyOn(spectator.component.jobProgress, 'emit');
+    const newProgress = {
+      percent: 74,
+      description: 'Confabulating bits',
+    };
+    const newJob = {
+      ...testJob,
+      progress: newProgress,
+    } as Job;
+    job$.next(newJob);
+
+    expect(emitSpy).toHaveBeenCalledWith(newProgress);
+  });
+
+  it('should emit jobSuccess and close when job state is Success', async () => {
+    const job$ = new BehaviorSubject(testJob);
+    await setupTest({ job$ });
+    const emitSpy = jest.spyOn(spectator.component.jobSuccess, 'emit');
+    const newJob = {
+      ...testJob,
+      state: JobState.Success,
+    } as Job;
+    job$.next(newJob);
+    job$.complete();
+
+    expect(emitSpy).toHaveBeenCalledWith(newJob);
+    job$.complete();
+    expect(spectator.inject(DialogRef).close).toHaveBeenCalled();
+  });
+
+  it('should emit jobFailure and close when job state is Failed', async () => {
+    const job$ = new BehaviorSubject(testJob);
+    await setupTest({ job$ });
+    const emitSpy = jest.spyOn(spectator.component.jobFailure, 'emit');
+    const newJob = {
+      ...testJob,
+      state: JobState.Failed,
+    } as Job;
+    job$.next(newJob);
+    job$.complete();
+
+    expect(emitSpy).toHaveBeenCalledWith(newJob);
+    expect(spectator.inject(DialogRef).close).toHaveBeenCalled();
+  });
+
+  describe('aborting', () => {
+    const job$ = new BehaviorSubject({
+      ...testJob,
+      abortable: true,
+    } as Job);
+
+    beforeEach(async () => {
+      await setupTest({ job$ });
+    });
+
+    it('should show an Abort button for abortable jobs', async () => {
+      expect(await loader.getHarness(TnButtonHarness.with({ label: 'Abort' }))).toBeTruthy();
+    });
+
+    it('makes a call to abort a job when Abort button is clicked', async () => {
+      const abortButton = await loader.getHarness(TnButtonHarness.with({ label: 'Abort' }));
+      await abortButton.click();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('core.job_abort', [testJob.id]);
+
+      const abortingButton = await loader.getHarness(TnButtonHarness.with({ label: 'Aborting...' }));
+      expect(await abortingButton.isDisabled()).toBe(true);
+    });
+
+    it('emits jobAborted and closes when job update from middleware shows that it was aborted', () => {
+      const emitSpy = jest.spyOn(spectator.component.jobAborted, 'emit');
+      const newJob = {
+        ...testJob,
+        state: JobState.Aborted,
+      } as Job;
+      job$.next(newJob);
+      job$.complete();
+
+      expect(emitSpy).toHaveBeenCalledWith(newJob);
+      expect(spectator.inject(DialogRef).close).toHaveBeenCalled();
+    });
+  });
+
+  describe('aborting with job completing as Success', () => {
+    it('emits jobAborted when abort was requested but job completed with Success', async () => {
+      const freshJob$ = new BehaviorSubject({
+        ...testJob,
+        abortable: true,
+      } as Job);
+      await setupTest({ job$: freshJob$ });
+
+      const abortedSpy = jest.spyOn(spectator.component.jobAborted, 'emit');
+      const successSpy = jest.spyOn(spectator.component.jobSuccess, 'emit');
+
+      const abortButton = await loader.getHarness(TnButtonHarness.with({ label: 'Abort' }));
+      await abortButton.click();
+
+      const completedJob = {
+        ...testJob,
+        state: JobState.Success,
+      } as Job;
+      freshJob$.next(completedJob);
+      freshJob$.complete();
+
+      expect(abortedSpy).toHaveBeenCalledWith(completedJob);
+      expect(successSpy).not.toHaveBeenCalled();
+      expect(spectator.inject(DialogRef).close).toHaveBeenCalled();
+    });
+  });
+
+  it('allows to minimize (close) the job dialog when canMinimize is true', async () => {
+    await setupTest({
+      canMinimize: true,
+    });
+
+    const icon = await loader.getHarnessOrNull(TnIconButtonHarness.with({ name: 'minus' }));
+    expect(icon).not.toBeNull();
+    await icon.click();
+
+    expect(spectator.inject(DialogRef).close).toHaveBeenCalled();
+  });
+
+  it('does not allow dialog to be closed by clicking on the backdrop if dialog cannot be minimized', async () => {
+    await setupTest({
+      canMinimize: true,
+    });
+
+    expect(spectator.inject(DialogRef).disableClose).toBe(false);
+  });
+
+  describe('realtime logs', () => {
+    it('subscribes to filesystem.file_tail_follow with JSON format when showRealtimeLogs is true and logs_path is provided', () => {
+      const jobWithLogs = {
+        ...testJob,
+        logs_path: '/var/log/test.log',
+      } as Job;
+
+      spectator = createComponent({
+        providers: [
+          mockProvider(ApiService, {
+            subscribe: jest.fn(() => of({
+              fields: {
+                data: 'Log line 1\nLog line 2\n',
+              },
+            })),
+          }),
+          {
+            provide: DIALOG_DATA,
+            useValue: {
+              job$: of(jobWithLogs),
+              showRealtimeLogs: true,
+            } as JobProgressDialogConfig<unknown>,
+          },
+        ],
+      });
+
+      expect(spectator.inject(ApiService).subscribe).toHaveBeenCalledWith(
+        `filesystem.file_tail_follow:${JSON.stringify({ path: '/var/log/test.log' })}`,
+      );
+    });
+  });
+});

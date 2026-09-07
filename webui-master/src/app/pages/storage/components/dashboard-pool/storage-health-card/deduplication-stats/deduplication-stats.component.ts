@@ -1,0 +1,65 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, input, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnDialog, TnTestIdDirective } from '@truenas/ui-components';
+import { filter } from 'rxjs/operators';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { Pool } from 'app/interfaces/pool.interface';
+import { FileSizePipe } from 'app/modules/pipes/file-size/file-size.pipe';
+import {
+  PruneDedupTableDialog,
+} from 'app/pages/storage/components/dashboard-pool/storage-health-card/prune-dedup-table-dialog/prune-dedup-table-dialog.component';
+import {
+  SetDedupQuotaComponent,
+} from 'app/pages/storage/components/dashboard-pool/storage-health-card/set-dedup-quota/set-dedup-quota.component';
+import { PoolsDashboardStore } from 'app/pages/storage/stores/pools-dashboard-store.service';
+
+@Component({
+  selector: 'ix-deduplication-stats',
+  templateUrl: './deduplication-stats.component.html',
+  styleUrls: ['./deduplication-stats.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TranslateModule,
+    RequiresRolesDirective,
+    TnTestIdDirective,
+  ],
+  providers: [FileSizePipe],
+})
+export class DeduplicationStatsComponent {
+  private fileSizePipe = inject(FileSizePipe);
+  private tnDialog = inject(TnDialog);
+  private store = inject(PoolsDashboardStore);
+  private destroyRef = inject(DestroyRef);
+
+  pool = input.required<Pool>();
+
+  protected readonly Role = Role;
+
+  protected deduplicationStats = computed(() => {
+    if (this.pool().dedup_table_quota !== 'auto' && this.pool().dedup_table_quota !== '0') {
+      const value = this.fileSizePipe.transform(this.pool().dedup_table_size);
+      const quota = this.fileSizePipe.transform(parseInt(this.pool().dedup_table_quota || '', 10));
+      return `${value} / ${quota}`;
+    }
+
+    return this.fileSizePipe.transform(this.pool().dedup_table_size);
+  });
+
+  protected onPruneDedupTable(): void {
+    this.tnDialog
+      .open(PruneDedupTableDialog, { data: this.pool() })
+      .closed
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.store.loadDashboard());
+  }
+
+  protected onSetDedupQuota(): void {
+    this.tnDialog
+      .open(SetDedupQuotaComponent, { data: this.pool() })
+      .closed
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.store.loadDashboard());
+  }
+}

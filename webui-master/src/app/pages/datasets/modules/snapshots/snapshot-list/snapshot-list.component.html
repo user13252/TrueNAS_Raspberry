@@ -1,0 +1,107 @@
+<ix-page-header [pageTitle]="pageTitle">
+  @if (loadingExtraColumns()) {
+    <tn-spinner
+      mode="indeterminate"
+      [diameter]="30"
+    ></tn-spinner>
+  } @else {
+    <tn-slide-toggle
+      [formControl]="showExtraColumnsControl"
+      [testId]="'show-extra-columns'"
+      [label]="'Show extra columns' | translate"
+    ></tn-slide-toggle>
+  }
+
+  <ix-basic-search
+    [query]="searchQuery()"
+    (queryChange)="onListFiltered($event)"
+  ></ix-basic-search>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    [testId]="'add-snapshot'"
+    [label]="'Add' | translate"
+    [ixUiSearch]="searchableElements.elements.add"
+    (onClick)="doAdd()"
+  ></tn-button>
+</ix-page-header>
+
+@if (selectedSnapshots().length) {
+  <div class="batch-actions-toolbar">
+    <div class="title">
+      <strong>{{ 'Batch Operations' | translate }}</strong>
+    </div>
+
+    <div class="actions">
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        icon="mdi-delete"
+        tnTooltipPosition="below"
+        [testId]="'delete-selected'"
+        [tnTooltip]="'Delete selections' | translate"
+        [label]="'Delete' | translate"
+        (onClick)="doBatchDelete(selectedSnapshots())"
+      ></tn-button>
+    </div>
+  </div>
+}
+
+@if (!currentPageCount() && !isLoading()) {
+  <tn-empty
+    [ixUiSearch]="searchableElements.elements.list"
+    [icon]="emptyService.iconForType(emptyType())"
+    [title]="emptyService.titleForType(emptyType())"
+    [description]="emptyService.descriptionForType(emptyType())"
+  ></tn-empty>
+} @else {
+  <tn-table
+    class="table"
+    [ixUiSearch]="searchableElements.elements.list"
+    [dataSource]="currentPage()"
+    [displayedColumns]="displayedColumns()"
+    [trackBy]="trackBySnapshotId"
+    [selectable]="true"
+    [expandable]="true"
+    [clickable]="true"
+    [expandOnRowClick]="true"
+    [singleExpand]="true"
+    [loading]="isLoading()"
+    (selectionChange)="onSelectionChange($event)"
+    (sortChange)="onSortChange($event)"
+  >
+    <ng-container tnColumnDef="dataset" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Dataset' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.dataset }}</ng-template>
+    </ng-container>
+
+    <ng-container tnColumnDef="snapshot_name" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Snapshot' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.snapshot_name }}</ng-template>
+    </ng-container>
+
+    <ng-container tnColumnDef="used" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Used' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ getUsed(row) | ixFileSize }}</ng-template>
+    </ng-container>
+
+    <ng-container tnColumnDef="created" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Date created' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        @if (getCreated(row); as created) {
+          <ix-date [date]="created"></ix-date>
+        }
+      </ng-template>
+    </ng-container>
+
+    <ng-container tnColumnDef="referenced" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Referenced' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ getReferenced(row) | ixFileSize }}</ng-template>
+    </ng-container>
+
+    <ng-template let-snapshot tnDetailRowDef>
+      <ix-snapshot-details-row [snapshot]="snapshot"></ix-snapshot-details-row>
+    </ng-template>
+  </tn-table>
+  <tn-table-pager [dataProvider]="dataProvider"></tn-table-pager>
+}

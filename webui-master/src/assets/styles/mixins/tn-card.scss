@@ -1,0 +1,62 @@
+// Shared styling for @truenas/ui-components `tn-card` headers whose title is projected
+// through `[tnCardHeader]`. Hoisted here so the several dashboard cards that reproduce
+// the library's title typography stay in sync instead of drifting copy-by-copy.
+// Tracked under NAS-141021.
+
+// The library's `.tn-card__title` typography is view-encapsulated and so doesn't reach
+// projected `[tnCardHeader]` content. Re-declare it here. Color stays on webui's `--fg1`
+// theme var (the library's `--tn-fg1` is not mapped app-wide and would fall back to a
+// static color, breaking dark theme).
+//
+// Include on the projected title element and its inner link:
+//   .card-title { @include tn-card-projected-title; }
+//   .card-title-link { @include tn-card-projected-title-link; }
+@mixin tn-card-projected-title {
+  align-items: center;
+  color: var(--fg1);
+  display: inline-flex;
+  font-size: 1.125rem;
+  font-weight: 600;
+  gap: 8px;
+  line-height: 1.5;
+  margin: 0;
+
+  .title-icon {
+    margin-left: 5px;
+  }
+}
+
+@mixin tn-card-projected-title-link {
+  color: inherit;
+  display: inline-flex;
+  text-decoration: none;
+}
+
+// `tn-card` paints its surface from the library's own `--tn-bg2`, which falls back to a
+// preset when a custom webui theme is active and the component-library theme sync can't
+// resolve it. Re-point it at the live theme var. Include on the card host.
+//
+//   .splash-card { @include tn-card-webui-palette; }
+//
+// NOTE: this is opt-in per card, but the underlying gap is app-wide —
+// `ThemeService.syncComponentLibraryTheme` only pushes themes listed in
+// `webuiToComponentLibraryThemeMap`, so *every* `tn-card` renders off-palette under a
+// custom theme. The real fix is to have the theme sync feed the library's CSS vars for
+// unmapped themes; until then each migrated card includes this. Tracked under NAS-141021.
+@mixin tn-card-webui-palette {
+  --tn-bg2: var(--bg2);
+
+  color: var(--fg2);
+  display: block;
+}
+
+// `tn-card`'s default content slot carries no layout of its own, so a card whose content is
+// a single centered column has to bring it. Include on the wrapper projected into the slot.
+//
+//   .card-body { @include tn-card-centered-column; }
+@mixin tn-card-centered-column {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}

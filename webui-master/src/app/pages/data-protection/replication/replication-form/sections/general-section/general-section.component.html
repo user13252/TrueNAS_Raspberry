@@ -1,0 +1,64 @@
+<tn-form-section [heading]="'General' | translate" [formGroup]="form">
+  <tn-form-field [label]="'Name' | translate" [tooltip]="helptext.nameTooltip | translate" [required]="true">
+    <tn-input
+      name="name"
+      testId="name"
+      formControlName="name"
+      [required]="true"
+    ></tn-input>
+  </tn-form-field>
+  @if (!isLocal) {
+    <tn-form-field [label]="'Direction' | translate" [tooltip]="helptext.directionTooltip | translate" [required]="true">
+      <tn-select
+        testId="direction"
+        formControlName="direction"
+        [options]="(directions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+  }
+  <tn-form-field [label]="'Transport' | translate" [tooltip]="helptext.transportTooltip | translate" [required]="true">
+    <tn-select
+      testId="transport"
+      formControlName="transport"
+      [options]="(transports$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+  @if (!isLocal) {
+    <tn-form-field [tooltip]="helptext.sudoTooltip | translate">
+      <tn-checkbox
+        testId="sudo"
+        formControlName="sudo"
+        [label]="'Use Sudo For ZFS Commands' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+  <tn-form-field
+    [label]="'Number of retries for failed replications' | translate"
+    [tooltip]="helptext.retriesTooltip | translate"
+  >
+    <tn-input
+      name="retries"
+      testId="retries"
+      formControlName="retries"
+      [inputType]="InputType.Number"
+    ></tn-input>
+  </tn-form-field>
+  <tn-form-field
+    [label]="'Logging Level' | translate"
+    [tooltip]="helptext.loggingLevelTooltip | translate"
+    [required]="true"
+  >
+    <tn-select
+      testId="logging-level"
+      formControlName="logging_level"
+      [options]="(loggingLevels$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+  <tn-form-field [tooltip]="helptext.enabledTooltip | translate">
+    <tn-checkbox
+      testId="enabled"
+      formControlName="enabled"
+      [label]="'Enabled' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+</tn-form-section>

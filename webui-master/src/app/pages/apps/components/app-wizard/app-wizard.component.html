@@ -1,0 +1,70 @@
+<ix-page-header [pageTitle]="(pageTitle$ | async) || ''">
+  @if (!(hasRequiredRoles | async)) {
+    <ix-readonly-badge></ix-readonly-badge>
+  }
+</ix-page-header>
+
+@if (appsLoaded) {
+  <div class="app-wizard-wrapper">
+    <div class="wizard-container">
+      <div class="mini-search-card">
+        <ix-input
+          [prefixIcon]="tnIconMarker('magnify', 'mdi')"
+          [formControl]="searchControl"
+          [placeholder]="'Search Input Fields' | translate"
+          [autocompleteOptions]="searchOptions"
+        ></ix-input>
+      </div>
+      <ix-form
+        [formGroup]="form"
+        [isEditMode]="!isNew"
+        [requiredRoles]="requiredRoles"
+        [submitHandler]="handleSubmit"
+        [extraDisabled]="isLoading"
+        [suppressSuccessSnackbar]="true"
+      >
+        <ix-dynamic-wizard
+          [dynamicSection]="dynamicSection"
+          [dynamicForm]="form"
+          (addListItem)="addItem($event)"
+          (deleteListItem)="deleteItem($event)"
+        ></ix-dynamic-wizard>
+
+        @if (showAppMetadata) {
+          <ix-app-metadata-card [appMetadata]="catalogApp.app_metadata"></ix-app-metadata-card>
+        }
+        <div class="actions">
+          <tn-button
+            *ixRequiresRoles="requiredRoles"
+            type="submit"
+            color="primary"
+            testId="save"
+            [label]="isNew ? ('Install' | translate) : ('Update' | translate)"
+            [disabled]="!canSubmit()"
+          ></tn-button>
+        </div>
+      </ix-form>
+    </div>
+
+    @if (appsLoaded) {
+      <div class="search-container">
+        <div class="search-card">
+          <ix-input
+            [prefixIcon]="tnIconMarker('magnify', 'mdi')"
+            [formControl]="searchControl"
+            [placeholder]="'Search Input Fields' | translate"
+            [autocompleteOptions]="searchOptions"
+          ></ix-input>
+          @for (section of dynamicSection; track section) {
+            <div class="section" (click)="onSectionClick(section.name)">
+              {{ section.name }}
+              @if (checkSectionInvalid(section)) {
+                <tn-icon name="alert" library="mdi"></tn-icon>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+}

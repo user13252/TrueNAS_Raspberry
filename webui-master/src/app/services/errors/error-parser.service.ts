@@ -1,0 +1,367 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { TranslateService } from '@ngx-translate/core';
+import { tnIconMarker } from '@truenas/ui-components';
+import { isObject } from 'lodash-es';
+import { ApiErrorName, apiErrorNames } from 'app/enums/api.enum';
+import {
+  isAbortedJobError,
+  isApiCallError,
+  isApiErrorDetails,
+  isErrorResponse,
+  isFailedJob,
+  isFailedJobError,
+} from 'app/helpers/api.helper';
+import { ApiErrorDetails } from 'app/interfaces/api-error.interface';
+import { JsonRpcError } from 'app/interfaces/api-message.interface';
+import { ErrorReport, ErrorDetails, traceDetailLabel, logsExcerptDetailLabel } from 'app/interfaces/error-report.interface';
+import { Job } from 'app/interfaces/job.interface';
+import { FailedJobError } from 'app/services/errors/error.classes';
+
+const httpStatusTexts: Record<number, string> = {
+  400: 'Bad Request',
+  401: 'Unauthorized',
+  403: 'Forbidden',
+  404: 'Not Found',
+  409: 'Conflict',
+  500: 'Internal Server Error',
+  502: 'Bad Gateway',
+  503: 'Service Unavailable',
+};
+
+@Injectable({
+  providedIn: 'root',
+})
+export class ErrorParserService {
+  private translate = inject(TranslateService);
+
+
+  getFirstErrorMessage(error: unknown): string | undefined {
+    const parsedError = this.parseError(error);
+    if (Array.isArray(parsedError)) {
+      return parsedError[0].message;
+    }
+    return parsedError?.message;
+  }
+
+  private isHttpError(obj: unknown): obj is HttpErrorResponse {
+    return obj instanceof HttpErrorResponse;
+  }
+
+  /**
+   * Prefer `showErrorModal(error)`
+   */
+  parseError(error: unknown): ErrorReport | ErrorReport[] | null {
+    if (isApiCallError(error)) {
+      if (isApiErrorDetails(error.error.data)) {
+        return this.parseApiError(error.error.data);
+      }
+
+      return this.parseRawJsonRpcError(error.error);
+    }
+
+    if (isFailedJobError(error)) {
+      return this.parseJobError(error);
+    }
+
+    if (isAbortedJobError(error)) {
+      return {
+        title: this.translate?.instant('Aborted') || 'Aborted',
+        message: this.translate.instant('Job aborted'),
+      };
+    }
+    if (this.isHttpError(error)) {
+      return this.parseHttpError(error);
+    }
+
+    // TODO: Items below should not be happening, but were kept for compatibility purposes.
+    if (isErrorResponse(error)) {
+      console.error('Unexpected error response:', error);
+      const actualError = error.error;
+      if (isApiErrorDetails(actualError.data)) {
+        return this.parseApiError(actualError.data);
+      }
+      return this.parseRawJsonRpcError(actualError);
+    }
+
+    if (isFailedJob(error)) {
+      console.error('Unexpected failed job', error);
+      return this.parseJobError(new FailedJobError(error));
+    }
+
+    if (isApiErrorDetails(error)) {
+      console.error('Unexpected api error details:', error);
+      return this.parseApiError(error);
+    }
+
+    if (isObject(error) && 'message' in error) {
+      return {
+        title: this.translate?.instant('Error') || 'Error',
+        message: String(error.message),
+      };
+    }
+
+    return null;
+  }
+
+  private extractErrorDetails(error: ApiErrorDetails): ErrorDetails[] {
+    const details: ErrorDetails[] = [];
+
+    // Add error name if present
+    if (error.errname) {
+      details.push({ label: 'Error Name', value: error.errname });
+    }
+
+    // Add error code if present
+    if (error.error !== undefined && error.error !== null) {
+      details.push({ label: 'Error Code', value: error.error });
+    }
+
+    // Add reason if present
+    if (error.reason) {
+      details.push({ label: 'Reason', value: error.reason });
+    }
+
+    // Add error class from trace if present
+    if (error.trace?.class) {
+      details.push({ label: 'Error Class', value: error.trace.class });
+    }
+
+    // Add extra data if present
+    if (error.extra !== undefined && error.extra !== null) {
+      if (typeof error.extra === 'object' && !Array.isArray(error.extra)) {
+        Object.entries(error.extra).forEach(([key, value]) => {
+          details.push({
+            label: key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
+            value: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value),
+          });
+        });
+      } else {
+        details.push({ label: 'Extra', value: JSON.stringify(error.extra, null, 2) });
+      }
+    }
+
+    // Add formatted trace if present (usually contains stack trace)
+    if (error.trace?.formatted) {
+      details.push({ label: traceDetailLabel, value: error.trace.formatted });
+    }
+
+    return details;
+  }
+
+  private parseApiError(error: ApiErrorDetails): ErrorReport {
+    // Handle network connectivity errors with specific messages
+    if (error.errname === ApiErrorName.ConnectionReset || error.errname === ApiErrorName.TimedOut) {
+      return {
+        title: this.translate.instant('Network Error'),
+        message: this.translate.instant('Network connection was closed or timed out. Try again later.'),
+        icon: tnIconMarker('cloud-off', 'custom'),
+        details: this.extractErrorDetails(error),
+      };
+    }
+    if (error.errname === ApiErrorName.NetworkUnreachable) {
+      return {
+        title: this.translate.instant('Network Error'),
+        message: this.translate.instant('Network resource is not reachable, verify your network settings and health.'),
+        hint: this.translate.instant('Double check that your nameservers and gateway are properly configured.'),
+        icon: tnIconMarker('cloud-off', 'custom'),
+        actions: [
+          {
+            label: this.translate.instant('Network Settings'),
+            route: '/system/network',
+          },
+        ],
+        details: this.extractErrorDetails(error),
+      };
+    }
+
+    const title = apiErrorNames.has(error.errname)
+      ? this.translate.instant(apiErrorNames.get(error.errname) || error.errname)
+      : error.trace?.class || this.translate.instant('Error');
+
+    return {
+      title,
+      message: error.reason || error?.error?.toString(),
+      stackTrace: error.trace?.formatted,
+      details: this.extractErrorDetails(error),
+    };
+  }
+
+  private parseJobError(failedJob: FailedJobError): ErrorReport | ErrorReport[] {
+    const job = { ...failedJob.job };
+    if (job.exc_info?.extra) {
+      job.extra = job.exc_info.extra as Record<string, unknown>;
+    }
+
+    if (job.extra && Array.isArray(job.extra)) {
+      return this.parseJobWithArrayExtra(job);
+    }
+
+    let message: string;
+    if (job.error) {
+      message = `<pre>${job.error}</pre>`;
+    } else if (job.exception) {
+      message = `<pre>${job.exception}</pre>`;
+    } else {
+      message = this.translate.instant('Unknown error');
+    }
+
+    let details: ErrorDetails[];
+    let title: string;
+    if (failedJob.apiErrorDetails) {
+      details = this.extractErrorDetails(failedJob.apiErrorDetails);
+      title = failedJob.apiErrorDetails.trace?.class || job.exc_info?.type || job.state;
+    } else {
+      details = [];
+      if (job.exc_info?.type) {
+        details.push({ label: 'Error Type', value: job.exc_info.type });
+      }
+      if (job.exception) {
+        details.push({ label: traceDetailLabel, value: job.exception });
+      }
+      title = job.exc_info?.type || job.state;
+    }
+    if (job.logs_excerpt) {
+      details.push({ label: logsExcerptDetailLabel, value: job.logs_excerpt });
+    }
+
+    return {
+      title,
+      message,
+      stackTrace: job.logs_excerpt || job.exception,
+      details: details.length > 0 ? details : undefined,
+      // display a `View Details` button and `Download Logs` button on any failed job dialogs
+      actions: [{
+        label: this.translate.instant('View Details'),
+        route: '/jobs',
+        params: { jobId: job.id },
+      }],
+      logs: job.logs_excerpt ? job : undefined,
+    };
+  }
+
+  private parseJobWithArrayExtra(errorJob: Job): ErrorReport[] {
+    const errors: ErrorReport[] = [];
+    (errorJob.extra as unknown as unknown[]).forEach((extraItem: [string, unknown]) => {
+      const field = extraItem[0].split('.')[1];
+      const extractedError = extraItem[1] as string | ApiErrorDetails | FailedJobError;
+
+      const parsedError = this.parseJobExtractedError(errorJob, extractedError);
+
+      if (Array.isArray(parsedError)) {
+        for (const err of parsedError) {
+          if (err.title === (this.translate?.instant('Error') || 'Error')) {
+            err.title = err.title + ': ' + field;
+          } else {
+            err.title = field + ': ' + err.title;
+          }
+          errors.push(err);
+        }
+      } else {
+        if (parsedError.title === (this.translate?.instant('Error') || 'Error')) {
+          parsedError.title = parsedError.title + ': ' + field;
+        } else {
+          parsedError.title = field + ': ' + parsedError.title;
+        }
+        errors.push(parsedError);
+      }
+    });
+    return errors;
+  }
+
+  private parseJobExtractedError(
+    errorJob: Job,
+    extractedError: string | ApiErrorDetails | FailedJobError,
+  ): ErrorReport | ErrorReport[] {
+    let parsedError: ErrorReport | ErrorReport[];
+    if (isApiErrorDetails(extractedError)) {
+      parsedError = this.parseApiError(extractedError);
+    } else if (isFailedJobError(extractedError)) {
+      parsedError = this.parseJobError(extractedError);
+    } else {
+      parsedError = {
+        title: (this.translate?.instant('Error') || 'Error'),
+        message: extractedError,
+        stackTrace: errorJob.logs_path || errorJob.exception,
+      };
+    }
+    return parsedError;
+  }
+
+  private parseHttpErrorObject(error: HttpErrorResponse): ErrorReport[] {
+    const errors: ErrorReport[] = [];
+    Object.keys(error.error as Record<string, string | string[]>).forEach((fieldKey) => {
+      const errorEntity = (error.error as Record<string, string | string[]>)[fieldKey];
+      if (typeof errorEntity === 'string') {
+        errors.push({
+          title: this.translate?.instant('Error') || 'Error',
+          message: errorEntity,
+        });
+      } else {
+        errorEntity.forEach((item: string) => {
+          errors.push({
+            title: this.translate?.instant('Error') || 'Error',
+            message: item,
+          });
+        });
+      }
+    });
+    return errors;
+  }
+
+  private parseRawJsonRpcError(error: JsonRpcError): ErrorReport {
+    return {
+      title: this.translate?.instant('Error') || 'Error',
+      message: error.message,
+    };
+  }
+
+  private parseHttpError(error: HttpErrorResponse): ErrorReport | ErrorReport[] {
+    switch (error.status) {
+      case 401:
+      case 403:
+      case 404: {
+        return {
+          title: httpStatusTexts[error.status] ?? `HTTP ${error.status}`,
+          message: error.message,
+        };
+      }
+      case 409: {
+        return this.parseHttpErrorObject(error);
+      }
+      case 400: {
+        if (typeof error.error === 'object') {
+          return this.parseHttpErrorObject(error);
+        }
+        return {
+          title: this.translate?.instant('Error ({code})', { code: error.status })
+            || `Error (${error.status})`,
+          message: String(error.error),
+        };
+      }
+      case 500: {
+        const errorMessage = (error.error as Record<string, string>)?.error_message;
+        if (errorMessage) {
+          return {
+            title: this.translate?.instant('Error ({code})', { code: error.status })
+              || `Error (${error.status})`,
+            message: errorMessage,
+          };
+        }
+        return {
+          title: this.translate?.instant('Error ({code})', { code: error.status })
+            || `Error (${error.status})`,
+          message: this.translate?.instant('Server error: {error}', { error: error.message || error.error })
+            || `Server error: ${error.message || error.error}`,
+        };
+      }
+      default: {
+        return {
+          title: this.translate?.instant('Error ({code})', { code: error.status })
+            || `Error (${error.status})`,
+          message: error.message || this.translate?.instant('Fatal error! Check logs.') || 'Fatal error! Check logs.',
+        };
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+<ix-card-expand-collapse>
+  <tn-card class="card" padding="small" [title]="'iSCSI Connections' | translate">
+    @if (isLoading()) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      @if (sessions()?.length > 0) {
+        @for (session of sessions(); track session.initiator_addr) {
+          <div class="connection">
+            {{ session.initiator }} | {{ session.initiator_addr }}
+          </div>
+        }
+      } @else {
+        <p>{{ 'No connections.' | translate }}</p>
+      }
+    }
+  </tn-card>
+</ix-card-expand-collapse>

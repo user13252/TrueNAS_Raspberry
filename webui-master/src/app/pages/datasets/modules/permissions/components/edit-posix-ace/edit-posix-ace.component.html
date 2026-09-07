@@ -1,0 +1,56 @@
+<form [formGroup]="form">
+  <tn-form-section [heading]="'Access Control Entry' | translate">
+    <tn-form-field
+      [label]="'Who' | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="tag"
+        [ariaLabel]="'Who' | translate"
+        [options]="tags"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (isUserTag) {
+      <ix-user-combobox
+        formControlName="user"
+        [label]="'User' | translate"
+        [tooltip]="tooltips.user | translate"
+        [required]="true"
+      ></ix-user-combobox>
+    }
+
+    @if (isGroupTag) {
+      <ix-group-combobox
+        formControlName="group"
+        [label]="'Group' | translate"
+        [tooltip]="tooltips.group | translate"
+        [required]="true"
+      ></ix-group-combobox>
+    }
+
+    <tn-form-field [label]="'Permissions' | translate">
+      <div
+        class="checkbox-list checkbox-list--thirds"
+        role="group"
+        formGroupName="permissions"
+        [attr.aria-label]="'Permissions' | translate"
+      >
+        @for (option of permissionOptions; track option.value) {
+          <tn-checkbox
+            [formControlName]="option.value"
+            [label]="option.label"
+            [testId]="['permissions', option.label]"
+          ></tn-checkbox>
+        }
+      </div>
+    </tn-form-field>
+
+    <tn-form-field [label]="'Flags' | translate">
+      <tn-checkbox
+        formControlName="default"
+        [label]="'Default' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+</form>

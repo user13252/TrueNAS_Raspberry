@@ -1,0 +1,57 @@
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-section>
+    <tn-form-field [label]="'System Dataset Pool' | translate" [required]="true">
+      <tn-select
+        formControlName="systemDatasetPool"
+        [options]="(poolOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (isSmbRunning$ | async) {
+      <ix-warning
+        [message]="helptext.smbRebootWarning | translate"
+      ></ix-warning>
+    }
+  </tn-form-section>
+
+  <tn-form-section
+    [heading]="'Priority Resilvering' | translate"
+    [formGroup]="form.controls.priorityResilver"
+  >
+    <tn-form-field
+      subscriptSizing="dynamic"
+      [tooltip]="helptext.priorityResilverEnabled | translate"
+    >
+      <tn-checkbox
+        formControlName="enabled"
+        [label]="'Run Resilvering At Higher Priority At Certain Times' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    @if (this.form.value.priorityResilver.enabled) {
+      <tn-form-field [label]="'Days of the Week' | translate" [required]="true">
+        <tn-select
+          formControlName="weekday"
+          [multiple]="true"
+          [options]="(daysOfWeek$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+
+      <div class="priority-times">
+        <tn-form-field [label]="'From' | translate">
+          <tn-select
+            formControlName="begin"
+            [options]="(timeOptions$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+
+        <tn-form-field [label]="'To' | translate">
+          <tn-select
+            formControlName="end"
+            [options]="(timeOptions$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+      </div>
+    }
+  </tn-form-section>
+</form>

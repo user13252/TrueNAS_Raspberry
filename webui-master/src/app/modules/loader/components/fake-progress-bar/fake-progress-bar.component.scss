@@ -1,0 +1,12 @@
+:host {
+  display: block;
+  height: 4px;
+  width: 100%;
+}
+
+.progress-bar {
+  &.fade-out {
+    opacity: 0;
+    transition: opacity 150ms ease-in-out 100ms;
+  }
+}

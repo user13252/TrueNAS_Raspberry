@@ -1,0 +1,23 @@
+<span class="status-pill" [ngClass]="this.status()?.toLowerCase()">
+  {{ status() | mapValue: statusLabels | translate }}
+</span>
+
+@if (isRunning()) {
+  <tn-icon-button
+    *ixRequiresRoles="requiredRoles()"
+    name="stop-circle"
+    library="mdi"
+    [testId]="[uniqueRowTag(), 'stop-service']"
+    [ariaLabel]="'Stop Service' | translate"
+    (onClick)="$event.stopPropagation(); stopServiceClicked()"
+  ></tn-icon-button>
+} @else {
+  <tn-icon-button
+    *ixRequiresRoles="requiredRoles()"
+    name="play-circle"
+    library="mdi"
+    [testId]="[uniqueRowTag(), 'start-service']"
+    [ariaLabel]="'Start Service' | translate"
+    (onClick)="$event.stopPropagation(); startService()"
+  ></tn-icon-button>
+}

@@ -1,0 +1,18 @@
+<h3>{{ 'Disks Overview' | translate }}</h3>
+
+<ul class="overview">
+  <li class="item">
+    <div class="label">{{ 'Pools:' | translate }}</div>
+    <div class="value">{{ totalPools() }}</div>
+  </li>
+
+  <li class="item">
+    <div class="label">{{ 'Total Disks:' | translate }}</div>
+    <div class="value">{{ totalDisks() }}</div>
+  </li>
+
+  <li class="item">
+    <div class="label">{{ 'Failed Disks:' | translate }}</div>
+    <div class="value">{{ failedDisks() }}</div>
+  </li>
+</ul>

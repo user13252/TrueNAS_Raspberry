@@ -1,0 +1,127 @@
+<div class="summary-row">
+  <div>
+    <h4>{{ 'General Info' | translate }}</h4>
+
+    <div class="summary-item">
+      <div class="label">{{ 'Pool Name' | translate }}</div>
+      <div class="value">{{ state.name || ('Not Set' | translate) }}</div>
+    </div>
+
+    @if (state.encryptionType !== EncryptionType.None) {
+      <div class="summary-item">
+        <div class="label">{{ 'Encryption' | translate }}</div>
+        <div class="value">
+          @if (state.encryptionType === EncryptionType.Software) {
+            {{ 'Software (ZFS)' | translate }}
+          } @else if (state.encryptionType === EncryptionType.Sed) {
+            {{ 'Hardware (SED)' | translate }}
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>
+<div class="summary-row">
+  <div class="summary-group topology-summary">
+    <h4>{{ 'Topology Summary' | translate }}</h4>
+
+    @for (category of nonEmptyTopologyCategories; track category[0]) {
+      <div class="summary-item">
+        <div class="label">
+          {{ category[0] | mapValue: vdevTypeLabels | translate }}
+        </div>
+        <div class="value">
+          {{ category[1] | ixTopologyCategoryDescription: !isLimitedToOneLayout(category[0]) : category[0] === vDevType.Spare }}
+        </div>
+      </div>
+    } @empty {
+      {{ 'No VDEVs added.' | translate }}
+    }
+  </div>
+
+  <div class="summary-group">
+    <h4>{{ 'Details' | translate }}</h4>
+
+    <div class="summary-item">
+      <div class="label">{{ 'Est. Usable Raw Capacity' | translate }}</div>
+      <div class="value">{{ (totalCapacity$ | async) | ixFileSize }}</div>
+    </div>
+
+    @if (state.enclosureSettings.maximizeEnclosureDispersal || limitToEnclosureName) {
+      <div class="summary-item">
+        <div class="label">{{ 'Dispersal Strategy' | translate }}</div>
+        <div class="value">
+          @if (state.enclosureSettings.maximizeEnclosureDispersal) {
+            {{ 'Maximize Dispersal' | translate }}
+          }
+          @if (limitToEnclosureName) {
+            {{ 'Limit To {name} Enclosure' | translate: { name: limitToEnclosureName } }}
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>
+<div class="summary-row">
+  @if (poolCreationErrors.length) {
+    <div>
+      <h4>{{ 'Warnings' | translate }}</h4>
+      @for (error of poolCreationErrors; track error.severity + error.text) {
+        <div>
+          <div [class]="[error.severity, 'summary-item']">
+            {{ error.text }}
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+@if (!isEnterprise()) {
+  <div class="force-topology">
+    <tn-form-field
+      [tooltip]="'Bypass topology recommendation checks (equal data VDEV width, RAIDZ/mirror width limits, and special/dedup redundancy). Not recommended.' | translate"
+    >
+      <tn-checkbox
+        [formControl]="forceTopologyControl"
+        [testId]="'force-topology'"
+        [label]="'Force' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </div>
+}
+
+<ix-form-actions>
+  <tn-button
+    tnStepperPrevious
+    color="secondary"
+    [testId]="'back-review'"
+    [label]="'Back' | translate"
+  ></tn-button>
+
+  @if (hasVdevs) {
+    <tn-button
+      [testId]="'inspect-vdevs'"
+      [label]="'Inspect VDEVs' | translate"
+      (onClick)="onInspectVdevsPressed()"
+    ></tn-button>
+  }
+
+  @if (showStartOver) {
+    <tn-button
+      color="warn"
+      [testId]="'start-over'"
+      [label]="'Start Over' | translate"
+      (onClick)="startOver()"
+    ></tn-button>
+  }
+
+  <tn-button
+    *ixRequiresRoles="[Role.PoolWrite]"
+    color="primary"
+    [testId]="'create-pool'"
+    [label]="isAddingVdevs() ? ('Update Pool' | translate) : ('Create Pool' | translate)"
+    [disabled]="isCreateDisabled"
+    (onClick)="createPool.emit()"
+  ></tn-button>
+</ix-form-actions>

@@ -1,0 +1,50 @@
+<tn-form-section [heading]="'Replication Schedule' | translate" [formGroup]="form">
+  <tn-form-field [tooltip]="helptext.autoTooltip | translate">
+    <tn-checkbox
+      testId="auto"
+      formControlName="auto"
+      [label]="'Run Automatically' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+  <tn-form-field [tooltip]="helptext.scheduleTooltip | translate">
+    <tn-checkbox
+      testId="schedule"
+      formControlName="schedule"
+      [label]="'Schedule' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+  @if (form.value.schedule) {
+    <ix-scheduler
+      formControlName="schedule_picker"
+      [label]="'Frequency' | translate"
+      [tooltip]="helptext.schedulePickerTooltip | translate"
+    ></ix-scheduler>
+    @if (form.value.schedule_picker === CronPresetValue.Hourly) {
+      <tn-form-field [label]="'Begin' | translate" [tooltip]="helptext.scheduleBeginTooltip | translate">
+        <tn-select
+          testId="schedule-begin"
+          formControlName="schedule_begin"
+          [options]="(timeOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    }
+    @if (form.value.schedule_picker === CronPresetValue.Hourly) {
+      <tn-form-field [label]="'End' | translate" [tooltip]="helptext.scheduleEndTooltip | translate">
+        <tn-select
+          testId="schedule-end"
+          formControlName="schedule_end"
+          [options]="(timeOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    }
+  }
+  @if (form.value.schedule) {
+    <tn-form-field [tooltip]="helptext.onlyMatchingScheduleTooltip | translate">
+      <tn-checkbox
+        testId="only-matching-schedule"
+        formControlName="only_matching_schedule"
+        [label]="'Only Replicate Snapshots Matching Schedule' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+</tn-form-section>

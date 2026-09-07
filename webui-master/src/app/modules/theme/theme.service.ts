@@ -1,0 +1,286 @@
+import { DestroyRef, inject, Injectable } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TinyColor } from '@ctrl/tinycolor';
+import { Store } from '@ngrx/store';
+import { TnThemeService, TnTheme } from '@truenas/ui-components';
+import { BehaviorSubject, Subject } from 'rxjs';
+import { filter } from 'rxjs/operators';
+import { WINDOW } from 'app/helpers/window.helper';
+import { Theme } from 'app/interfaces/theme.interface';
+import { allThemes, defaultTheme } from 'app/modules/theme/theme.constants';
+import { AppState } from 'app/store';
+import { themeNotFound } from 'app/store/preferences/preferences.actions';
+import { PreferencesState } from 'app/store/preferences/preferences.reducer';
+import { selectPreferencesState } from 'app/store/preferences/preferences.selectors';
+
+@Injectable({
+  providedIn: 'root',
+})
+export class ThemeService {
+  private store$ = inject<Store<AppState>>(Store);
+  private window = inject<Window>(WINDOW);
+  private tnThemeService = inject(TnThemeService);
+  private destroyRef = inject(DestroyRef);
+
+  defaultTheme = defaultTheme.name;
+  activeTheme = this.defaultTheme;
+  activeTheme$ = new BehaviorSubject<string>(this.defaultTheme);
+
+  allThemes: Theme[] = allThemes;
+  loadTheme$ = new Subject<string>();
+
+  private latestState!: PreferencesState;
+  private darkModeQuery: MediaQueryList;
+
+  /**
+   * Maps WebUI theme names to component library theme enum values.
+   */
+  readonly webuiToComponentLibraryThemeMap: Record<string, TnTheme> = {
+    'ix-dark': TnTheme.Dark,
+    'ix-blue': TnTheme.Blue,
+    dracula: TnTheme.Dracula,
+    nord: TnTheme.Nord,
+    paper: TnTheme.Paper,
+    'solarized-dark': TnTheme.SolarizedDark,
+    midnight: TnTheme.Midnight,
+    'high-contrast': TnTheme.HighContrast,
+  };
+
+  get isDefaultTheme(): boolean {
+    return this.activeTheme === this.defaultTheme;
+  }
+
+  constructor() {
+    this.darkModeQuery = this.window.matchMedia('(prefers-color-scheme: dark)');
+
+    this.loadTheme$.subscribe(() => {
+      const savedTheme = this.window.sessionStorage.getItem('theme') || defaultTheme.name;
+
+      if (savedTheme) {
+        this.onThemeChanged(savedTheme);
+      }
+    });
+
+    this.store$.select(selectPreferencesState).pipe(
+      filter((state) => state.areLoaded),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((state) => {
+      this.latestState = state;
+      let theme: string;
+      if (state.previewTheme) {
+        theme = state.previewTheme;
+      } else if (state.preferences?.syncThemeWithOS) {
+        const isDark = this.darkModeQuery.matches;
+        theme = isDark ? state.preferences.darkTheme : state.preferences.lightTheme;
+      } else {
+        theme = state.preferences?.userTheme ?? this.defaultTheme;
+      }
+      this.window.sessionStorage.setItem('theme', theme);
+      this.onThemeChanged(theme);
+    });
+
+    // No removeEventListener needed — this service is providedIn: 'root' and lives for the app lifetime.
+    this.darkModeQuery.addEventListener('change', () => {
+      const state = this.latestState;
+      if (state?.preferences?.syncThemeWithOS && !state.previewTheme) {
+        const isDark = this.darkModeQuery.matches;
+        const theme = isDark ? state.preferences.darkTheme : state.preferences.lightTheme;
+        this.window.sessionStorage.setItem('theme', theme);
+        this.onThemeChanged(theme);
+      }
+    });
+  }
+
+  onThemeChanged(theme: string): void {
+    this.activeTheme = theme;
+    this.activeTheme$.next(theme);
+    const selectedTheme = this.findTheme(this.activeTheme);
+
+    this.setCssVars(selectedTheme);
+    this.updateThemeInLocalStorage(selectedTheme);
+
+    // Sync with component library theme (compatibility layer)
+    this.syncComponentLibraryTheme(theme);
+  }
+
+  updateThemeInLocalStorage(theme: Theme): void {
+    this.window.localStorage.setItem('theme', theme.name);
+    this.window.localStorage.setItem('bg1', theme?.bg1);
+    this.window.localStorage.setItem('fg1', theme?.fg1);
+  }
+
+  resetToDefaultTheme(): void {
+    this.store$.dispatch(themeNotFound());
+  }
+
+  currentTheme(): Theme {
+    return this.findTheme(this.activeTheme);
+  }
+
+  findTheme(name: string): Theme {
+    const existingTheme = this.allThemes.find((theme) => theme.name === name);
+    if (existingTheme) {
+      return existingTheme;
+    }
+
+    this.resetToDefaultTheme();
+    return defaultTheme;
+  }
+
+  setCssVars(theme: Theme): void {
+    // Sets CSS Custom Properties for an entire theme
+    const keys = Object.keys(theme) as (keyof Theme)[];
+
+    // Filter out deprecated properties and meta properties
+    const palette = keys.filter((attribute) => {
+      return !['label', 'logoPath', 'logoTextPath', 'favorite', 'labelSwatch', 'description', 'name'].includes(attribute);
+    });
+
+    palette.forEach((color) => {
+      const swatch = theme[color] as string;
+
+      // Generate aux. text styles
+      if (this.allThemes[0].accentColors.includes(color as Theme['accentColors'][number])) {
+        const txtColor = this.getTextContrast(swatch, theme.bg2);
+        document.documentElement.style.setProperty('--' + color + '-txt', txtColor);
+      }
+
+      document.documentElement.style.setProperty('--' + color, swatch);
+    });
+
+    // Add Black White and Grey Variables
+    document.documentElement.style.setProperty('--black', '#000000');
+    document.documentElement.style.setProperty('--white', '#ffffff');
+    document.documentElement.style.setProperty('--grey', '#989898');
+
+    // Add neutral focus color
+    document.documentElement.style.setProperty('--focus-bg', 'rgba(122, 122, 122, .55)');
+    document.documentElement.style.setProperty('--focus-brd', 'rgba(255, 255, 255, .25)');
+
+    // Set Material palette colors
+    document.documentElement.style.setProperty('--primary', theme.primary);
+    document.documentElement.style.setProperty('--accent', theme.accent);
+
+    // Set Material aux. text styles
+    const primaryColor = this.extractColorFromCssVar(theme.primary) as keyof Theme; // eg. blue
+    const accentColor = this.extractColorFromCssVar(theme.accent) as keyof Theme; // eg. yellow
+    const primaryTextColor = this.getTextContrast(theme[primaryColor] as string, theme.bg2);
+    const accentTextColor = this.getTextContrast(theme[accentColor] as string, theme.bg2);
+
+    document.documentElement.style.setProperty('--primary-txt', primaryTextColor);
+    document.documentElement.style.setProperty('--accent-txt', accentTextColor);
+    document.documentElement.style.setProperty('--highlight', accentTextColor);
+
+    // Set line colors
+    const isDark: boolean = this.darkTest(theme.bg2);
+    const lineColor = isDark ? 'var(--dark-theme-lines)' : 'var(--light-theme-lines)';
+    document.documentElement.style.setProperty('--lines', lineColor);
+
+    // Set multiple background color contrast options
+    const contrastSrc = theme.bg2;
+    const contrastPrimary = theme[primaryColor] as string;
+    const contrastDarker = new TinyColor(contrastSrc).darken(5).toHslString();
+    const contrastDarkest = new TinyColor(contrastSrc).darken(10).toHslString();
+    const contrastLighter = new TinyColor(contrastSrc).lighten(5).toHslString();
+    const contrastLightest = new TinyColor(contrastSrc).lighten(10).toHslString();
+    const primaryLightest = new TinyColor(contrastPrimary).lighten(5).toHslString();
+
+    document.documentElement.style.setProperty('--contrast-darker', contrastDarker);
+    document.documentElement.style.setProperty('--contrast-darkest', contrastDarkest);
+    document.documentElement.style.setProperty('--contrast-lighter', contrastLighter);
+    document.documentElement.style.setProperty('--contrast-lightest', contrastLightest);
+    document.documentElement.style.setProperty('--primary-lighter', primaryLightest);
+
+    let topbarTextColor;
+    if (!theme['topbar-txt'] && theme.topbar) {
+      topbarTextColor = this.getTextContrast(theme.topbar, theme.bg2);
+      document.documentElement.style.setProperty('--topbar-txt', topbarTextColor);
+    } else if (!theme['topbar-txt'] && !theme.topbar) {
+      topbarTextColor = this.getTextContrast(theme[primaryColor] as string, theme.bg2);
+      document.documentElement.style.setProperty('--topbar-txt', topbarTextColor);
+    }
+  }
+
+  /**
+   * Determines appropriate text color (light or dark) based on background color brightness.
+   */
+  private getTextContrast(foregroundColor: string, backgroundColor: string): string {
+    const rgb = new TinyColor(foregroundColor).toRgb();
+    const brightest = (rgb.r + rgb.b + rgb.g) / 3;
+
+    if (brightest < 144) {
+      return '#ffffff';
+    }
+    if (brightest > 191) {
+      return '#333333';
+    }
+
+    // RGB averages between 144-191 use background color to determine contrast
+    const backgroundRgb = new TinyColor(backgroundColor).toRgb();
+    const bgAvg = (backgroundRgb.r + backgroundRgb.g + backgroundRgb.b) / 3;
+    return bgAvg < 127 ? '#333333' : '#ffffff';
+  }
+
+  /**
+   * Extracts color name from CSS variable format (e.g., 'var(--blue)' => 'blue').
+   */
+  private extractColorFromCssVar(cssVar: string): string {
+    return cssVar.replace('var(--', '').replace(')', '');
+  }
+
+  darkTest(css: string): boolean {
+    return new TinyColor(css).isDark();
+  }
+
+  isDarkTheme(name: string = this.activeTheme): boolean {
+    const theme = this.findTheme(name);
+    return this.darkTest(theme.bg2);
+  }
+
+  /**
+   * Gets color pattern for active theme
+   * @returns array of colors
+   */
+  getColorPattern(): string[] {
+    return [this.currentTheme().accentColors, [...Array(50).values()]].flat().map((color: Theme['accentColors'][0]) => {
+      if (color) {
+        return this.currentTheme()[color];
+      }
+      return `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+    });
+  }
+
+  getRgbBackgroundColorByIndex(index: number): string {
+    return this.getColorPattern()[index];
+  }
+
+  getActiveTheme(): Theme {
+    let theme: Theme = defaultTheme;
+    const storedTheme = this.window.localStorage.getItem('theme');
+
+    if (storedTheme) {
+      theme = this.findTheme(storedTheme);
+    }
+
+    return theme;
+  }
+
+  /**
+   * Synchronizes the WebUI theme with the component library theme.
+   * This compatibility layer ensures both theme systems stay in sync.
+   */
+  private syncComponentLibraryTheme(webuiThemeName: string): void {
+    const tnTheme = this.mapWebuiThemeToComponentLibraryTheme(webuiThemeName);
+    if (tnTheme) {
+      this.tnThemeService.setTheme(tnTheme);
+    }
+  }
+
+  /**
+   * Maps WebUI theme names to component library theme enum values.
+   * Returns null if no mapping exists.
+   */
+  private mapWebuiThemeToComponentLibraryTheme(webuiThemeName: string): TnTheme | null {
+    return this.webuiToComponentLibraryThemeMap[webuiThemeName] ?? null;
+  }
+}

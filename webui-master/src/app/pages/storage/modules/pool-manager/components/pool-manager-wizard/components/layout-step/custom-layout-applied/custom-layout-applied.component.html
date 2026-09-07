@@ -1,0 +1,22 @@
+<div class="content-container">
+  <div class="left-column">
+    <h3>{{ 'Manually Configured VDEVs' | translate }}</h3>
+    <p>{{ manualDiskSelectionMessage | translate }}</p>
+    <div class="selection-actions">
+      <tn-button
+        class="manual-disk-selection"
+        [testId]="['manual', type()]"
+        [label]="'Edit Manual Disk Selection' | translate"
+        (onClick)="poolManagerStore.openManualSelectionDialog(type())"
+      ></tn-button>
+    </div>
+  </div>
+  <div class="right-column">
+    <h3>{{ 'Description' | translate }}</h3>
+    <ul class="description-list">
+      <li class="vdevs-length">
+        <strong>{{ 'VDEVs' | translate }}: </strong>{{ vdevs().length }}
+      </li>
+    </ul>
+  </div>
+</div>

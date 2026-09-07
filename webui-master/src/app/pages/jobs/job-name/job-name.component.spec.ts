@@ -1,0 +1,134 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { Spectator } from '@ngneat/spectator';
+import { createComponentFactory, mockProvider } from '@ngneat/spectator/jest';
+import { Store } from '@ngrx/store';
+import { TnIconButtonHarness, TnIconHarness } from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { JobState } from 'app/enums/job-state.enum';
+import { Job } from 'app/interfaces/job.interface';
+import { CopyButtonComponent } from 'app/modules/buttons/copy-button/copy-button.component';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { abortJobPressed } from 'app/modules/jobs/store/job.actions';
+import { JobNameComponent } from 'app/pages/jobs/job-name/job-name.component';
+
+const job = {
+  id: 446,
+  state: JobState.Failed,
+} as Job;
+
+describe('JobNameComponent', () => {
+  let spectator: Spectator<JobNameComponent>;
+  let loader: HarnessLoader;
+
+  const createComponent = createComponentFactory({
+    component: JobNameComponent,
+    imports: [
+      CopyButtonComponent,
+    ],
+    providers: [
+      mockProvider(Store, {
+        dispatch: jest.fn(),
+      }),
+      mockProvider(DialogService, {
+        confirm: jest.fn(() => {
+          return of(true);
+        }),
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent({
+      props: { job },
+    });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  describe('rendering', () => {
+    it('shows correct icon based on job status', async () => {
+      let icon: TnIconHarness;
+
+      // Success
+      spectator.setInput('job', { ...job, state: JobState.Success });
+      icon = await loader.getHarness(TnIconHarness.with({ ancestor: '.job-icon' }));
+      expect(await icon.getName()).toBe('check-circle-outline');
+
+      // Failed
+      spectator.setInput('job', { ...job, state: JobState.Failed });
+      icon = await loader.getHarness(TnIconHarness.with({ ancestor: '.job-icon' }));
+      expect(await icon.getName()).toBe('close-circle');
+
+      // Waiting
+      spectator.setInput('job', { ...job, state: JobState.Waiting });
+      icon = await loader.getHarness(TnIconHarness.with({ ancestor: '.job-icon' }));
+      expect(await icon.getName()).toBe('clock-outline');
+
+      // Aborted
+      spectator.setInput('job', { ...job, state: JobState.Aborted });
+      icon = await loader.getHarness(TnIconHarness.with({ ancestor: '.job-icon' }));
+      expect(await icon.getName()).toBe('alert-circle');
+    });
+
+    it('shows job description if it is available', () => {
+      spectator.setInput('job', { ...job, description: 'Deleting all files...' });
+      expect(spectator.query('.job-name')).toHaveText('Deleting all files...');
+    });
+
+    it('shows job method when description is not available', () => {
+      spectator.setInput('job', { ...job, method: 'cloudsync.sync' });
+      expect(spectator.query('.job-name')).toHaveText('cloudsync.sync');
+    });
+  });
+
+  describe('running job', () => {
+    const runningJob = {
+      ...job,
+      state: JobState.Running,
+      abortable: true,
+      progress: {
+        percent: 50,
+        description: '50%',
+      },
+    } as Job;
+
+    beforeEach(() => {
+      spectator.setInput('job', runningJob);
+    });
+
+    it('shows progress bar when job is running', () => {
+      // No TnProgressBarHarness ships in the library yet; assert the component's
+      // public a11y contract (role + aria-valuenow) instead of its internals.
+      const progressBar = spectator.query('tn-progress-bar');
+      expect(progressBar).toBeTruthy();
+      expect(progressBar).toHaveAttribute('role', 'progressbar');
+      expect(progressBar).toHaveAttribute('aria-valuenow', '50');
+    });
+
+    it('shows job percentage when job is running', () => {
+      expect(spectator.query('.job-name')).toHaveText('50.00%');
+    });
+
+    it('shows a spinner when job is running', () => {
+      expect(spectator.query('tn-spinner')).toBeTruthy();
+    });
+
+    it('keeps the abort button test id derived from the job description', () => {
+      spectator.setInput('job', { ...runningJob, description: 'Scrub Pool 1' });
+
+      expect(spectator.query('[data-test="button-abort-job-scrub-pool-1"]')).toBeTruthy();
+    });
+
+    it('allows to abort a job when it is in running state and is abortable', async () => {
+      const abortButton = await loader.getHarness(TnIconButtonHarness.with({ name: 'close-circle' }));
+      await abortButton.click();
+
+      expect(spectator.inject(DialogService).confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Abort',
+        }),
+      );
+      expect(spectator.inject(Store).dispatch).toHaveBeenCalledWith(abortJobPressed({ job: runningJob }));
+    });
+  });
+});

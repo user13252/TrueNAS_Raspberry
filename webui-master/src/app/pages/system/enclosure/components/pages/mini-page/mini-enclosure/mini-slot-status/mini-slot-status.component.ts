@@ -1,0 +1,27 @@
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnIconComponent } from '@truenas/ui-components';
+import { EnclosureDiskStatus, enclosureDiskStatusLabels } from 'app/enums/enclosure-slot-status.enum';
+import { VDevType } from 'app/enums/v-dev-type.enum';
+import { DashboardEnclosureSlot } from 'app/interfaces/enclosure.interface';
+import { MapValuePipe } from 'app/modules/pipes/map-value/map-value.pipe';
+
+@Component({
+  selector: 'ix-mini-slot-status',
+  templateUrl: './mini-slot-status.component.html',
+  styleUrl: './mini-slot-status.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnIconComponent,
+    TranslateModule,
+    MapValuePipe,
+  ],
+})
+export class MiniSlotStatusComponent {
+  readonly slot = input.required<DashboardEnclosureSlot>();
+
+  readonly EnclosureDiskStatus = EnclosureDiskStatus;
+  readonly vDevType = VDevType;
+
+  readonly enclosureDiskStatusLabels = enclosureDiskStatusLabels;
+}

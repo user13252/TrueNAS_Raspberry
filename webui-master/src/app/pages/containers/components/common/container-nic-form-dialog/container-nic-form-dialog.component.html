@@ -1,0 +1,62 @@
+<tn-dialog-shell testId="container-nic-form"
+  [title]="(isEditMode() ? 'Edit NIC Device: {nic}' : 'Add NIC Device: {nic}') | translate: { nic: nic() }"
+>
+<div>
+  <form [formGroup]="form">
+    <tn-form-field [label]="'NIC Type' | translate" [required]="true">
+      <tn-select
+        testId="type"
+        formControlName="type"
+        [options]="(nicTypeOptions | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (!isEditMode()) {
+      <tn-form-field>
+        <tn-checkbox
+          testId="use-default"
+          formControlName="use_default"
+          [label]="'Use Default Mac Address' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+    @if (isEditMode() || !useDefault()) {
+      <tn-form-field
+        [label]="'Mac Address' | translate"
+        [tooltip]="macTooltip()"
+      >
+        <tn-input
+          testId="mac"
+          formControlName="mac"
+          [required]="!isEditMode()"
+        ></tn-input>
+      </tn-form-field>
+    }
+
+    @if (isVirtio()) {
+      <tn-form-field [tooltip]="'Whether to trust guest OS receive filter settings for better performance.' | translate">
+        <tn-checkbox
+          testId="trust-guest-rx-filters"
+          formControlName="trust_guest_rx_filters"
+          [label]="'Trust Guest RX Filters' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+  </form>
+</div>
+<div tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close(null)"
+  ></tn-button>
+  <tn-button
+    color="primary"
+    testId="close"
+    [label]="(isEditMode() ? 'Update' : 'Add') | translate"
+    [disabled]="!(isValid$ | async)"
+    (onClick)="saveDevice()"
+  ></tn-button>
+</div>
+</tn-dialog-shell>

@@ -1,0 +1,17 @@
+<tn-stepper orientation="vertical" [linear]="true">
+  <tn-step [label]="'What and Where' | translate" [completed]="whatAndWhere().completed()">
+    <ix-replication-what-and-where
+      (customRetentionVisibleChange)="isCustomRetentionVisible = $event"
+      (sourceLocalChange)="isSourceLocal = $event"
+    ></ix-replication-what-and-where>
+  </tn-step>
+
+  <tn-step [label]="'When' | translate" [completed]="when().completed()">
+    <ix-replication-when
+      [isCustomRetentionVisible]="isCustomRetentionVisible"
+      [isSourceLocal]="isSourceLocal"
+      [isLoading]="isLoading"
+      (save)="onSubmit()"
+    ></ix-replication-when>
+  </tn-step>
+</tn-stepper>

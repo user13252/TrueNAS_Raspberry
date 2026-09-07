@@ -1,0 +1,263 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import {
+  createComponentFactory, mockProvider, Spectator,
+} from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import { TnFormListHarness, TnInputHarness } from '@truenas/ui-components';
+import { EMPTY, of } from 'rxjs';
+import { MockApiService } from 'app/core/testing/classes/mock-api.service';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { SystemGeneralConfig } from 'app/interfaces/system-config.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { WarningComponent } from 'app/modules/forms/ix-forms/components/warning/warning.component';
+import { ixFormTestingProviders } from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { AllowedAddressesFormComponent } from 'app/pages/system/advanced/allowed-addresses/allowed-addresses-form/allowed-addresses-form.component';
+import { SystemGeneralService } from 'app/services/system-general.service';
+
+describe('AllowedAddressesComponent', () => {
+  let spectator: Spectator<AllowedAddressesFormComponent>;
+  let closedSpy: jest.SpyInstance;
+  let loader: HarnessLoader;
+  let api: ApiService;
+  const createComponent = createComponentFactory({
+    component: AllowedAddressesFormComponent,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    providers: [
+      ...ixFormTestingProviders(),
+      mockApi([
+        mockCall('system.general.update'),
+        mockCall('system.general.ui_restart'),
+        mockCall('system.general.config', {
+          ui_allowlist: ['1.1.1.1/32'],
+        } as SystemGeneralConfig),
+      ]),
+      mockProvider(DialogService, {
+        confirm: jest.fn(() => of(true)),
+      }),
+      mockProvider(SystemGeneralService, {
+        handleUiServiceRestart: jest.fn(() => of(true)),
+      }),
+      provideMockStore(),
+      mockAuth(),
+    ],
+  });
+
+  const getAddressInput = async (index = 0): Promise<TnInputHarness> => {
+    return (await loader.getAllHarnesses(TnInputHarness))[index];
+  };
+
+  beforeEach(() => {
+    spectator = createComponent();
+    closedSpy = jest.spyOn(spectator.component.closed, 'emit');
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    api = spectator.inject(ApiService);
+  });
+
+  it('shows allowed addresses when editing a form', async () => {
+    expect(await (await getAddressInput()).getValue()).toBe('1.1.1.1/32');
+  });
+
+  it('sends an update payload with specific IP address', async () => {
+    await (await getAddressInput()).setValue('2.2.2.2');
+
+    // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+    spectator.component.submit();
+
+    spectator.detectChanges();
+
+    expect(api.call).toHaveBeenCalledWith('system.general.update', [
+      { ui_allowlist: ['2.2.2.2'] },
+    ]);
+  });
+
+  it('sends an update payload with an IP address and a subnet mask', async () => {
+    await (await getAddressInput()).setValue('192.168.1.0/24');
+
+    // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+    spectator.component.submit();
+
+    spectator.detectChanges();
+
+    expect(api.call).toHaveBeenCalledWith('system.general.update', [
+      { ui_allowlist: ['192.168.1.0/24'] },
+    ]);
+  });
+
+  it('closes the form normally when no changes are made', () => {
+    // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+    spectator.component.submit();
+    spectator.detectChanges();
+
+    expect(api.call).not.toHaveBeenCalledWith('system.general.update');
+    // `false` is what FormSidePanelService reads as a cancel, so the opener does not reload.
+    expect(closedSpy).toHaveBeenCalledWith(false);
+  });
+
+  describe('warnings', () => {
+    it('does not show a warning when user already has allowed IPs and adds more', async () => {
+      expect(spectator.query(WarningComponent)).not.toExist();
+
+      await (await getAddressInput()).setValue('192.168.1.0/24');
+
+      expect(spectator.query(WarningComponent)).not.toExist();
+    });
+
+    it('shows a warning when user changes form from no addresses to some addresses', async () => {
+      const mockedApi = spectator.inject(MockApiService);
+      mockedApi.mockCall('system.general.config', {
+        ui_allowlist: [],
+      } as SystemGeneralConfig);
+      // Re-created rather than re-running ngOnInit on the live component: `loadFormConfig` clears
+      // the address array before re-populating it, so a second load would just empty the list.
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      expect(spectator.query(WarningComponent)).not.toExist();
+
+      await (await loader.getHarness(TnFormListHarness)).add();
+      await (await getAddressInput()).setValue('192.168.1.0/24');
+
+      const warning = spectator.query(WarningComponent);
+      expect(warning.color()).toBe('red');
+      expect(warning.message()).toBe(
+        'Make sure to add your current IP address to the list. Otherwise you will lose access to TrueNAS UI.',
+      );
+    });
+  });
+
+  describe('SystemGeneralService integration', () => {
+    it('should call SystemGeneralService.handleUiServiceRestart when saving changes', async () => {
+      const systemGeneralService = spectator.inject(SystemGeneralService);
+      await (await getAddressInput()).setValue('2.2.2.2');
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      expect(systemGeneralService.handleUiServiceRestart).toHaveBeenCalled();
+    });
+
+    it('should not call SystemGeneralService.handleUiServiceRestart when no changes are made', () => {
+      const systemGeneralService = spectator.inject(SystemGeneralService);
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      expect(systemGeneralService.handleUiServiceRestart).not.toHaveBeenCalled();
+    });
+
+    it('should call SystemGeneralService.handleUiServiceRestart after system.general.update succeeds', async () => {
+      const systemGeneralService = spectator.inject(SystemGeneralService);
+      await (await getAddressInput()).setValue('3.3.3.3');
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      expect(api.call).toHaveBeenCalledWith('system.general.update', [
+        { ui_allowlist: ['3.3.3.3'] },
+      ]);
+      expect(systemGeneralService.handleUiServiceRestart).toHaveBeenCalled();
+    });
+
+    it('should close slide-in after successful restart handling', async () => {
+      await (await getAddressInput()).setValue('4.4.4.4');
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('should handle form validation and submission correctly', async () => {
+      const systemGeneralService = spectator.inject(SystemGeneralService);
+
+      // Test with a valid IP address format
+      await (await getAddressInput()).setValue('10.0.0.1/24');
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      expect(api.call).toHaveBeenCalledWith('system.general.update', [
+        { ui_allowlist: ['10.0.0.1/24'] },
+      ]);
+      expect(systemGeneralService.handleUiServiceRestart).toHaveBeenCalled();
+    });
+
+    it('should show success message and handle restart flow', async () => {
+      const systemGeneralService = spectator.inject(SystemGeneralService);
+      await (await getAddressInput()).setValue('5.5.5.5');
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      // Verify the flow: update -> restart -> close
+      expect(api.call).toHaveBeenCalledWith('system.general.update', [
+        { ui_allowlist: ['5.5.5.5'] },
+      ]);
+      expect(systemGeneralService.handleUiServiceRestart).toHaveBeenCalled();
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('still reports success and closes when the UI restart itself fails', async () => {
+      const systemGeneralService = spectator.inject(SystemGeneralService);
+      // `handleUiServiceRestart` reports the failure itself and catches into EMPTY, so the
+      // composed request completes WITHOUT emitting. The allowlist was still saved, so the form
+      // must not be left open with nothing on screen saying so.
+      (systemGeneralService.handleUiServiceRestart as jest.Mock) = jest.fn(() => EMPTY);
+
+      await (await getAddressInput()).setValue('7.7.7.7');
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      expect(api.call).toHaveBeenCalledWith('system.general.update', [
+        { ui_allowlist: ['7.7.7.7'] },
+      ]);
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('should handle restart cancellation gracefully', async () => {
+      const systemGeneralService = spectator.inject(SystemGeneralService);
+      // Mock restart to return false (user cancelled)
+      (systemGeneralService.handleUiServiceRestart as jest.Mock) = jest.fn(() => of(true));
+
+      await (await getAddressInput()).setValue('6.6.6.6');
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      // Even if restart is cancelled, the form should still close successfully
+      expect(systemGeneralService.handleUiServiceRestart).toHaveBeenCalled();
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+  });
+});

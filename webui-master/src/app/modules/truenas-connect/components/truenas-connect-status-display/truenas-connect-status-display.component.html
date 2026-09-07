@@ -1,0 +1,46 @@
+@if (status() === TncStatus.Waiting) {
+  <div class="waiting-state-content">
+    <div ixTest="tnc-status-reason" class="waiting-state-text">
+      {{ "Power Up your TrueNAS Experience! Link your system with TrueNAS Connect now for additional security, alerting, and other features." | translate }}
+    </div>
+  </div>
+} @else if (status() === TncStatus.Failed) {
+  <div class="status-header">
+    <tn-icon class="status-failed" name="close" library="mdi"></tn-icon>
+    <span ixTest="tnc-status" class="failed-header">{{ "Connection Failed..." | translate }}</span>
+  </div>
+  <div ixTest="tnc-status-reason" class="failed-description">
+    {{ failedDescription() | translate }}
+  </div>
+} @else if (status() === TncStatus.Active) {
+  <div class="status-header">
+    <tn-icon class="status-connected" name="check-circle" library="mdi"></tn-icon>
+    <span ixTest="tnc-status" class="active-header">{{ "TrueNAS Connect - Status Healthy" | translate }}</span>
+  </div>
+  @if (tierLabel()) {
+    <span ixTest="tnc-tier" class="tier-badge" [style.background]="tierBackground()">
+      {{ "Tier: {tier}" | translate: { tier: tierLabel() } }}
+    </span>
+  }
+  <div ixTest="tnc-status-reason" class="active-description">
+    {{ "Your system is linked with TrueNAS Connect. Click below to open the TrueNAS Connect Management Interface" | translate }}
+  </div>
+} @else if (status() === TncStatus.Connecting) {
+  <div class="connecting-state-content">
+    <ix-truenas-connect-spinner></ix-truenas-connect-spinner>
+    <div ixTest="tnc-status" class="connecting-header">{{ "Setting up TrueNAS Connect" | translate }}</div>
+    <div ixTest="tnc-status-reason" class="connecting-description">
+      {{ "Your system is setting up with TrueNAS Connect, this may take a few moments." | translate }}
+    </div>
+  </div>
+} @else {
+  <div class="status-header">
+    @if (status() === TncStatus.Disabled) {
+      <tn-icon class="status-disabled" name="pause-circle" library="mdi"></tn-icon>
+    }
+    <span ixTest="tnc-status">{{ status() }}</span>
+  </div>
+  <div ixTest="tnc-status-reason">
+    {{ TruenasConnectStatusReason[rawStatus()] | translate }}
+  </div>
+}

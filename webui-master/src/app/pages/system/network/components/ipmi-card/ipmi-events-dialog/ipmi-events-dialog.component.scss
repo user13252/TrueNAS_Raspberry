@@ -1,0 +1,27 @@
+@import 'scss-imports/variables';
+
+:host {
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+  min-width: 450px;
+
+  @media (max-width: $breakpoint-tablet) {
+    min-width: 300px;
+  }
+}
+
+.events-container {
+  flex-grow: 1;
+  margin-bottom: 15px;
+  overflow: auto !important;
+
+  .event {
+    margin-bottom: 8px;
+  }
+
+  .event-header {
+    display: flex;
+    justify-content: space-between;
+  }
+}

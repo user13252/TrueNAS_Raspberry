@@ -1,0 +1,385 @@
+import {
+  Component, OnInit, ChangeDetectionStrategy, DestroyRef, computed, inject, signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ReactiveFormsModule, FormsModule } from '@angular/forms';
+import { Navigation, Router } from '@angular/router';
+import { Actions, ofType } from '@ngrx/effects';
+import { Store } from '@ngrx/store';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import { InputType, TnButtonComponent, TnCardComponent, TnInputComponent } from '@truenas/ui-components';
+import {
+  firstValueFrom, lastValueFrom, switchMap,
+} from 'rxjs';
+import { filter } from 'rxjs/operators';
+import { UiSearchDirective } from 'app/directives/ui-search.directive';
+import { Role } from 'app/enums/role.enum';
+import { WINDOW } from 'app/helpers/window.helper';
+import { helptextInterfaces } from 'app/helptext/network/interfaces/interfaces-list';
+import { Interval } from 'app/interfaces/timeout.interface';
+import { AuthService } from 'app/modules/auth/auth.service';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { InterfaceFormComponent } from 'app/pages/system/network/components/interface-form/interface-form.component';
+import { InterfacesCardComponent } from 'app/pages/system/network/components/interfaces-card/interfaces-card.component';
+import { IpmiCardComponent } from 'app/pages/system/network/components/ipmi-card/ipmi-card.component';
+import { NetworkConfigurationCardComponent } from 'app/pages/system/network/components/network-configuration-card/network-configuration-card.component';
+import { StaticRoutesCardComponent } from 'app/pages/system/network/components/static-routes-card/static-routes-card.component';
+import { networkElements } from 'app/pages/system/network/network.elements';
+import { InterfacesStore } from 'app/pages/system/network/stores/interfaces.store';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { NetworkService } from 'app/services/network.service';
+import { AppState } from 'app/store';
+import { networkInterfacesChanged } from 'app/store/network-interfaces/network-interfaces.actions';
+
+@Component({
+  selector: 'ix-network',
+  templateUrl: './network.component.html',
+  styleUrls: ['./network.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    UiSearchDirective,
+    TnCardComponent,
+    TnInputComponent,
+    TnButtonComponent,
+    ReactiveFormsModule,
+    FormsModule,
+    InterfacesCardComponent,
+    NetworkConfigurationCardComponent,
+    StaticRoutesCardComponent,
+    IpmiCardComponent,
+    TranslateModule,
+  ],
+  providers: [
+    InterfacesStore,
+  ],
+})
+export class NetworkComponent implements OnInit {
+  private api = inject(ApiService);
+  private router = inject(Router);
+  private dialogService = inject(DialogService);
+  private loader = inject(LoaderService);
+  private translate = inject(TranslateService);
+  private formPanel = inject(FormSidePanelService);
+  private snackbar = inject(SnackbarService);
+  private store$ = inject<Store<AppState>>(Store);
+  private errorHandler = inject(ErrorHandlerService);
+  private interfacesStore = inject(InterfacesStore);
+  private actions$ = inject(Actions);
+  private authService = inject(AuthService);
+  private networkService = inject(NetworkService);
+  private window = inject<Window>(WINDOW);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly searchableElements = networkElements;
+  protected readonly InputType = InputType;
+
+  protected readonly isHaEnabled = toSignal(this.networkService.getIsHaEnabled(), { initialValue: false });
+  protected readonly hasPendingChanges = signal(false);
+  protected readonly checkinWaiting = signal(false);
+  protected readonly checkinTimeout = signal(60);
+  protected readonly checkinTimeoutMinValue = 10;
+  protected readonly checkinRemaining = signal<number | null>(null);
+  private uniqueIps: string[] = [];
+  private affectedServices: string[] = [];
+  checkinInterval: Interval;
+
+  private navigation: Navigation | null;
+  helptext = helptextInterfaces;
+
+  protected readonly isCheckinTimeoutFieldInvalid = computed(() => {
+    const value = this.checkinTimeout();
+    return value == null || Number.isNaN(value) || value < this.checkinTimeoutMinValue;
+  });
+
+  constructor() {
+    this.navigation = this.router.currentNavigation();
+  }
+
+  ngOnInit(): void {
+    this.loadCheckinStatus();
+
+    this.actions$.pipe(ofType(networkInterfacesChanged), takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ checkIn }) => {
+        if (!checkIn) {
+          return;
+        }
+
+        this.checkinRemaining.set(null);
+        this.checkinWaiting.set(false);
+        if (this.checkinInterval) {
+          clearInterval(this.checkinInterval);
+        }
+        this.hasPendingChanges.set(false);
+      });
+
+    this.openInterfaceForEditFromRoute();
+  }
+
+  protected handleSlideInClosed(result$: SlideInResult<boolean>): void {
+    result$.onSuccess(() => {
+      this.interfacesStore.loadInterfaces();
+      this.loadCheckinStatusAfterChange();
+    }, this.destroyRef);
+  }
+
+  private async loadCheckinStatus(): Promise<void> {
+    if (!await firstValueFrom(this.authService.hasRole(Role.NetworkInterfaceWrite))) {
+      return;
+    }
+
+    this.hasPendingChanges.set(await this.getPendingChanges());
+    this.handleWaitingCheckIn(await this.getCheckInWaitingSeconds());
+  }
+
+  protected async loadCheckinStatusAfterChange(): Promise<void> {
+    if (!await firstValueFrom(this.authService.hasRole(Role.NetworkInterfaceWrite))) {
+      return;
+    }
+
+    let hasPendingChanges = await this.getPendingChanges();
+    let checkinWaitingSeconds = await this.getCheckInWaitingSeconds();
+
+    // This handles scenario where user made one change, clicked Test and then made another change.
+    // TODO: Backend should be deciding to reset timer.
+    if (hasPendingChanges && Number(checkinWaitingSeconds) > 0) {
+      await this.cancelCommit();
+      hasPendingChanges = await this.getPendingChanges();
+      checkinWaitingSeconds = await this.getCheckInWaitingSeconds();
+    }
+
+    this.hasPendingChanges.set(hasPendingChanges);
+    this.handleWaitingCheckIn(checkinWaitingSeconds);
+  }
+
+  private getCheckInWaitingSeconds(): Promise<number | null> {
+    return lastValueFrom(
+      this.api.call('interface.checkin_waiting'),
+    );
+  }
+
+  private getPendingChanges(): Promise<boolean> {
+    return lastValueFrom(
+      this.api.call('interface.has_pending_changes'),
+    );
+  }
+
+  private async cancelCommit(): Promise<void> {
+    await lastValueFrom(
+      this.api.call('interface.cancel_rollback'),
+    );
+  }
+
+  private handleWaitingCheckIn(seconds: number | null, isAfterInterfaceCommit = false): void {
+    if (seconds !== null) {
+      if (seconds > 0 && this.checkinRemaining() === null) {
+        this.checkinRemaining.set(Math.round(seconds));
+        this.checkinInterval = setInterval(() => {
+          if (Number(this.checkinRemaining()) > 0) {
+            this.checkinRemaining.set(Number(this.checkinRemaining()) - 1);
+          } else {
+            this.checkinRemaining.set(null);
+            this.checkinWaiting.set(false);
+            clearInterval(this.checkinInterval);
+            this.window.location.reload(); // should just refresh after the timer goes off
+          }
+        }, 1000);
+      }
+      this.checkinWaiting.set(true);
+    } else {
+      this.checkinWaiting.set(false);
+      this.checkinRemaining.set(null);
+      if (this.checkinInterval) {
+        clearInterval(this.checkinInterval);
+      }
+      // Inform user that we have restored the previous network configuration to ensure continued connectivity.
+      if (isAfterInterfaceCommit) {
+        this.hasPendingChanges.set(false);
+        this.dialogService.warn(
+          this.translate.instant(this.helptext.networkReconnectionIssue),
+          this.translate.instant(this.helptext.networkReconnectionIssueText),
+        );
+      }
+    }
+  }
+
+  protected commitPendingChanges(): void {
+    this.api
+      .call('interface.services_restarted_on_sync')
+      .pipe(
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((services) => {
+        if (services.length > 0) {
+          const ips: string[] = [];
+          services.forEach((item) => {
+            // TODO: Check if `system-service` can actually be returned.
+            const systemService = (item as unknown as { 'system-service': string })['system-service'];
+            if (systemService) {
+              this.affectedServices.push(systemService);
+            }
+            if (item.service) {
+              this.affectedServices.push(item.service);
+            }
+            item.ips.forEach((ip) => {
+              ips.push(ip);
+            });
+          });
+
+          ips.forEach((ip) => {
+            if (!this.uniqueIps.includes(ip)) {
+              this.uniqueIps.push(ip);
+            }
+          });
+        }
+        this.dialogService
+          .confirm({
+            title: this.translate.instant(helptextInterfaces.commitChangesTitle),
+            message: this.translate.instant(helptextInterfaces.commitChangesWarning),
+            hideCheckbox: false,
+            buttonText: this.translate.instant(helptextInterfaces.commitButton),
+          })
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe((confirm: boolean) => {
+            if (!confirm) {
+              return;
+            }
+
+            this.api
+              .call('interface.commit', [{ checkin_timeout: this.checkinTimeout() }])
+              .pipe(
+                this.loader.withLoader(),
+                this.errorHandler.withErrorHandler(),
+                switchMap(() => this.getCheckInWaitingSeconds()),
+                takeUntilDestroyed(this.destroyRef),
+              )
+              .subscribe((checkInSeconds) => {
+                this.store$.dispatch(networkInterfacesChanged({ commit: true, checkIn: false }));
+                this.interfacesStore.loadInterfaces();
+                this.handleWaitingCheckIn(checkInSeconds, true);
+              });
+          });
+      });
+  }
+
+  protected checkInNow(): void {
+    if (this.affectedServices.length > 0) {
+      this.dialogService
+        .confirm({
+          title: this.translate.instant(helptextInterfaces.servicesRestarted.title),
+          message: this.translate.instant(helptextInterfaces.servicesRestarted.message, {
+            uniqueIPs: this.uniqueIps.join(', '),
+            affectedServices: this.affectedServices.join(', '),
+          }),
+          hideCheckbox: true,
+          buttonText: this.translate.instant(helptextInterfaces.servicesRestarted.button),
+        })
+        .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          this.finishCheckin();
+        });
+    } else {
+      this.dialogService
+        .confirm({
+          title: this.translate.instant(helptextInterfaces.checkinTitle),
+          message: this.translate.instant(helptextInterfaces.checkinMessage),
+          hideCheckbox: true,
+          buttonText: this.translate.instant(helptextInterfaces.checkinButton),
+        })
+        .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          this.finishCheckin();
+        });
+    }
+  }
+
+  private finishCheckin(): void {
+    this.api
+      .call('interface.checkin')
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.store$.dispatch(networkInterfacesChanged({ commit: true, checkIn: true }));
+
+        this.snackbar.success(
+          this.translate.instant(helptextInterfaces.checkinCompleteMessage),
+        );
+        this.hasPendingChanges.set(false);
+        this.checkinWaiting.set(false);
+        clearInterval(this.checkinInterval);
+        this.checkinRemaining.set(null);
+      });
+  }
+
+  protected rollbackPendingChanges(): void {
+    this.dialogService
+      .confirm({
+        title: this.translate.instant(helptextInterfaces.revertChangesTitle),
+        message: this.translate.instant(helptextInterfaces.revertChangesWarning),
+        hideCheckbox: false,
+        buttonText: this.translate.instant(helptextInterfaces.revertChangesButton),
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirm: boolean) => {
+        if (!confirm) {
+          return;
+        }
+
+        this.api
+          .call('interface.rollback')
+          .pipe(
+            this.loader.withLoader(),
+            this.errorHandler.withErrorHandler(),
+            takeUntilDestroyed(this.destroyRef),
+          )
+          .subscribe(() => {
+            this.store$.dispatch(networkInterfacesChanged({ commit: false }));
+            this.interfacesStore.loadInterfaces();
+            this.hasPendingChanges.set(false);
+            this.checkinWaiting.set(false);
+            this.snackbar.success(
+              this.translate.instant(helptextInterfaces.changesRolledBack),
+            );
+          });
+      });
+  }
+
+  protected goToHa(): void {
+    this.router.navigate(['/', 'system', 'advanced'], { fragment: 'failover-card' });
+  }
+
+  private openInterfaceForEditFromRoute(): void {
+    const state = this.navigation?.extras?.state as { editInterface: string };
+    if (!state?.editInterface) {
+      return;
+    }
+
+    this.api.call('interface.query', [[['id', '=', state.editInterface]]])
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((interfaces) => {
+        if (!interfaces[0]) {
+          return;
+        }
+
+        const result$ = this.formPanel.open(InterfaceFormComponent, {
+          title: this.translate.instant('Edit Interface'),
+          inputs: {
+            editInterface: interfaces[0],
+          },
+        });
+        this.handleSlideInClosed(result$);
+      });
+  }
+}

@@ -1,0 +1,31 @@
+<form [formGroup]="form">
+  <tn-form-section>
+    <ix-cloud-credentials-select
+      formControlName="exist_credential"
+      [label]="'Credentials' | translate"
+      [tooltip]="helptext.existProvider.tooltip | translate"
+      [required]="true"
+    ></ix-cloud-credentials-select>
+  </tn-form-section>
+
+  <ix-form-actions>
+    <tn-button
+      color="primary"
+      testId="next"
+      [label]="'Next' | translate"
+      [disabled]="areActionsDisabled"
+      (onClick)="onNext()"
+    ></tn-button>
+    <tn-button
+      testId="verify-credential"
+      [label]="'Verify Credential' | translate"
+      [disabled]="areActionsDisabled"
+      (onClick)="onVerify()"
+    ></tn-button>
+    <tn-button
+      testId="advanced"
+      [label]="'Advanced Options' | translate"
+      (onClick)="openAdvanced()"
+    ></tn-button>
+  </ix-form-actions>
+</form>

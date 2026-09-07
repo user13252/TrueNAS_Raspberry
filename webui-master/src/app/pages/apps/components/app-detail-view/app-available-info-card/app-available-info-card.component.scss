@@ -1,0 +1,35 @@
+:host {
+  box-sizing: border-box;
+  display: block;
+  margin-bottom: 1rem;
+  max-width: 420px;
+  width: 100%;
+
+  ::ng-deep {
+    .app-list-item ngx-skeleton-loader {
+      display: inline-flex;
+      width: 35%;
+
+      span {
+        margin: 0;
+      }
+    }
+  }
+}
+
+.app-list-item {
+  align-items: center;
+  display: flex;
+  margin: 0.25rem 0;
+
+  &.sources {
+    .label {
+      align-self: flex-start;
+    }
+  }
+}
+
+.source-link {
+  white-space: normal;
+  word-break: break-word;
+}

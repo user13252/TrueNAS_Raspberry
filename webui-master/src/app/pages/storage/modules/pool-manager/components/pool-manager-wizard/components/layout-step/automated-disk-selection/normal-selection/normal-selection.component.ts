@@ -1,0 +1,186 @@
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, input, OnChanges, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Validators, ReactiveFormsModule, NonNullableFormBuilder } from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnFormFieldComponent, TnSelectComponent } from '@truenas/ui-components';
+import { merge, of } from 'rxjs';
+import { filter } from 'rxjs/operators';
+import { CreateVdevLayout, VDevType } from 'app/enums/v-dev-type.enum';
+import { generateOptionsRange } from 'app/helpers/options.helper';
+import { DetailsDisk } from 'app/interfaces/disk.interface';
+import { Option, SelectOption } from 'app/interfaces/option.interface';
+import { IxSimpleChanges } from 'app/interfaces/simple-changes.interface';
+import { DiskSizeSelectsComponent } from 'app/pages/storage/modules/pool-manager/components/pool-manager-wizard/components/layout-step/automated-disk-selection/disk-size-selects/disk-size-selects.component';
+import { PoolManagerStore } from 'app/pages/storage/modules/pool-manager/store/pool-manager.store';
+import {
+  hasDeepChanges,
+  setValueIfNotSame,
+  unsetControlIfNoMatchingOption,
+} from 'app/pages/storage/modules/pool-manager/utils/form.utils';
+import { minDisksPerLayout } from 'app/pages/storage/modules/pool-manager/utils/min-disks-per-layout.constant';
+
+@Component({
+  selector: 'ix-normal-selection',
+  templateUrl: './normal-selection.component.html',
+  styleUrls: ['./normal-selection.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    ReactiveFormsModule,
+    DiskSizeSelectsComponent,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+export class NormalSelectionComponent implements OnInit, OnChanges {
+  private formBuilder = inject(NonNullableFormBuilder);
+  protected store = inject(PoolManagerStore);
+  private destroyRef = inject(DestroyRef);
+
+  readonly type = input.required<VDevType>();
+  readonly layout = input.required<CreateVdevLayout>();
+  readonly isStepActive = input<boolean>();
+  readonly inventory = input.required<DetailsDisk[]>();
+  /** Raised by parity-locked steps so special/dedup mirrors can't fall below the data vdev's redundancy. */
+  readonly minMirrorWidth = input<number>(2);
+
+  form = this.formBuilder.group({
+    width: [{ value: null as number | null, disabled: true }, Validators.required],
+    vdevsNumber: [{ value: null as number | null, disabled: true }, Validators.required],
+  });
+
+  protected widthOptions$ = of<SelectOption[]>([]);
+  protected numberOptions$ = of<SelectOption[]>([]);
+
+  private selectedDisks: DetailsDisk[] = [];
+
+  ngOnChanges(changes: IxSimpleChanges<this>): void {
+    if (
+      hasDeepChanges(changes, 'inventory')
+      || hasDeepChanges(changes, 'layout')
+      || hasDeepChanges(changes, 'minMirrorWidth')
+    ) {
+      this.updateWidthOptions();
+    }
+  }
+
+  ngOnInit(): void {
+    this.updateControlOptionsOnChanges();
+    this.updateStoreOnChanges();
+    this.listenForResetEvents();
+  }
+
+  protected isNumberOfVdevsLimitedToOne = computed(() => {
+    return this.type() === VDevType.Spare || this.type() === VDevType.Cache || this.type() === VDevType.Log;
+  });
+
+  /**
+   * Layout's intrinsic minimum width, raised to minMirrorWidth when the
+   * layout is Mirror. For other layouts the input is ignored — RAIDZ width
+   * is governed by its own parity, not by the data vdev's.
+   */
+  private effectiveMinWidth(): number {
+    const layoutMin = minDisksPerLayout[this.layout()];
+    if (this.layout() === CreateVdevLayout.Mirror) {
+      return Math.max(layoutMin, this.minMirrorWidth());
+    }
+    return layoutMin;
+  }
+
+  protected onDisksSelected(disks: DetailsDisk[]): void {
+    this.selectedDisks = disks;
+    this.updateWidthOptions();
+    this.updateDisabledStatuses();
+  }
+
+  private listenForResetEvents(): void {
+    merge(
+      this.store.startOver$,
+      this.store.resetStep$.pipe(filter((vdevType) => vdevType === this.type())),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.form.setValue({
+          width: null,
+          vdevsNumber: null,
+        });
+      });
+  }
+
+  private updateDisabledStatuses(): void {
+    const fields = ['width', 'vdevsNumber'] as const;
+    fields.forEach((field) => {
+      if (this.selectedDisks.length) {
+        this.form.controls[field].enable({ emitEvent: false });
+      } else {
+        this.form.controls[field].disable({ emitEvent: false });
+      }
+    });
+  }
+
+  private updateControlOptionsOnChanges(): void {
+    this.form.controls.width.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.updateNumberOptions();
+    });
+  }
+
+  private updateStoreOnChanges(): void {
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      const values = this.form.value;
+
+      this.store.setAutomaticTopologyCategory(this.type(), {
+        width: values.width,
+        vdevsNumber: this.isNumberOfVdevsLimitedToOne() ? 1 : values.vdevsNumber,
+      });
+    });
+  }
+
+  private updateWidthOptions(): void {
+    const availableDisks = this.selectedDisks.length;
+    if (!availableDisks) {
+      return;
+    }
+    const minRequired = this.effectiveMinWidth();
+    let nextOptions: Option[] = [];
+
+    if (availableDisks && minRequired && availableDisks >= minRequired) {
+      nextOptions = generateOptionsRange(minRequired, availableDisks);
+    }
+
+    this.widthOptions$ = of(nextOptions);
+
+    unsetControlIfNoMatchingOption(this.form.controls.width, nextOptions);
+
+    if (nextOptions.length === 1 && this.isStepActive()) {
+      setValueIfNotSame(this.form.controls.width, Number(nextOptions[0].value));
+    }
+
+    this.updateNumberOptions();
+  }
+
+  private updateNumberOptions(): void {
+    const availableDisks = this.selectedDisks.length;
+    if (!availableDisks) {
+      return;
+    }
+
+    const width = this.form.controls.width.value;
+    let nextOptions: Option[] = [];
+
+    if (width) {
+      const maxNumber = Math.floor(availableDisks / width);
+      nextOptions = generateOptionsRange(1, maxNumber);
+    }
+
+    this.numberOptions$ = of(nextOptions);
+
+    unsetControlIfNoMatchingOption(this.form.controls.vdevsNumber, nextOptions);
+
+    if (nextOptions.length === 1 && this.isStepActive()) {
+      setValueIfNotSame(this.form.controls.vdevsNumber, Number(nextOptions[0].value));
+    }
+  }
+}

@@ -1,0 +1,51 @@
+<tn-dialog-shell testId="snapshot-clone" [title]="'Clone to New Dataset' | translate">
+@if (!wasDatasetCloned) {
+  <form
+    class="ix-form-container"
+    [formGroup]="form"
+    (submit)="onSubmit()"
+  >
+    <tn-form-field [label]="'Dataset' | translate" [tooltip]="tooltips.dataset_dst | translate">
+      <tn-input
+        testId="dataset-dst"
+        formControlName="dataset_dst"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+  </form>
+} @else {
+  <p>{{ 'Dataset {name} was created.' | translate: { name: datasetName } }}</p>
+}
+<ix-form-actions tnDialogAction>
+  @if (!wasDatasetCloned) {
+    <tn-button
+      variant="outline"
+      testId="cancel"
+      [label]="'Cancel' | translate"
+      (onClick)="dialogRef.close()"
+    ></tn-button>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      testId="clone"
+      [label]="'Clone' | translate"
+      [disabled]="form.invalid"
+      (onClick)="onSubmit()"
+    ></tn-button>
+  } @else {
+    <tn-button
+      variant="outline"
+      testId="close"
+      [label]="'Close' | translate"
+      (onClick)="dialogRef.close()"
+    ></tn-button>
+    <tn-button
+      color="primary"
+      testId="go-to-datasets"
+      [label]="'Go to Datasets' | translate"
+      [routerLink]="['/datasets']"
+      (onClick)="dialogRef.close()"
+    ></tn-button>
+  }
+</ix-form-actions>
+</tn-dialog-shell>

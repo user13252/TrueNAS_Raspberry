@@ -1,0 +1,66 @@
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, input, inject } from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnCardComponent, TnDialog, TnTestIdDirective } from '@truenas/ui-components';
+import { filter, map, switchMap } from 'rxjs/operators';
+import { HasRoleDirective } from 'app/directives/has-role/has-role.directive';
+import { NavigateAndHighlightDirective } from 'app/directives/navigate-and-interact/navigate-and-highlight.directive';
+import { Role } from 'app/enums/role.enum';
+import { TopologyDisk } from 'app/interfaces/storage.interface';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  ManageDiskSedDialog,
+} from 'app/pages/storage/modules/vdevs/components/hardware-disk-encryption/manage-disk-sed-dialog/manage-disk-sed-dialog.component';
+import { AppState } from 'app/store';
+import { selectIsEnterprise } from 'app/store/system-info/system-info.selectors';
+
+@Component({
+  selector: 'ix-hardware-disk-encryption',
+  templateUrl: './hardware-disk-encryption.component.html',
+  styleUrls: ['./hardware-disk-encryption.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnCardComponent,
+    HasRoleDirective,
+    TnTestIdDirective,
+    NavigateAndHighlightDirective,
+    TranslateModule,
+  ],
+})
+export class HardwareDiskEncryptionComponent {
+  private store$ = inject<Store<AppState>>(Store);
+  private tnDialog = inject(TnDialog);
+  private api = inject(ApiService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly topologyDisk = input.required<TopologyDisk>();
+
+  protected readonly hasGlobalEncryption = toSignal(this.api.call('system.advanced.sed_global_password_is_set'));
+  protected readonly isEnterprise = toSignal(this.store$.select(selectIsEnterprise));
+  protected readonly requiredRoles = [Role.DiskWrite];
+
+  protected readonly hasSedSupport = computed(() => {
+    return this.isEnterprise() || (this.hasDiskEncryption() || this.hasGlobalEncryption());
+  });
+
+  protected readonly hasDiskEncryption = toSignal(
+    toObservable(this.topologyDisk).pipe(
+      filter(Boolean),
+      switchMap((topologyItem) => {
+        return this.api.call('disk.query', [[['devname', '=', topologyItem.disk]],
+          { extra: { passwords: true } }]).pipe(
+          map(([disk]) => disk.passwd !== ''),
+        );
+      }),
+    ),
+  );
+
+  protected onManageSedPassword(): void {
+    this.tnDialog.open(ManageDiskSedDialog, {
+      data: this.topologyDisk().disk,
+    }).closed
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
+}

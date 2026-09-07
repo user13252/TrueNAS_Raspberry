@@ -1,0 +1,77 @@
+<tn-card class="card" [padContent]="false">
+  <div class="card-content">
+    <div class="header">
+      <h3>{{ name | translate }}</h3>
+
+      <tn-icon-button
+        name="chart-box"
+        library="mdi"
+        size="lg"
+        testId="cpu-go-to-reports"
+        tooltipPosition="above"
+        [ariaLabel]="'CPU Reports' | translate"
+        [tooltip]="'CPU Reports' | translate"
+        (onClick)="goToReports()"
+      ></tn-icon-button>
+    </div>
+
+    <div [class]="['container', size()]">
+      <div class="content">
+        <div class="cpu-model">
+          <span>{{ cpuModel() ? cpuModel() : ('Unknown CPU' | translate) }}</span>
+        </div>
+        <div class="cpu-load-wrapper">
+          <ix-cpu-chart-gauge class="chart-gauge"></ix-cpu-chart-gauge>
+          <tn-list class="cpu-data">
+            <tn-list-item>
+              <span class="label">
+                <strong>{{ 'Cores' | translate }}:</strong>
+              </span>
+              @if (!isLoading()) {
+                {{ '{coreCount, plural, one {# core} other {# cores} }' | translate: { coreCount: coreCount() } }}
+              } @else {
+                <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+              }
+            </tn-list-item>
+            <tn-list-item>
+              <span class="label">
+                <strong>{{ 'Threads' | translate }}:</strong>
+              </span>
+              @if (!isLoading()) {
+                {{ '{threadCount, plural, one {# thread} other {# threads} }' | translate: { threadCount: threadCount() } }}
+              } @else {
+                <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+              }
+            </tn-list-item>
+            <tn-list-item>
+              <span class="label">
+                <strong>{{ 'Highest Usage' | translate }}:</strong>
+              </span>
+              @if (!isLoading()) {
+                {{ highest() }}
+              } @else {
+                <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+              }
+            </tn-list-item>
+            <tn-list-item>
+              <span class="label">
+                <strong>{{ 'Hottest' | translate }}:</strong>
+              </span>
+              @if (!isLoading()) {
+                {{ hottest() }}
+              } @else {
+                <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+              }
+            </tn-list-item>
+            <ng-template #skeleton>
+              <ngx-skeleton-loader class="skeleton"></ngx-skeleton-loader>
+            </ng-template>
+          </tn-list>
+        </div>
+        <div class="bar-wrapper">
+          <ix-cpu-core-bar class="bar"></ix-cpu-core-bar>
+        </div>
+      </div>
+    </div>
+  </div>
+</tn-card>

@@ -1,0 +1,205 @@
+import { FormControl, FormGroup } from '@angular/forms';
+import {
+  AllowedImageOs,
+  ContainerCapabilitiesPolicy,
+  ContainerDeviceType,
+  ContainerIdmapType,
+  ContainerNicDeviceType,
+  ContainerStatus,
+  ContainerType,
+} from 'app/enums/container.enum';
+
+export type ContainerMetrics = Record<string, ContainerStats>;
+
+export interface ContainerStats {
+  cpu: {
+    cpu_user_percentage: number;
+  };
+  mem_usage: {
+    mem_usage_ram_mib: number;
+  };
+  io_full_pressure: {
+    io_full_pressure_full_60_percentage: number;
+  };
+}
+
+export interface ContainerIdmap {
+  type: ContainerIdmapType;
+  slice?: number | null;
+}
+
+export interface Container {
+  id: number;
+  uuid: string;
+  name: string;
+  description: string;
+  cpuset: string | null;
+  autostart: boolean;
+  time: string;
+  shutdown_timeout: number;
+  dataset: string;
+  init: string;
+  initdir: string | null;
+  initenv: Record<string, unknown>;
+  inituser: string | null;
+  initgroup: string | null;
+  idmap: ContainerIdmap | null;
+  capabilities_policy: ContainerCapabilitiesPolicy;
+  capabilities_state: Record<string, unknown>;
+  default_network: string | null;
+  status: {
+    state: ContainerStatus;
+    pid: number | null;
+    domain_state: string | null;
+  };
+}
+
+export type CreateContainer = Partial<Omit<Container, 'id' | 'dataset' | 'status' | 'idmap'>> & {
+  name: string;
+  autostart: boolean;
+  pool: string;
+  image: {
+    name: string;
+    version: string;
+  };
+  idmap?: ContainerIdmap | null;
+};
+
+export type UpdateContainer = Partial<Pick<Container,
+  | 'uuid'
+  | 'name'
+  | 'description'
+  | 'cpuset'
+  | 'autostart'
+  | 'time'
+  | 'shutdown_timeout'
+  | 'init'
+  | 'initdir'
+  | 'initenv'
+  | 'inituser'
+  | 'initgroup'
+  | 'capabilities_policy'
+  | 'capabilities_state'
+>>;
+
+export interface ContainerFilesystemDevice {
+  id?: number;
+  dtype: ContainerDeviceType.Filesystem;
+  target: string;
+  source: string;
+}
+
+export interface ContainerNicDevice {
+  id?: number;
+  dtype: ContainerDeviceType.Nic;
+  trust_guest_rx_filters?: boolean; // Only applicable for VIRTIO NICs
+  type: ContainerNicDeviceType;
+  nic_attach: string | null;
+  mac: string | null;
+}
+
+export interface ContainerUsbDevice {
+  id?: number;
+  dtype: ContainerDeviceType.Usb;
+  usb: {
+    vendor_id: string;
+    product_id: string;
+  } | null;
+  device: string | null;
+}
+
+export interface ContainerGpuDevice {
+  id?: number;
+  dtype: ContainerDeviceType.Gpu;
+  gpu_type: string;
+  pci_address: string;
+}
+
+export type ContainerDevice
+  = | ContainerFilesystemDevice
+    | ContainerUsbDevice
+    | ContainerNicDevice
+    | ContainerGpuDevice;
+
+export interface ContainerImage {
+  archs: string[];
+  description: string;
+  label: string;
+  os: AllowedImageOs;
+  release: string;
+  variant: string;
+  instance_types: ContainerType[];
+  secureboot: boolean | null;
+}
+
+export interface ContainerStopParams {
+  force?: boolean;
+  force_after_timeout?: boolean;
+}
+
+export interface ContainerDeleteOptions {
+  /**
+   * Stops the container first when it is not already stopped.
+   * Without it, deleting a running or suspended container is refused up front.
+   */
+  force?: boolean;
+
+  /**
+   * Destroys the container dataset together with its child datasets, snapshots,
+   * clones of those snapshots and any holds on them. Not recoverable.
+   * Without it, deleting a container whose dataset has children or snapshots is refused.
+   */
+  recursive?: boolean;
+}
+
+export type ContainerDeleteParams = [containerId: number, options?: ContainerDeleteOptions];
+
+export interface ContainerGlobalConfig {
+  bridge: string | null;
+  v4_network: string | null;
+  v6_network: string | null;
+  preferred_pool: string | null;
+}
+
+export interface ContainerImageRegistryResponse {
+  name: string;
+  versions: string[];
+}
+
+export interface UsbCapability {
+  product: string;
+  product_id: string;
+  vendor: string;
+  vendor_id: string;
+  bus: string;
+  device: string;
+}
+
+export interface AvailableUsb {
+  capability: UsbCapability;
+  available: boolean;
+  error: string | null;
+  description: string;
+}
+
+export type ContainerEnvVariablesFormGroup = FormGroup<{
+  name: FormControl<string>;
+  value: FormControl<string>;
+}>;
+
+export interface ContainerDevicePayload {
+  container?: number;
+  attributes?: ContainerDevice;
+}
+
+export interface ContainerDeviceDelete {
+  force?: boolean;
+  raw_file?: boolean;
+  zvol?: boolean;
+}
+
+export interface ContainerDeviceEntry {
+  id: number;
+  attributes: ContainerDevice;
+  container: number;
+}

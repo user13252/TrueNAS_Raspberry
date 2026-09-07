@@ -1,0 +1,124 @@
+<tn-drawer-container class="app-side-nav-container">
+  <!-- Main side navigation -->
+  <!--
+    The drawer panel is a forced landmark (role="navigation" in side mode,
+    "dialog" in over mode). Label it distinctly from the inner
+    <nav aria-label="Main menu"> so the two don't read as duplicate landmarks;
+    "Sidebar" also covers the logo/copyright content the panel wraps. Avoid the
+    word "navigation" in the label — screen readers already announce the role.
+  -->
+  <tn-drawer
+    class="sidebar-panel not-alerts"
+    [ariaLabel]="'Sidebar' | translate"
+    [width]="sidenavWidth"
+    [opened]="isSidenavOpen"
+    [mode]="sidenavMode"
+    [disableClose]="sidenavMode !== 'over'"
+    (openedChange)="onSidenavOpenedChange($event)"
+    (closed)="onMenuClosed()"
+  >
+    <div id="scroll-area" class="navigation-hold">
+      <ix-truenas-logo [hideText]="isSidenavCollapsed"></ix-truenas-logo>
+
+      <ix-navigation
+        [isSidenavCollapsed]="isSidenavCollapsed"
+        (menuToggled)="toggleMenu($event)"
+        (menuClosed)="toggleMenu()"
+      ></ix-navigation>
+
+      <div class="slidein-nav slidein-nav-sm" [class.slidein-open]="isOpenSecondaryMenu">
+        <ix-secondary-menu
+          [subMenuItems]="subs"
+          [menuName]="menuName"
+          (toggleMenu)="toggleMenu()"
+        ></ix-secondary-menu>
+      </div>
+
+      @if (isSidenavCollapsed) {
+        <div
+          class="sidenav-copyright-icon"
+          tnTooltipPosition="right"
+          [tnTooltip]="copyrightText()"
+        >
+          <tn-icon name="copyright" library="mdi"></tn-icon>
+        </div>
+      } @else {
+        <div class="sidenav-copyright-txt">
+          @if (hostname$ | async; as hostname) {
+            <div
+              class="hostname-label"
+              tnTooltipPosition="above"
+              [tnTooltip]="'Hostname: {hostname}' | translate: { hostname }"
+            >{{ hostname }}</div>
+          }
+
+          <p class="product-type">
+            @if (!isEnterprise()) {
+              <a
+                tnTestIdType="link"
+                target="_blank"
+                [tnTestId]="'navigate-to-enterprise-marketing-link'"
+                [href]="currentMessageHref()"
+              >
+                {{ productTypeText }}
+              </a>
+            } @else {
+              <span>
+                {{ productTypeText }}
+              </span>
+            }
+          </p>
+
+          <ix-copyright-line class="copyright-line"></ix-copyright-line>
+        </div>
+      }
+    </div>
+  </tn-drawer>
+
+  <tn-drawer-content class="fn-maincontent">
+    <div class="slidein-nav slidein-nav-md" [class.slidein-open]="isOpenSecondaryMenu">
+      <ix-secondary-menu
+        [subMenuItems]="subs"
+        [menuName]="menuName"
+        (toggleMenu)="toggleMenu()"
+      ></ix-secondary-menu>
+    </div>
+
+    <ix-topbar></ix-topbar>
+
+    <div class="overlay" [class.isdark]="isOpenSecondaryMenu" (click)="toggleMenu()"></div>
+
+    <!-- App content -->
+    <main
+      class="rightside-content-hold"
+      [class.has-console-footer]="hasConsoleFooter$ | async"
+    >
+      <ix-default-page-header></ix-default-page-header>
+      <router-outlet></router-outlet>
+    </main>
+    @if (hasConsoleFooter$ | async) {
+      <ix-console-footer></ix-console-footer>
+    }
+  </tn-drawer-content>
+
+</tn-drawer-container>
+
+<!-- Alert bar - rendered outside the drawer container so it layers above CDK overlays (slide-ins) -->
+<div
+  class="alert-panel-backdrop"
+  aria-hidden="true"
+  [class.alert-backdrop-visible]="isAlertPanelOpen$ | async"
+  (click)="onAlertsPanelClosed()"
+></div>
+<div
+  #alertPanel
+  class="alert-panel-container"
+  tabindex="-1"
+  role="complementary"
+  [attr.aria-label]="'Alerts' | translate"
+  [class.alert-panel-open]="isAlertPanelOpen$ | async"
+  (keydown.escape)="onAlertsPanelClosed()"
+  (keydown)="onAlertPanelKeydown($event)"
+>
+  <ix-alerts-panel></ix-alerts-panel>
+</div>

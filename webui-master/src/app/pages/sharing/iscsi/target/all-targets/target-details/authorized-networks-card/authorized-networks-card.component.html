@@ -1,0 +1,9 @@
+<tn-card class="card" padding="small" [title]="'iSCSI Authorized Networks' | translate">
+  @for (network of target().auth_networks; track network) {
+    <div class="network">
+      {{ network }}
+    </div>
+  } @empty {
+    <p>{{ 'No networks are authorized.' | translate }}</p>
+  }
+</tn-card>

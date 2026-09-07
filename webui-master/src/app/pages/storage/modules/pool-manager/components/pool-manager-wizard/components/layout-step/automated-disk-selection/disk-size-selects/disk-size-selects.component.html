@@ -1,0 +1,23 @@
+<ng-container [formGroup]="form">
+  <tn-form-field [label]="'Disk Size' | translate" [required]="true">
+    <tn-select
+      formControlName="sizeAndType"
+      [testId]="['size-and-type', type()]"
+      [options]="diskSizeAndTypeOptions()"
+      [compareWith]="compareSizeAndTypeWith"
+    ></tn-select>
+  </tn-form-field>
+
+  @if (canSelectLargerDisk()) {
+    <tn-form-field [tooltip]="treatDiskSizeAsMinimumHint | translate">
+      <!-- See `treatDiskSizeAsMinimumAriaLabel` for why `label` repeats the field tooltip. -->
+      <tn-checkbox
+        formControlName="treatDiskSizeAsMinimum"
+        [testId]="['treat-disk-size-as-minimum', type()]"
+        [label]="treatDiskSizeAsMinimumAriaLabel()"
+      >
+        <span tnCheckboxLabel>{{ treatDiskSizeAsMinimumLabel | translate }}</span>
+      </tn-checkbox>
+    </tn-form-field>
+  }
+</ng-container>

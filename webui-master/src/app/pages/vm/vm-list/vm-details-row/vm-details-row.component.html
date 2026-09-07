@@ -1,0 +1,128 @@
+@if (vmStateInfo().isRunning) {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    icon="mdi-stop-circle"
+    [label]="'Stop' | translate"
+    [ariaLabel]="'Stop' | translate"
+    [testId]="['stop', vm().id]"
+    (onClick)="doStop()"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    icon="mdi-restart"
+    [label]="'Restart' | translate"
+    [ariaLabel]="'Restart' | translate"
+    [testId]="['restart', vm().id]"
+    (onClick)="doRestart()"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    icon="mdi-restart-alert"
+    [label]="'Reset' | translate"
+    [ariaLabel]="resetAriaLabel"
+    [tnTooltip]="resetTooltip"
+    [testId]="['reset', vm().id]"
+    (onClick)="doReset()"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    icon="mdi-power"
+    [label]="'Power Off' | translate"
+    [ariaLabel]="'Power Off' | translate"
+    [testId]="['power_off', vm().id]"
+    (onClick)="doPowerOff()"
+  ></tn-button>
+} @else if (vmStateInfo().isSuspended) {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    icon="mdi-play-circle"
+    [label]="'Resume' | translate"
+    [ariaLabel]="'Resume' | translate"
+    [testId]="['resume', vm().id]"
+    (onClick)="doStart()"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    icon="mdi-power"
+    [label]="'Power Off' | translate"
+    [ariaLabel]="'Power Off' | translate"
+    [testId]="['power_off', vm().id]"
+    (onClick)="doPowerOff()"
+  ></tn-button>
+} @else {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    icon="mdi-play-circle"
+    [label]="'Start' | translate"
+    [ariaLabel]="'Start' | translate"
+    [testId]="['start', vm().id]"
+    (onClick)="doStart()"
+  ></tn-button>
+}
+
+<tn-button
+  icon="mdi-pencil"
+  [label]="'Edit' | translate"
+  [ariaLabel]="'Edit' | translate"
+  [testId]="['edit', vm().id]"
+  (onClick)="doEdit()"
+></tn-button>
+
+<tn-button
+  *ixRequiresRoles="requiredRoles"
+  icon="mdi-delete"
+  [label]="'Delete' | translate"
+  [ariaLabel]="'Delete' | translate"
+  [testId]="['delete', vm().id]"
+  (onClick)="doDelete()"
+></tn-button>
+
+<tn-button
+  icon="mdi-hub"
+  [label]="'Devices' | translate"
+  [ariaLabel]="'Devices' | translate"
+  [testId]="['devices', vm().id]"
+  (onClick)="openDevices()"
+></tn-button>
+
+<tn-button
+  *ixRequiresRoles="requiredRoles"
+  icon="mdi-content-copy"
+  [label]="'Clone' | translate"
+  [ariaLabel]="'Clone' | translate"
+  [testId]="['clone', vm().id]"
+  (onClick)="doClone()"
+></tn-button>
+
+@if (showDisplayButton()) {
+  <tn-button
+    icon="mdi-monitor"
+    [label]="'Display' | translate"
+    [ariaLabel]="'Display' | translate"
+    [testId]="['open_display', vm().id]"
+    (onClick)="openDisplay()"
+  ></tn-button>
+}
+
+@if (vmStateInfo().isRunning) {
+  <tn-button
+    icon="mdi-chevron-right"
+    [label]="'Serial Shell' | translate"
+    [ariaLabel]="'Serial Shell' | translate"
+    [testId]="['open_serial_shell', vm().id]"
+    (onClick)="openSerialShell()"
+  ></tn-button>
+}
+
+<tn-button
+  *ixRequiresRoles="requiredReadRoles"
+  icon="mdi-content-paste"
+  [label]="'Download Logs' | translate"
+  [ariaLabel]="'Download Logs' | translate"
+  [testId]="['download_logs', vm().id]"
+  (onClick)="downloadLogs()"
+></tn-button>

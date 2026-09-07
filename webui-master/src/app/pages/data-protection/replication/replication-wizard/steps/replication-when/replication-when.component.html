@@ -1,0 +1,116 @@
+<form [formGroup]="form">
+  <tn-form-section>
+    <tn-form-field
+      [label]="helptext.scheduleMethodLabel | translate"
+      [tooltip]="helptext.scheduleMethodTooltip | translate"
+      [required]="true"
+    >
+      <tn-radio-group formControlName="schedule_method" [required]="true">
+        @for (option of (scheduleMethodOptions$ | async) ?? []; track option.value) {
+          <!-- `radio-button` in the base is absorbed by composeTestId's idempotent guard, keeping the
+               legacy `radio-button-*` option ids that `<ix-radio-group>` produced. -->
+          <tn-radio
+            [value]="option.value"
+            [label]="option.label"
+            [testId]="['radio-button', 'schedule-method', option.label]"
+          ></tn-radio>
+        }
+      </tn-radio-group>
+    </tn-form-field>
+    @if (form.controls.schedule_picker.enabled) {
+      <ix-scheduler
+        formControlName="schedule_picker"
+        [required]="true"
+        [label]="helptext.scheduleLabel | translate"
+        [tooltip]="helptext.scheduleTooltip| translate"
+      ></ix-scheduler>
+    }
+    @if (form.controls.readonly.enabled) {
+      <tn-form-field [tooltip]="helptext.readonlyTooltip | translate">
+        <tn-checkbox
+          testId="readonly"
+          formControlName="readonly"
+          [label]="helptext.readonlyLabel | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+    @if (form.controls.source_lifetime_value.enabled) {
+      <div class="lifetime">
+        <tn-form-field
+          class="value"
+          [label]="helptext.sourceLifetimeLabel | translate"
+          [tooltip]="helptext.sourceLifetimeTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="source_lifetime_value"
+            testId="source-lifetime-value"
+            formControlName="source_lifetime_value"
+            [inputType]="InputType.Number"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+        <tn-form-field class="unit" [label]="'Unit' | translate" [required]="true">
+          <tn-select
+            testId="source-lifetime-unit"
+            formControlName="source_lifetime_unit"
+            [options]="(lifetimeUnitOptions$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+      </div>
+    }
+    <tn-form-field
+      [label]="helptext.retentionPolicyLabel | translate"
+      [tooltip]="helptext.retentionPolicyTooltip | translate"
+      [required]="true"
+    >
+      <tn-radio-group formControlName="retention_policy" [required]="true">
+        @for (option of (retentionPolicyOptions$ | async) ?? []; track option.value) {
+          <tn-radio
+            [value]="option.value"
+            [label]="option.label"
+            [testId]="['radio-button', 'retention-policy', option.label]"
+          ></tn-radio>
+        }
+      </tn-radio-group>
+    </tn-form-field>
+    <div class="lifetime">
+      @if (form.controls.lifetime_value.enabled) {
+        <tn-form-field class="value" [required]="true">
+          <tn-input
+            name="lifetime_value"
+            testId="lifetime-value"
+            formControlName="lifetime_value"
+            [inputType]="InputType.Number"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+      }
+      @if (form.controls.lifetime_unit.enabled) {
+        <tn-form-field class="unit" [required]="true">
+          <tn-select
+            testId="lifetime-unit"
+            formControlName="lifetime_unit"
+            [options]="(lifetimeUnitOptions$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+      }
+    </div>
+  </tn-form-section>
+
+  <ix-form-actions>
+    <tn-button
+      tnStepperPrevious
+      [testId]="'back'"
+      [label]="'Back' | translate"
+    ></tn-button>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      [testId]="'save'"
+      [label]="'Save' | translate"
+      [disabled]="form.invalid || isLoading()"
+      (onClick)="onSave()"
+    ></tn-button>
+  </ix-form-actions>
+</form>

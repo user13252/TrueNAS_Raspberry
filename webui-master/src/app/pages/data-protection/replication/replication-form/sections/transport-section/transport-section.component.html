@@ -1,0 +1,103 @@
+<tn-form-section [heading]="'Transport Options' | translate" [formGroup]="form">
+  @if (!isLocal()) {
+    <ix-ssh-credentials-select
+      formControlName="ssh_credentials"
+      [label]="'SSH Connection' | translate"
+      [required]="true"
+      [tooltip]="helptext.sshCredentialsTooltip | translate"
+    ></ix-ssh-credentials-select>
+  }
+  @if (isNetcat()) {
+    <tn-form-field
+      [label]="'Netcat Active Side' | translate"
+      [tooltip]="helptext.netcatActiveSideTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        testId="netcat-active-side"
+        formControlName="netcat_active_side"
+        [options]="(netcatActiveSides$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+    <tn-form-field
+      [label]="'Netcat Active Side Listen Address' | translate"
+      [tooltip]="helptext.netcatActiveSideListenAddressTooltip | translate"
+    >
+      <tn-input
+        name="netcat_active_side_listen_address"
+        testId="netcat-active-side-listen-address"
+        formControlName="netcat_active_side_listen_address"
+      ></tn-input>
+    </tn-form-field>
+    <tn-form-field
+      [label]="'Netcat Active Side Min Port' | translate"
+      [tooltip]="helptext.netcatActiveSidePortMinTooltip | translate"
+    >
+      <tn-input
+        name="netcat_active_side_port_min"
+        testId="netcat-active-side-port-min"
+        formControlName="netcat_active_side_port_min"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+    <tn-form-field
+      [label]="'Netcat Active Side Max Port' | translate"
+      [tooltip]="helptext.netcatActiveSidePortMaxTooltip | translate"
+    >
+      <tn-input
+        name="netcat_active_side_port_max"
+        testId="netcat-active-side-port-max"
+        formControlName="netcat_active_side_port_max"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+    <tn-form-field
+      [label]="'Netcat Active Side Connect Address' | translate"
+      [tooltip]="helptext.netcatPassiveSideConnectAddressTooltip | translate"
+    >
+      <tn-input
+        name="netcat_passive_side_connect_address"
+        testId="netcat-passive-side-connect-address"
+        formControlName="netcat_passive_side_connect_address"
+      ></tn-input>
+    </tn-form-field>
+  }
+  @if (isSsh()) {
+    <tn-form-field
+      [label]="'Stream Compression' | translate"
+      [tooltip]="helptext.compressionTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        testId="compression"
+        formControlName="compression"
+        [options]="(compressions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+    <tn-form-field
+      [label]="asTranslatedString(('Limit' | translate) + sizeSuggestion)"
+      [tooltip]="helptext.speedLimitTooltip | translate"
+    >
+      <tn-input
+        name="speed_limit"
+        testId="speed-limit"
+        formControlName="speed_limit"
+        [inputType]="InputType.Size"
+      ></tn-input>
+    </tn-form-field>
+  }
+  <tn-form-field [tooltip]="helptext.largeBlockTooltip | translate">
+    <tn-checkbox
+      testId="large-block"
+      formControlName="large_block"
+      [label]="'Allow Blocks Larger than 128KB' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+  <tn-form-field [tooltip]="helptext.compressedTooltip | translate">
+    <tn-checkbox
+      testId="compressed"
+      formControlName="compressed"
+      [label]="'Allow Compressed WRITE Records' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+</tn-form-section>

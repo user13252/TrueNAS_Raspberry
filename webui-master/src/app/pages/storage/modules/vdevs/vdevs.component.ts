@@ -1,0 +1,102 @@
+import { BreakpointObserver, Breakpoints, BreakpointState } from '@angular/cdk/layout';
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, signal, OnInit, AfterViewInit, inject } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnButtonComponent } from '@truenas/ui-components';
+import { map, Observable } from 'rxjs';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { TopologyItemType } from 'app/enums/v-dev-type.enum';
+import { isTopologyDisk, VDevItem } from 'app/interfaces/storage.interface';
+import { MasterDetailViewComponent } from 'app/modules/master-detail-view/master-detail-view.component';
+import { PageHeaderComponent } from 'app/modules/page-header/page-title-header/page-header.component';
+import { CastPipe } from 'app/modules/pipes/cast/cast.pipe';
+import { DiskDetailsPanelComponent } from 'app/pages/storage/modules/vdevs/components/disk-details-panel/disk-details-panel.component';
+import { TopologyItemIconComponent } from 'app/pages/storage/modules/vdevs/components/topology-item-icon/topology-item-icon.component';
+import { VDevsListComponent } from 'app/pages/storage/modules/vdevs/components/vdevs-list/vdevs-list.component';
+import { VDevsStore } from 'app/pages/storage/modules/vdevs/stores/vdevs-store.service';
+
+const raidzItems = [TopologyItemType.Raidz, TopologyItemType.Raidz1, TopologyItemType.Raidz2, TopologyItemType.Raidz3];
+
+@Component({
+  selector: 'ix-vdevs',
+  templateUrl: './vdevs.component.html',
+  styleUrls: ['./vdevs.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    VDevsListComponent,
+    PageHeaderComponent,
+    RequiresRolesDirective,
+    TranslateModule,
+    TnButtonComponent,
+    CastPipe,
+    DiskDetailsPanelComponent,
+    MasterDetailViewComponent,
+    AsyncPipe,
+    TopologyItemIconComponent,
+  ],
+})
+export class VDevsComponent implements OnInit, AfterViewInit {
+  private route = inject(ActivatedRoute);
+  private translate = inject(TranslateService);
+  private breakpointObserver = inject(BreakpointObserver);
+  protected vDevsStore = inject(VDevsStore);
+  private destroyRef = inject(DestroyRef);
+
+  protected poolId = signal<number | null>(null);
+  protected poolName = toSignal(this.vDevsStore.poolName$, { initialValue: '' });
+
+  protected readonly requiredRoles = [Role.PoolWrite];
+
+  protected isMobileView = signal(false);
+  protected showMobileDetails = signal(false);
+
+  protected selectedParentNode$ = this.vDevsStore.selectedParentNode$;
+  protected selectedTopologyCategory$ = this.vDevsStore.selectedTopologyCategory$;
+  protected selectedNode$ = this.vDevsStore.selectedNode$;
+  protected readonly hasTopLevelRaidz$: Observable<boolean> = this.vDevsStore.nodes$.pipe(
+    map((node) => {
+      return node.some((nodeItem) => nodeItem.children.some((child: VDevItem) => {
+        return raidzItems.includes(child.type);
+      }));
+    }),
+  );
+
+  protected getTitle(topologyItem: VDevItem): string {
+    if (isTopologyDisk(topologyItem)) {
+      return topologyItem.disk || topologyItem.guid;
+    }
+
+    return topologyItem.type;
+  }
+
+  get pageTitle(): string {
+    return this.poolName()
+      ? this.translate.instant('{name} VDEVs', { name: this.poolName() })
+      : this.translate.instant('VDEVs');
+  }
+
+  ngOnInit(): void {
+    this.poolId.set(Number(this.route.snapshot.paramMap.get('poolId')));
+  }
+
+  ngAfterViewInit(): void {
+    this.breakpointObserver
+      .observe([Breakpoints.XSmall, Breakpoints.Small, Breakpoints.Medium])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((state: BreakpointState) => {
+        if (state.matches) {
+          this.isMobileView.set(true);
+        } else {
+          this.closeMobileDetails();
+          this.isMobileView.set(false);
+        }
+      });
+  }
+
+  closeMobileDetails(): void {
+    this.showMobileDetails.set(false);
+  }
+}

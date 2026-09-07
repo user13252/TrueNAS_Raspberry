@@ -1,0 +1,31 @@
+:host {
+  display: block;
+}
+
+.global-update {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.update-all-button-wrapper {
+  align-items: center;
+  display: inline-flex;
+  position: relative;
+
+  .has-updates-icon {
+    height: 18px;
+    left: 14px;
+    pointer-events: none;
+    position: absolute;
+    width: 18px;
+    z-index: 1;
+  }
+
+  // TEMP: tn-button (ui-components 0.2.4) has no leading-icon slot, so
+  // the alert icon is overlaid and the inner button padded to make room.
+  // Remove once tn-button ships a leading-icon input.
+  ::ng-deep .update-all-button button {
+    padding-left: 40px;
+  }
+}

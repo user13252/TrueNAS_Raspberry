@@ -1,0 +1,8 @@
+<form
+  class="ix-form-container"
+  [formGroup]="formGroup()"
+  [attr.aria-busy]="isLoading() || null"
+  (ngSubmit)="onFormSubmit()"
+>
+  <ng-content />
+</form>

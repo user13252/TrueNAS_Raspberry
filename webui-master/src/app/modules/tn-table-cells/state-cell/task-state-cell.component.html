@@ -1,0 +1,17 @@
+@if (state(); as currentState) {
+  <button
+    type="button"
+    tnTooltipPosition="above"
+    tnTestIdType="button"
+    [class]="'state-button ' + stateClass()"
+    [tnTestId]="testId()"
+    [tnTooltip]="tooltip()"
+    [attr.aria-label]="accessibleName()"
+    (click)="$event.stopPropagation(); onButtonClick()"
+    (keydown)="stopRowActivationKeys($event)"
+  >
+    {{ currentState | jobStateDisplay }}
+  </button>
+} @else {
+  {{ 'N/A' | translate }}
+}

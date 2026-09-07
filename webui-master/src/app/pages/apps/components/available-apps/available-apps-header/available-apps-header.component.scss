@@ -1,0 +1,151 @@
+@import 'scss-imports/variables';
+
+:host {
+  border-bottom: 1px solid var(--lines);
+  color: var(--fg1);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 10px 25px;
+
+  @media (max-width: $breakpoint-sm) {
+    flex-direction: column-reverse;
+  }
+}
+
+.search-filters {
+  width: 100%;
+
+  .actions {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 10px;
+
+    // TEMP: tn-button (ui-components 0.2.4) has no ghost variant or icon slot, so
+    // the header actions are rendered transparent and the Filters caret overlaid.
+    // Remove once tn-button ships variant + trailing-icon inputs.
+    .ghost-button ::ng-deep button {
+      background: transparent;
+      box-shadow: none;
+      color: var(--primary);
+    }
+
+    .filters-button {
+      align-items: center;
+      display: inline-flex;
+      position: relative;
+
+      .filters-caret {
+        color: var(--primary);
+        pointer-events: none;
+        position: absolute;
+        right: 8px;
+      }
+
+      .ghost-button ::ng-deep button {
+        padding-right: 28px;
+      }
+    }
+  }
+
+  .filters-container {
+    .filters {
+      display: flex;
+      gap: 18px;
+
+      @media (max-width: $breakpoint-xs) {
+        display: grid;
+      }
+
+      .sort {
+        width: 30%;
+
+        @media (max-width: $breakpoint-xs) {
+          width: 100%;
+        }
+      }
+
+      .categories {
+        width: 40%;
+
+        @media (max-width: $breakpoint-xs) {
+          width: 100%;
+        }
+
+        tn-form-field {
+          margin-top: 0;
+          padding-top: 0;
+        }
+      }
+    }
+  }
+}
+
+.header-numbers {
+  display: flex;
+  gap: 70px;
+  justify-content: flex-end;
+  margin-left: 60px;
+  margin-top: -4px;
+  white-space: nowrap;
+
+  @media (max-width: $breakpoint-md) {
+    gap: 2em;
+    margin-left: 3em;
+  }
+
+  @media (max-width: $breakpoint-xs) {
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 0;
+    padding: 30px 0;
+  }
+}
+
+.header-number {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  row-gap: 8px;
+
+  .header-number-title,
+  h2 {
+    color: var(--fg-1);
+  }
+
+  h2 {
+    line-height: 1;
+  }
+}
+
+.header-link {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  min-height: 54px;
+
+  h2 {
+    min-height: 26px;
+  }
+
+  ::ng-deep ngx-skeleton-loader {
+    min-width: 32px;
+
+    &,
+    .refresh-apps,
+    span {
+      height: 26px;
+    }
+  }
+
+  .refresh-apps,
+  span {
+    color: var(--primary);
+    display: block;
+    font-weight: 600;
+  }
+}

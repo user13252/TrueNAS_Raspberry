@@ -1,0 +1,39 @@
+@if (poolExists) {
+  <tn-card class="card" [padContent]="false">
+    <div class="card-content">
+      <div class="header">
+        <h3>{{ name | translate }}</h3>
+
+        <tn-icon-button
+          name="chart-box"
+          library="mdi"
+          size="lg"
+          testId="pool-reports"
+          tooltipPosition="above"
+          [ariaLabel]="'Disk Reports' | translate"
+          [tooltip]="'Disk Reports' | translate"
+          (onClick)="goToReports()"
+        ></tn-icon-button>
+      </div>
+      <div [class]="['container', size()]">
+        <div class="pool-info-wrapper">
+          <ix-pool-usage-gauge [pool]="pool()"></ix-pool-usage-gauge>
+
+          <div class="pool-info-bottom">
+            <ix-pool-status [pool]="pool()"></ix-pool-status>
+            <ix-disks-with-zfs-errors [pool]="pool()"></ix-disks-with-zfs-errors>
+            <ix-last-scan-errors [pool]="pool()"></ix-last-scan-errors>
+          </div>
+        </div>
+      </div>
+    </div>
+  </tn-card>
+}
+
+@if (!poolExists) {
+  <ix-widget-datapoint
+    [size]="size()"
+    [label]="name | translate"
+    [text]="'Pool does not exist' | translate"
+  ></ix-widget-datapoint>
+}

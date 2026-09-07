@@ -1,0 +1,138 @@
+<tn-card class="card" [padContent]="false">
+  @if (isLoading) {
+    <tn-spinner
+      class="spinner"
+      mode="indeterminate"
+      [diameter]="40"
+    ></tn-spinner>
+  } @else {
+    <div class="header">
+      <div class="title-row">
+        <h3 class="header-title">
+          {{ 'ACL Editor' | translate }}
+        </h3>
+        <div class="dataset-path">
+          <label class="header-label">{{ 'Path' | translate }}:</label>
+          <div>{{ datasetPath }}</div>
+        </div>
+        <tn-button
+          class="cancel-button"
+          testId="cancel"
+          [label]="'Cancel' | translate"
+          (onClick)="onCancel()"
+        ></tn-button>
+      </div>
+
+      <div class="ownership-row" [formGroup]="ownerFormGroup">
+        <div class="control">
+          <label class="header-label">{{ 'Owner' | translate }}:</label>
+          <ix-user-combobox
+            class="owner-combobox"
+            formControlName="owner"
+          ></ix-user-combobox>
+          <tn-form-field [tooltip]="helptext.applyTooltip | translate">
+            <tn-checkbox
+              formControlName="applyOwner"
+              [label]="'Apply Owner' | translate"
+            ></tn-checkbox>
+          </tn-form-field>
+        </div>
+
+        <div class="control">
+          <label class="header-label">{{ 'Owner Group' | translate }}:</label>
+          <ix-group-combobox
+            class="owner-combobox"
+            formControlName="ownerGroup"
+          ></ix-group-combobox>
+          <tn-form-field [tooltip]="helptext.applyGroupTooltip | translate">
+            <tn-checkbox
+              formControlName="applyGroup"
+              [label]="'Apply Group' | translate"
+            ></tn-checkbox>
+          </tn-form-field>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="columns">
+        <div class="column-left">
+          <ix-acl-editor-list
+            [acl]="acl"
+            [selectedAceIndex]="selectedAceIndex"
+            [acesWithError]="acesWithError"
+            [owner]="ownerFormGroup.controls['owner'].value"
+            [ownerGroup]="ownerFormGroup.controls['ownerGroup'].value"
+          ></ix-acl-editor-list>
+
+          <div class="add-item">
+            <tn-button
+              class="action"
+              icon="mdi-plus"
+              testId="add-acl-item"
+              [label]="'Add Item' | translate"
+              (onClick)="onAddItemPressed()"
+            ></tn-button>
+          </div>
+
+          <div class="controls-container">
+            <div class="controls">
+              <ix-acl-editor-save-controls
+                [canBeSaved]="acesWithError.length === 0 && !!acl?.acl.length && ownerFormGroup.valid"
+                [ownerValues]="ownerFormGroup.getRawValue()"
+              ></ix-acl-editor-save-controls>
+              <div class="control-buttons">
+                @if (acl?.trivial) {
+                  <tn-button
+                    class="action"
+                    testId="edit-permissions"
+                    [label]="'Permissions Editor' | translate"
+                    [routerLink]="['/datasets', getDatasetPath(), 'permissions', 'edit']"
+                  ></tn-button>
+                } @else {
+                  <tn-button
+                    *ixRequiresRoles="[Role.FilesystemAttrsWrite, Role.FilesystemFullControl]"
+                    color="warn"
+                    class="action"
+                    testId="strip-acl"
+                    [label]="'Strip ACL' | translate"
+                    (onClick)="onStripAclPressed()"
+                  ></tn-button>
+                }
+              </div>
+
+              <h4 class="presets-label">{{ 'Presets' | translate }}</h4>
+              <div class="control-buttons">
+                <tn-button
+                  class="action"
+                  testId="use-preset"
+                  [label]="'Use Preset' | translate"
+                  (onClick)="onUsePresetPressed()"
+                ></tn-button>
+                <tn-button
+                  *ixRequiresRoles="[Role.FilesystemAttrsWrite]"
+                  class="action"
+                  testId="save-as-preset"
+                  [label]="'Save As Preset' | translate"
+                  (onClick)="onSavePreset()"
+                ></tn-button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="column-right">
+          @if (acl?.acl[selectedAceIndex]; as selectedAce) {
+            @if (isNfsAcl) {
+              <ix-edit-nfs-ace
+                [ace]="selectedAce | cast"
+              ></ix-edit-nfs-ace>
+            } @else {
+              <ix-edit-posix-ace [ace]="selectedAce | cast"></ix-edit-posix-ace>
+            }
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+</tn-card>

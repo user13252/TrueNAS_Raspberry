@@ -1,0 +1,94 @@
+import {
+  ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, input, OnInit, inject,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCheckboxComponent, TnFormFieldComponent,
+} from '@truenas/ui-components';
+import { filter, switchMap } from 'rxjs/operators';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { helptextAcl } from 'app/helptext/storage/volumes/datasets/dataset-acl';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { DatasetAclEditorStore } from 'app/pages/datasets/modules/permissions/stores/dataset-acl-editor.store';
+
+@Component({
+  selector: 'ix-acl-editor-save-controls',
+  templateUrl: './acl-editor-save-controls.component.html',
+  styleUrls: ['./acl-editor-save-controls.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    TnFormFieldComponent,
+    TnCheckboxComponent,
+    RequiresRolesDirective,
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+export class AclEditorSaveControlsComponent implements OnInit {
+  private formBuilder = inject(FormBuilder);
+  private store = inject(DatasetAclEditorStore);
+  private dialogService = inject(DialogService);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+  private cdr = inject(ChangeDetectorRef);
+
+  readonly canBeSaved = input(false);
+  readonly ownerValues = input.required<{
+    owner: string;
+    ownerGroup: string;
+    applyOwner: boolean;
+    applyGroup: boolean;
+  }>();
+
+  protected saveParameters = this.formBuilder.nonNullable.group({
+    recursive: [false],
+    traverse: [false],
+  });
+
+  protected readonly helptext = helptextAcl;
+  protected readonly Role = Role;
+
+  ngOnInit(): void {
+    this.setRecursiveCheckboxWarning();
+  }
+
+
+  protected onSavePressed(): void {
+    const saveParameters = this.saveParameters.getRawValue();
+
+    this.store.saveAcl({
+      recursive: saveParameters.recursive,
+      traverse: saveParameters.recursive && saveParameters.traverse,
+      owner: this.ownerValues().owner,
+      ownerGroup: this.ownerValues().ownerGroup,
+      applyOwner: this.ownerValues().applyOwner,
+      applyGroup: this.ownerValues().applyGroup,
+    });
+  }
+
+  private setRecursiveCheckboxWarning(): void {
+    this.saveParameters.controls.recursive.valueChanges.pipe(
+      filter(Boolean),
+      switchMap(() => {
+        return this.dialogService.confirm({
+          title: this.translate.instant(helptextAcl.recursiveDialogTitle),
+          message: this.translate.instant(helptextAcl.recursiveDialogMessage),
+        });
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((confirmed) => {
+      if (confirmed) {
+        return;
+      }
+
+      this.saveParameters.patchValue({ recursive: false });
+      // OnPush: the dialog-cancel path patches the form outside a template event, so mark for
+      // check to re-run the `@if (recursive)` that hides the traverse checkbox.
+      this.cdr.markForCheck();
+    });
+  }
+}

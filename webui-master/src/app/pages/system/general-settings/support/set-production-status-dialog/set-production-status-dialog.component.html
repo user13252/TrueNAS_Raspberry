@@ -1,0 +1,19 @@
+<tn-dialog-shell testId="set-production-status" [title]="'Update Production Status' | translate">
+<div>
+  <p>{{ 'Set production status as active' | translate }}</p>
+
+  <tn-form-field>
+    <tn-checkbox
+      testId="send-initial-debug"
+      [formControl]="sendInitialDebugCheckbox"
+      [label]="'Send initial debug' | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+</div>
+
+<ix-form-actions tnDialogAction class="form-actions">
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close()"></tn-button>
+
+  <tn-button *ixRequiresRoles="requiredRoles" color="primary" testId="proceed" [label]="'Proceed' | translate" (onClick)="onSubmit()"></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

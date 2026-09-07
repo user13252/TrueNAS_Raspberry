@@ -1,0 +1,33 @@
+:host {
+  display: block;
+  min-width: 330px;
+  // TnDialog panel is max-width: 90vw with no default width, so without this a
+  // long single-line message would stretch the dialog very wide.
+  max-width: 480px;
+}
+
+.secondary-checkbox {
+  display: block;
+  // Comfortable gap below the message without the oversized rhythm a
+  // tn-form-field wrapper would add (12px margin + 8px padding + subscript).
+  margin-top: 16px;
+}
+
+#confirm-label:hover {
+  cursor: pointer;
+}
+
+h1 {
+  margin-bottom: 1px !important;
+}
+
+div.message-content {
+  max-height: 300px;
+  overflow-x: unset;
+  overflow-y: auto;
+  word-wrap: break-word;
+}
+
+.secondary-message {
+  margin-top: 16px;
+}

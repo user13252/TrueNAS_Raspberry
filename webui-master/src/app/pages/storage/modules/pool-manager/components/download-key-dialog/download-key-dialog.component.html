@@ -1,0 +1,21 @@
+<tn-dialog-shell testId="download-key" [title]="helptext.dialogTitle | translate">
+<div>
+  {{ helptext.dialogMessage | translate }}
+</div>
+
+<ix-form-actions tnDialogAction>
+  <tn-button
+    color="warn"
+    testId="download-key"
+    [label]="'Download Encryption Key' | translate"
+    (onClick)="downloadKey()"
+  ></tn-button>
+  <tn-button
+    color="primary"
+    testId="done"
+    [label]="'Done' | translate"
+    [disabled]="!wasDownloaded()"
+    (onClick)="dialogRef.close(true)"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

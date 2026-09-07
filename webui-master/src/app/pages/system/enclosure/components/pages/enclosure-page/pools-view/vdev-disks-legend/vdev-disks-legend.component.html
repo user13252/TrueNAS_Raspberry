@@ -1,0 +1,23 @@
+@if (!selectedSlot().dev) {
+  <div>{{ 'Empty drive cage' | translate }}</div>
+}
+
+@if (selectedSlot().dev && !selectedSlot().pool_info) {
+  <div>{{ 'No vdev info for this disk' | translate }}</div>
+}
+
+@for (vdevDisk of vdevDisks(); track vdevDisk.disk.dev) {
+  <a
+    class="disk-name"
+    tnTestIdType="link"
+    [tnTestId]="vdevDisk.testId"
+    (click)="diskClick.emit(vdevDisk.disk)"
+  >
+    <div
+      class="disk-circle"
+      [style.background]="isSelectedSlot(vdevDisk.disk) ? undefined : poolColor()"
+      [class.selected]="isSelectedSlot(vdevDisk.disk)"
+    ></div>
+    <span class="devname">{{ vdevDisk.disk.dev }}</span>
+  </a>
+}

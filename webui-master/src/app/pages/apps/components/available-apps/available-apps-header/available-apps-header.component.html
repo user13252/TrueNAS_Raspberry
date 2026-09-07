@@ -1,0 +1,93 @@
+<div class="search-filters">
+  <tn-input
+    testId="search"
+    [prefixIcon]="tnIconMarker('magnify', 'mdi')"
+    [formControl]="searchControl"
+    [placeholder]="'Search' | translate"
+  ></tn-input>
+  <div class="actions">
+    <tn-button
+      class="ghost-button"
+      testId="show-all"
+      [label]="'Show All' | translate"
+      [routerLink]="['/apps/available', AppExtraCategory.All]"
+    ></tn-button>
+    <span class="filters-button">
+      <tn-button
+        class="ghost-button"
+        testId="filter"
+        [label]="'Filters' | translate"
+        (onClick)="changeFiltersVisible()"
+      ></tn-button>
+      <tn-icon
+        class="filters-caret"
+        library="mdi"
+        aria-hidden="true"
+        [name]="showFilters ? 'chevron-up' : 'chevron-down'"
+      ></tn-icon>
+    </span>
+  </div>
+  @if (showFilters) {
+    <div class="filters-container">
+      <div class="filters">
+        <ix-filter-select-list
+          class="sort"
+          [formControl]="form.controls.sort"
+          [label]="'Sort' | translate"
+          [options]="(sortOptions$ | async) || []"
+        ></ix-filter-select-list>
+        <div class="categories">
+          <tn-form-field [label]="'Categories' | translate">
+            <tn-chip-input
+              testId="categories"
+              [formControl]="form.controls.categories"
+              [suggestions]="categorySuggestions()"
+              [allowCustomValue]="false"
+            ></tn-chip-input>
+          </tn-form-field>
+        </div>
+      </div>
+    </div>
+  }
+</div>
+
+<div class="header-numbers">
+  <div class="header-number">
+    <div class="header-number-title">{{ 'Available Apps' | translate }}</div>
+    <a class="header-link" tnTestId="available-apps-section" tnTestIdType="link">
+      @if (areLoaded$ | async) {
+        <a
+          tnTestId="available-apps"
+          tnTestIdType="link"
+          [routerLink]="['/apps/available', AppExtraCategory.All]"
+        >
+          <h2>{{ (availableApps$ | async)?.length }}</h2>
+        </a>
+      } @else {
+        <ngx-skeleton-loader></ngx-skeleton-loader>
+      }
+      <a
+        *ixRequiresRoles="requiredRoles"
+        tnTestId="refresh-apps"
+        tnTestIdType="link"
+        class="refresh-apps"
+        (click)="refreshCatalog()"
+      >
+        {{ 'Refresh Catalog' | translate }}
+      </a>
+    </a>
+  </div>
+
+  <div class="header-number">
+    <div class="header-number-title">{{ 'Installed Apps' | translate }}</div>
+    <a class="header-link" tnTestId="manage-installed-apps" tnTestIdType="link" [routerLink]="['/apps/installed']">
+      @if (areLoaded$ | async) {
+        <h2>{{ (installedApps$ | async)?.length }}</h2>
+      } @else {
+        <ngx-skeleton-loader></ngx-skeleton-loader>
+      }
+      <span>{{ 'Manage Installed Apps' | translate }}</span>
+    </a>
+  </div>
+</div>
+

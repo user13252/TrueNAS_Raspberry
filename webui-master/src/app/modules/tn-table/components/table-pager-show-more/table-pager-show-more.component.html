@@ -1,0 +1,16 @@
+@if (collapsible() && !expanded()) {
+  <tn-button
+    variant="outline"
+    [label]="'View All' | translate"
+    [testId]="dataTest('show-more')"
+    (onClick)="showMore()"
+  ></tn-button>
+}
+@if (collapsible() && expanded()) {
+  <tn-button
+    variant="outline"
+    [label]="'Collapse' | translate"
+    [testId]="dataTest('show-less')"
+    (onClick)="showLess()"
+  ></tn-button>
+}

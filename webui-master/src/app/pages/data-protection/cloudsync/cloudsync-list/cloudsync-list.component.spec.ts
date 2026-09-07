@@ -1,0 +1,298 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { Spectator } from '@ngneat/spectator';
+import { createComponentFactory, mockProvider } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import {
+  TnButtonHarness, TnDialog, TnSelectHarness, TnTableHarness,
+} from '@truenas/ui-components';
+import { MockComponent, MockPipe } from 'ng-mocks';
+import { of } from 'rxjs';
+import { fakeSuccessfulJob } from 'app/core/testing/utils/fake-job.utils';
+import { mockApi, mockCall, mockJob } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { CloudSyncProviderName } from 'app/enums/cloudsync-provider.enum';
+import { CloudSyncTaskUi } from 'app/interfaces/cloud-sync-task.interface';
+import { ConfirmDeleteCallOptions } from 'app/interfaces/dialog.interface';
+import { ScheduleDescriptionPipe } from 'app/modules/dates/pipes/schedule-description/schedule-description.pipe';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { BasicSearchComponent } from 'app/modules/forms/search-input/components/basic-search/basic-search.component';
+import { selectJob } from 'app/modules/jobs/store/job.selectors';
+import { LocaleService } from 'app/modules/language/locale.service';
+import { PageHeaderComponent } from 'app/modules/page-header/page-title-header/page-header.component';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import {
+  TableColumnPickerComponent,
+} from 'app/modules/tn-table/components/table-column-picker/table-column-picker.component';
+import {
+  TableDetailsRowComponent,
+} from 'app/modules/tn-table/components/table-details-row/table-details-row.component';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { CloudSyncFormComponent } from 'app/pages/data-protection/cloudsync/cloudsync-form/cloudsync-form.component';
+import { CloudSyncListComponent } from 'app/pages/data-protection/cloudsync/cloudsync-list/cloudsync-list.component';
+import { CloudSyncRestoreDialog } from 'app/pages/data-protection/cloudsync/cloudsync-restore-dialog/cloudsync-restore-dialog.component';
+import { TaskService } from 'app/services/task.service';
+import { selectPreferences } from 'app/store/preferences/preferences.selectors';
+
+describe('CloudSyncListComponent', () => {
+  let spectator: Spectator<CloudSyncListComponent>;
+  let loader: HarnessLoader;
+  let table: TnTableHarness;
+
+  const cloudSyncList = [
+    {
+      id: 1,
+      description: 'custom-cloudlist',
+      path: '/mnt/APPS',
+      attributes: {
+        folder: '',
+        fast_list: false,
+        acknowledge_abuse: false,
+      } as Record<string, string | boolean>,
+      pre_script: '',
+      post_script: '',
+      snapshot: false,
+      include: [
+        '//**',
+        '/Folder1/**',
+      ],
+      transfers: 4,
+      args: '',
+      enabled: true,
+      job: null,
+      direction: 'PULL',
+      transfer_mode: 'COPY',
+      encryption: false,
+      filename_encryption: false,
+      encryption_password: '',
+      encryption_salt: '',
+      create_empty_src_dirs: false,
+      follow_symlinks: false,
+      credentials: {
+        id: 1,
+        name: 'Google Drive',
+        provider: {
+          type: CloudSyncProviderName.GoogleDrive,
+        },
+      },
+      schedule: {
+        minute: '0',
+        hour: '0',
+        dom: '*',
+        month: '*',
+        dow: '*',
+      },
+      locked: false,
+      state: {
+        state: 'PENDING',
+      },
+    } as CloudSyncTaskUi,
+  ];
+
+  const createComponent = createComponentFactory({
+    component: CloudSyncListComponent,
+    imports: [
+      MockComponent(PageHeaderComponent),
+      BasicSearchComponent,
+      TableColumnPickerComponent,
+      TableDetailsRowComponent,
+    ],
+    overrideComponents: [
+      [
+        CloudSyncListComponent, {
+          // Both arms: the template pipes `schedule` through it, and the column model calls the
+          // provided instance so a detail row prints a description instead of `[object Object]`.
+          remove: { imports: [ScheduleDescriptionPipe], providers: [ScheduleDescriptionPipe] },
+          add: {
+            imports: [MockPipe(ScheduleDescriptionPipe, jest.fn(() => 'At 00:00, every day'))],
+            providers: [mockProvider(ScheduleDescriptionPipe, { transform: () => 'At 00:00, every day' })],
+          },
+        },
+      ],
+    ],
+    providers: [
+      mockAuth(),
+      mockApi([
+        mockCall('cloudsync.query', cloudSyncList),
+        mockCall('cloudsync.delete'),
+        mockJob('cloudsync.sync', fakeSuccessfulJob()),
+      ]),
+      mockProvider(DialogService, {
+        confirm: jest.fn(() => of(true)),
+        confirmDelete: jest.fn((options: ConfirmDeleteCallOptions) => options.call()),
+      }),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+      mockProvider(TnDialog, {
+        open: jest.fn(() => ({
+          closed: of(true),
+        })),
+      }),
+      mockProvider(LocaleService),
+      mockProvider(TaskService, {
+        getTaskNextTime: jest.fn(() => new Date(new Date().getTime() + (25 * 60 * 60 * 1000))),
+      }),
+      mockProvider(SnackbarService),
+      provideMockStore({
+        selectors: [
+          {
+            selector: selectJob(1),
+            value: fakeSuccessfulJob(),
+          },
+          {
+            selector: selectPreferences,
+            value: {},
+          },
+        ],
+      }),
+    ],
+  });
+
+  beforeEach(async () => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    table = await loader.getHarness(TnTableHarness);
+  });
+
+  it('should show table rows', async () => {
+    expect(await table.getHeaderTexts()).toEqual(['Description', 'Frequency', 'State', 'Enabled']);
+    expect(await table.getAllRowTexts()).toEqual([
+      ['custom-cloudlist', 'At 00:00, every day', 'Pending', 'Yes'],
+    ]);
+  });
+
+  // The Frequency cell renders a `Schedule` object, which lodash cannot order — the column sorts
+  // by the sort key the data transformer derives instead.
+  it('sorts the Frequency column by its sort key rather than the schedule it renders', async () => {
+    jest.spyOn(spectator.component.dataProvider, 'setSorting');
+
+    await table.clickSortHeader('frequency_sort_key');
+
+    const [sorting] = jest.mocked(spectator.component.dataProvider.setSorting).mock.calls[0];
+    expect(sorting.sortBy?.({ frequency_sort_key: '*|*|*|00:00' } as CloudSyncTaskUi)).toBe('*|*|*|00:00');
+  });
+
+  it('expands the detail row when the row itself is clicked', async () => {
+    expect(await table.isRowExpanded(0)).toBe(false);
+
+    await table.clickRow(0);
+
+    expect(await table.isRowExpanded(0)).toBe(true);
+  });
+
+  // A detail row prints text, so every column whose cell formats its value in the template has to
+  // say how to print it — otherwise Frequency reads `[object Object]` and Enabled reads `true`.
+  it('prints the hidden Frequency, Enabled and State columns the way their cells render them', async () => {
+    const picker = await loader.getHarness(TnSelectHarness.with({ ancestor: 'ix-table-column-picker' }));
+    await picker.open();
+    await picker.selectOption('Frequency');
+    await picker.selectOption('Enabled');
+    await picker.selectOption('State');
+    spectator.detectChanges();
+
+    await table.toggleRowExpansion(0);
+
+    const detailsRow = spectator.query('ix-table-details-row');
+    expect(detailsRow).toHaveText('Frequency:At 00:00, every day');
+    expect(detailsRow).toHaveText('Enabled:Yes');
+    expect(detailsRow).toHaveText('State:Pending');
+
+    // Each printed value keeps the suffix its own cell resolves, so a selector aimed at a value
+    // survives the user hiding the column.
+    expect(spectator.query('[data-test="text-frequency-cloudsync-task-custom-cloudlist-row-schedule"]')).toExist();
+    expect(spectator.query('[data-test="text-enabled-cloudsync-task-custom-cloudlist-row-yesno"]')).toExist();
+    expect(spectator.query('[data-test="text-state-cloudsync-task-custom-cloudlist-row-state"]')).toExist();
+  });
+
+  it('shows confirmation dialog when Run Now button is pressed', async () => {
+    jest.spyOn(spectator.inject(DialogService), 'confirm');
+    await table.toggleRowExpansion(0);
+
+    const runNowButton = await loader.getHarness(TnButtonHarness.with({ label: 'Run Now' }));
+    await runNowButton.click();
+
+    expect(spectator.inject(DialogService).confirm).toHaveBeenCalledWith({
+      title: 'Run Now',
+      message: 'Run «custom-cloudlist» Cloud Sync Task now?',
+      hideCheckbox: true,
+    });
+
+    expect(spectator.inject(ApiService).job).toHaveBeenCalledWith('cloudsync.sync', [1]);
+
+    expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('cloudsync.query');
+    expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Cloud Sync Task «custom-cloudlist» has started.');
+    expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Cloud Sync Task «custom-cloudlist» completed successfully.');
+  });
+
+  it('shows form to edit an existing CloudSync when Edit button is pressed', async () => {
+    await table.toggleRowExpansion(0);
+
+    const editButton = await loader.getHarness(TnButtonHarness.with({ label: 'Edit' }));
+    await editButton.click();
+
+    expect(spectator.inject(FormSidePanelService).open).toHaveBeenCalledWith(
+      CloudSyncFormComponent,
+      {
+        title: 'Edit Cloud Sync Task',
+        wide: true,
+        inputs: {
+          taskToEdit: expect.objectContaining(cloudSyncList[0]),
+        },
+      },
+    );
+
+    expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('cloudsync.query');
+  });
+
+  it('deletes a Cloud Sync with confirmation when Delete button is pressed', async () => {
+    await table.toggleRowExpansion(0);
+
+    const deleteButton = await loader.getHarness(TnButtonHarness.with({ label: 'Delete' }));
+    await deleteButton.click();
+
+    expect(spectator.inject(DialogService).confirmDelete).toHaveBeenCalledWith({
+      message: 'Delete Cloud Sync Task <b>"custom-cloudlist"</b>?',
+      call: expect.any(Function),
+      successMessage: 'Cloud Sync Task «custom-cloudlist» deleted.',
+    });
+
+    expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('cloudsync.delete', [1]);
+  });
+
+  it('shows dialog when Restore button is pressed', async () => {
+    await table.toggleRowExpansion(0);
+
+    jest.spyOn(spectator.inject(TnDialog), 'open');
+
+    const editButton = await loader.getHarness(TnButtonHarness.with({ label: 'Restore' }));
+    await editButton.click();
+
+    expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(CloudSyncRestoreDialog, {
+      data: 1,
+    });
+
+    expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('cloudsync.query');
+    expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Cloud Sync «custom-cloudlist» has been restored.');
+  });
+
+  it('shows confirmation dialog when Dry Run button is pressed', async () => {
+    await table.toggleRowExpansion(0);
+
+    const editButton = await loader.getHarness(TnButtonHarness.with({ label: 'Dry Run' }));
+    await editButton.click();
+
+    expect(spectator.inject(DialogService).confirm).toHaveBeenCalledWith({
+      title: 'Test Cloud Sync',
+      message: 'Start a dry run test of this cloud sync task? The system will connect to the cloud service provider and simulate transferring a file. No data will be sent or received.',
+      hideCheckbox: true,
+    });
+
+    expect(spectator.inject(ApiService).job).toHaveBeenCalledWith('cloudsync.sync', [1, { dry_run: true }]);
+    expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('cloudsync.query');
+    expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Cloud Sync Task «custom-cloudlist» has started.');
+    expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('Cloud Sync Task «custom-cloudlist» dry run completed successfully.');
+  });
+});

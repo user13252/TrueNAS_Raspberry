@@ -1,0 +1,32 @@
+<tn-card
+  [ixUiSearch]="searchableElements.elements.localization"
+>
+  <h3 tnCardHeader class="tn-card__title">{{ helptext.localeTitle | translate }}</h3>
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      [ixUiSearch]="searchableElements.elements.settings"
+      [testId]="'localization-settings'"
+      [label]="'Settings' | translate"
+      (onClick)="openSettings(rawConfig())"
+    ></tn-button>
+  </ng-template>
+
+  <tn-list>
+    <tn-list-item [ixUiSearch]="searchableElements.elements.timezone">
+      <span class="label">{{ helptext.timezone.label | translate }}:</span>
+      <span *ixWithLoadingState="generalConfig$ as generalConfig" class="value">
+        {{ generalConfig.timezone }}
+      </span>
+    </tn-list-item>
+    <tn-list-item [ixUiSearch]="searchableElements.elements.consoleKeyboardMap">
+      <span class="label">{{ helptext.kbdmap.label | translate }}:</span>
+      <span *ixWithLoadingState="generalConfig$ as generalConfig" class="value">
+        <ng-container *ixWithLoadingState="mapChoices$ as mapChoices">
+          {{ getKeyboardMapValue(mapChoices, generalConfig) }}
+        </ng-container>
+      </span>
+    </tn-list-item>
+  </tn-list>
+</tn-card>

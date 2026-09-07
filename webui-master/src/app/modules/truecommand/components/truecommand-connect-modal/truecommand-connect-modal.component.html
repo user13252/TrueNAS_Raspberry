@@ -1,0 +1,50 @@
+<tn-dialog-shell testId="truecommand-connect" [title]="title | translate">
+  <form class="ix-form-container truecommand-connect-modal-form-content" [formGroup]="form" (ngSubmit)="onSubmit()">
+    <tn-form-field
+      [label]="helptext.updateDialog.apiKey | translate"
+      [tooltip]="helptext.updateDialog.apiTooltip | translate"
+    >
+      <tn-input
+        testId="api-key"
+        formControlName="api_key"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.updateDialog.enabledTooltip | translate">
+      <tn-checkbox
+        testId="enabled"
+        formControlName="enabled"
+        [label]="helptext.updateDialog.enabledLabel | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </form>
+
+  <tn-button
+    tnDialogAction
+    class="action-btn"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="onCancel()"
+  ></tn-button>
+
+  @if (isConnected) {
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      tnDialogAction
+      class="action-btn"
+      testId="deregister"
+      [label]="helptext.tcDeregisterBtn | translate"
+      (onClick)="onDeregister()"
+    ></tn-button>
+  }
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    tnDialogAction
+    color="primary"
+    testId="save"
+    [label]="saveButtonText | translate"
+    [disabled]="form.invalid"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</tn-dialog-shell>

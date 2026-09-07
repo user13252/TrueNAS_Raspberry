@@ -1,0 +1,31 @@
+<a
+  ixTest="main-logo"
+  class="app-link"
+  [routerLink]="['/dashboard']"
+>
+  @if(fullSize()) {
+    <tn-icon
+      class="app-fullsize-logo"
+      [fullSize]="true"
+      [name]="fullSizeIcon()"
+    ></tn-icon>
+  } @else {
+    <div class="logo" [class.text-hidden]="hideText()">
+      <tn-icon
+        class="app-logo"
+        [fullSize]="true"
+        [name]="logoMarkIcon()"
+      ></tn-icon>
+    </div>
+
+    @if (!hideText()) {
+      <div class="logo-text">
+        <tn-icon
+          class="app-logo-text"
+          [name]="logoTypeIcon()"
+        ></tn-icon>
+      </div>
+    }
+  }
+
+</a>

@@ -1,0 +1,272 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { Router } from '@angular/router';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import {
+  TnDialog, TnButtonHarness, TnCardComponent, TnMenuHarness, TnMenuTesting,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { DatasetTier } from 'app/enums/dataset-tier.enum';
+import { DatasetType, DatasetCaseSensitivity } from 'app/enums/dataset.enum';
+import { OnOff } from 'app/enums/on-off.enum';
+import { ZfsPropertySource } from 'app/enums/zfs-property-source.enum';
+import { DatasetDetails } from 'app/interfaces/dataset.interface';
+import { ZfsProperty } from 'app/interfaces/zfs-property.interface';
+import { CopyButtonComponent } from 'app/modules/buttons/copy-button/copy-button.component';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { DatasetDetailsCardComponent } from 'app/pages/datasets/components/dataset-details-card/dataset-details-card.component';
+import { DatasetFormComponent } from 'app/pages/datasets/components/dataset-form/dataset-form.component';
+import { DeleteDatasetDialog } from 'app/pages/datasets/components/delete-dataset-dialog/delete-dataset-dialog.component';
+import { ZvolFormComponent } from 'app/pages/datasets/components/zvol-form/zvol-form.component';
+import { DatasetTreeStore } from 'app/pages/datasets/store/dataset-store.service';
+import { SharingTierService } from 'app/pages/sharing/components/sharing-tier.service';
+import { mockSharingTierService } from 'app/pages/sharing/components/testing/mock-sharing-tier.utils';
+
+const dataset = {
+  id: 'pool/child',
+  name: 'pool/child',
+  pool: 'pool',
+  type: DatasetType.Filesystem,
+  sync: { value: 'STANDARD' },
+  compression: {
+    source: ZfsPropertySource.Inherited,
+    value: 'LZ4',
+  },
+  compressratio: { value: '3.81x' },
+  atime: {
+    parsed: true,
+    rawvalue: 'on',
+    value: OnOff.On,
+    source: ZfsPropertySource.Local,
+  },
+  deduplication: { value: 'OFF' },
+  casesensitivity: {
+    parsed: 'insensitive',
+    rawvalue: 'insensitive',
+    value: DatasetCaseSensitivity.Insensitive,
+    source: ZfsPropertySource.Local,
+  },
+  tier: { tier_type: DatasetTier.Regular, tier_job: null },
+  user_properties: {
+    comments: {
+      parsed: 'Test comment',
+      rawvalue: 'Test comment',
+      value: 'Test comment',
+      source: ZfsPropertySource.Local,
+    },
+  } as Record<string, ZfsProperty<string>>,
+} as DatasetDetails;
+
+const zvol = {
+  ...dataset,
+  type: DatasetType.Volume,
+} as DatasetDetails;
+
+describe('DatasetDetailsCardComponent', () => {
+  let spectator: Spectator<DatasetDetailsCardComponent>;
+  let loader: HarnessLoader;
+  const createComponent = createComponentFactory({
+    component: DatasetDetailsCardComponent,
+    imports: [
+      DatasetFormComponent,
+      CopyButtonComponent,
+    ],
+    providers: [
+      mockProvider(DatasetTreeStore, {
+        datasetUpdated: jest.fn(),
+        selectedParentDataset$: of({ id: 'pool' }),
+      }),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+      mockProvider(TnDialog, {
+        open: jest.fn(() => ({
+          closed: of(true),
+        })),
+      }),
+      mockApi([
+        mockCall('pool.dataset.promote'),
+      ]),
+      mockProvider(Router),
+      mockProvider(DialogService),
+      mockSharingTierService(),
+      mockAuth(),
+    ],
+  });
+
+  function setupTest(props: Partial<{ dataset: DatasetDetails }> = {}): void {
+    spectator = createComponent({ props });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  }
+
+  async function openCardMenu(): Promise<TnMenuHarness> {
+    spectator.click(spectator.query('[data-test="button-dataset-actions"]')!);
+    return TnMenuTesting.rootLoader(spectator.fixture).getHarness(TnMenuHarness);
+  }
+
+  function getDetails(): Record<string, string> {
+    return spectator.queryAll('.details-item').reduce((acc, item: HTMLElement) => {
+      const key = item.querySelector('.label')!.textContent!;
+      const value = item.querySelector('.value')!.textContent!.trim();
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+  }
+
+  it('shows header', async () => {
+    setupTest({ dataset });
+
+    // white-box: no TnCardHarness yet — read the public title() input
+    expect(spectator.query(TnCardComponent)!.title()).toBe('Details');
+    const editButton = await loader.getHarnessOrNull(TnButtonHarness.with({ label: 'Edit' }));
+    expect(editButton).not.toBeNull();
+  });
+
+  describe('filesystem dataset', () => {
+    it('shows filesystem details', () => {
+      setupTest({
+        dataset: {
+          ...dataset,
+          compression: { source: ZfsPropertySource.Default, value: 'LZ3' },
+        } as DatasetDetails,
+      });
+
+      const details = getDetails();
+      expect(details).toEqual({
+        'Sync:': 'STANDARD',
+        'Compression:': '3.81x (LZ3)',
+        'Enable Atime:': 'ON',
+        'ZFS Deduplication:': 'OFF',
+        'Case Sensitivity:': 'OFF',
+        'Storage Tier:': 'Regular',
+        'Path:': 'pool/child',
+        'Comments:': 'Test comment',
+      });
+    });
+
+    it('opens edit dataset form when Edit button is clicked', async () => {
+      setupTest({ dataset });
+
+      const editButton = await loader.getHarness(TnButtonHarness.with({ label: 'Edit' }));
+      await editButton.click();
+
+      expect(spectator.inject(FormSidePanelService).open).toHaveBeenCalledWith(
+        DatasetFormComponent,
+        {
+          wide: true,
+          title: 'Edit Dataset',
+          inputs: { params: { datasetId: 'pool/child', isNew: false } },
+        },
+      );
+    });
+
+    it('opens change tier dialog when Change link is clicked', () => {
+      setupTest({ dataset });
+
+      spectator.click('.change-tier-link');
+
+      expect(spectator.inject(SharingTierService).openChangeTierDialogForDataset).toHaveBeenCalledWith({
+        datasetName: 'pool/child',
+        currentTier: DatasetTier.Regular,
+        poolName: 'pool',
+      });
+    });
+
+    it('hides the Change link when the dataset is locked', () => {
+      setupTest({
+        dataset: {
+          ...dataset,
+          locked: true,
+        } as DatasetDetails,
+      });
+
+      expect(spectator.query('.change-tier-link')).toBeNull();
+    });
+
+    it('shows tier job status icon when a tier job is running', () => {
+      setupTest({
+        dataset: {
+          ...dataset,
+          tier: {
+            tier_type: DatasetTier.Performance,
+            tier_job: {
+              status: 'RUNNING',
+            },
+          },
+        } as DatasetDetails,
+      });
+
+      const icon = spectator.query('.job-status-icon');
+      expect(icon).toBeTruthy();
+      expect(icon).toHaveClass('spinning');
+    });
+
+    it('opens delete dataset dialog when Delete button is clicked', async () => {
+      setupTest({ dataset });
+
+      const deleteButton = await loader.getHarness(TnButtonHarness.with({ label: 'Delete' }));
+      await deleteButton.click();
+
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(DeleteDatasetDialog, { data: dataset });
+    });
+  });
+
+  describe('volume dataset', () => {
+    it('shows zvol details', () => {
+      setupTest({ dataset: zvol });
+
+      const details = getDetails();
+      expect(details).toEqual({
+        'Sync:': 'STANDARD',
+        'Compression:': 'Inherit (3.81x (LZ4))',
+        'ZFS Deduplication:': 'OFF',
+        'Storage Tier:': 'Regular',
+        'Path:': 'pool/child',
+        'Comments:': 'Test comment',
+      });
+    });
+
+    it('opens edit zvol form when Edit Zvol button is clicked', async () => {
+      setupTest({ dataset: zvol });
+
+      const editZvolButton = await loader.getHarness(TnButtonHarness.with({ label: 'Edit Zvol' }));
+      await editZvolButton.click();
+      expect(spectator.inject(FormSidePanelService).open).toHaveBeenCalledWith(
+        ZvolFormComponent,
+        {
+          title: 'Edit Zvol',
+          inputs: { params: { isNew: false, parentOrZvolId: 'pool/child' } },
+        },
+      );
+    });
+  });
+
+  describe('promoting dataset', () => {
+    it('does not show a Promote Dataset action when dataset cannot be promoted', () => {
+      setupTest({ dataset });
+
+      expect(spectator.query('[data-test="button-dataset-actions"]')).toBeNull();
+    });
+
+    it('promotes dataset when dataset can be promoted and Promote action is pressed', async () => {
+      setupTest({
+        dataset: {
+          ...dataset,
+          origin: {
+            parsed: 'pool/origin',
+          },
+        } as DatasetDetails,
+      });
+
+      const menu = await openCardMenu();
+      await menu.clickItem({ label: 'Promote' });
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('pool.dataset.promote', ['pool/child']);
+    });
+  });
+});

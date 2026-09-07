@@ -1,0 +1,56 @@
+<ix-page-header pageTitle="NVMe-oF">
+  <tn-button
+    color="default"
+    [testId]="'global-configuration'"
+    [label]="'Global Configuration' | translate"
+    [ixUiSearch]="searchableElements.elements.config"
+    (onClick)="openGlobalConfiguration()"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    [testId]="'add-subsystem'"
+    [label]="'Add Subsystem' | translate"
+    [ixUiSearch]="searchableElements.elements.addSubsystem"
+    (onClick)="addSubsystem()"
+  ></tn-button>
+</ix-page-header>
+
+@let subsystem = dataProvider.expandedRow;
+@let showDetails = !masterList.searchQuery?.() || subsystem.name.toLowerCase().includes(masterList.searchQuery?.().toLowerCase());
+
+<ix-master-detail-view
+  #masterDetailView="masterDetailViewContext"
+  [selectedItem]="subsystem"
+  [showDetails]="showDetails"
+  (mobileDetailsClosed)="dataProvider.expandedRow = null"
+>
+  <ix-subsystems-list
+    #masterList
+    master
+    [dataProvider]="dataProvider"
+    [isLoading]="isLoading()"
+    (toggleShowMobileDetails)="masterDetailView.toggleShowMobileDetails($event)"
+    (subsystemSelected)="onSubsystemSelected($event)"
+    (search)="onFilter($event)"
+  ></ix-subsystems-list>
+
+  <div detail-header class="detail-header">
+    @if (subsystem) {
+      <ix-subsystems-details-header
+        [subsystem]="subsystem"
+        (subsystemRemoved)="onSubsystemRemoved()"
+      ></ix-subsystems-details-header>
+    }
+  </div>
+
+  <ng-container detail>
+    @if (subsystem) {
+      <ix-subsystem-details
+        [subsystem]="subsystem"
+        (nameUpdated)="onSubsystemRenamed($event)"
+      ></ix-subsystem-details>
+    }
+  </ng-container>
+</ix-master-detail-view>

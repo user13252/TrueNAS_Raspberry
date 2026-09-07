@@ -1,0 +1,135 @@
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, input, OnChanges, inject, output } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnButtonComponent, TnFormFieldComponent, TnSelectComponent } from '@truenas/ui-components';
+import { filter, switchMap } from 'rxjs';
+import { IxSimpleChanges } from 'app/interfaces/simple-changes.interface';
+import { UpdateProfileChoices } from 'app/interfaces/system-update.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-update-profile-card',
+  styleUrls: ['update-profile-card.component.scss'],
+  templateUrl: './update-profile-card.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+
+export class UpdateProfileCard implements OnChanges {
+  private api = inject(ApiService);
+  private snackbar = inject(SnackbarService);
+  private dialogService = inject(DialogService);
+  private translate = inject(TranslateService);
+  private loader = inject(LoaderService);
+  private errorHandler = inject(ErrorHandlerService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly currentProfileId = input.required<string>();
+  readonly profileChoices = input.required<UpdateProfileChoices>();
+  readonly profileSwitched = output();
+
+  protected updateProfileControl = new FormControl('');
+
+  protected hasProfileOptions = computed(() => this.availableProfiles().length > 0);
+
+  protected canChangeProfile = computed(() => {
+    return this.availableProfiles().length > 1
+      || (this.availableProfiles().length === 1 && this.availableProfiles()[0].id !== this.currentProfileId());
+  });
+
+  protected availableProfiles = computed(() => {
+    const choices = this.profileChoices();
+    return Object.entries(choices)
+      .filter(([_, profile]) => profile.available)
+      .map(([id, profile]) => ({
+        ...profile,
+        id,
+      }));
+  });
+
+  /**
+   * Attempt to get label.
+   * It may be absent in some situations.
+   */
+  protected currentProfileLabel = computed(() => {
+    const currentProfile = Object.entries(this.profileChoices())
+      .find(([id]) => id === this.currentProfileId());
+
+    return currentProfile?.[1]?.name || this.currentProfileId();
+  });
+
+  protected isProfileMissingFromOptions = computed(() => {
+    if (!this.currentProfileId()) {
+      return false;
+    }
+
+    return !this.availableProfiles().some((profile) => profile.id === this.currentProfileId());
+  });
+
+  protected notAvailableProfiles = computed(() => {
+    const choices = this.profileChoices();
+    return Object.entries(choices)
+      .filter(([_, profile]) => !profile.available)
+      .map(([id, profile]) => ({
+        ...profile,
+        id,
+      }));
+  });
+
+  protected profileOptions = computed(() => {
+    return this.availableProfiles()
+      .map((profile) => ({
+        label: profile.name,
+        value: profile.id,
+      }));
+  });
+
+  ngOnChanges(changes: IxSimpleChanges<UpdateProfileCard>): void {
+    if ('currentProfileId' in changes) {
+      this.updateProfileControl.patchValue(this.currentProfileId());
+    }
+
+    if ('currentProfileId' in changes || 'profileChoices' in changes) {
+      if (this.canChangeProfile()) {
+        this.updateProfileControl.enable();
+      } else {
+        this.updateProfileControl.disable();
+      }
+    }
+  }
+
+  applyProfile(): void {
+    const selectedProfile = this.availableProfiles().find((profile) => profile.id === this.updateProfileControl.value);
+
+    this.dialogService.confirm({
+      message: this.translate.instant('Are you sure you want to switch to <b>{profile}</b> update profile?', { profile: selectedProfile?.name }),
+      hideCheckbox: true,
+      buttonText: this.translate.instant('Continue'),
+    }).pipe(
+      filter(Boolean),
+      switchMap(() => {
+        return this.api.call('update.update', [{ profile: this.updateProfileControl.value }]).pipe(
+          this.loader.withLoader(),
+          this.errorHandler.withErrorHandler(),
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: () => {
+        this.snackbar.success(this.translate.instant('Switched to {profile} update profile', { profile: selectedProfile?.name }));
+        this.profileSwitched.emit();
+      },
+    });
+  }
+}

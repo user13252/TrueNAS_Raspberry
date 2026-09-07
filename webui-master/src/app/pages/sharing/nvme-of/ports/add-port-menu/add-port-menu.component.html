@@ -1,0 +1,43 @@
+@if (noPortsExist()) {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    [testId]="'add-port'"
+    [label]="'Add' | translate"
+    (onClick)="openPortForm()"
+  ></tn-button>
+}
+@else {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    iconPosition="right"
+    [icon]="menuDownIcon"
+    [testId]="'add-port'"
+    [label]="'Add' | translate"
+    [tnMenuTriggerFor]="addMenu"
+  ></tn-button>
+
+  <tn-menu #addMenu>
+    @for (row of unusedPorts(); track row.port.id) {
+      <tn-menu-item
+        [testId]="row.testId"
+        (itemClick)="selectPort(row.port)"
+      >
+        <ix-port-description [port]="row.port"></ix-port-description>
+      </tn-menu-item>
+    }
+
+    <tn-divider></tn-divider>
+
+    <tn-menu-item
+      [testId]="'create-new-port'"
+      [label]="'Create New' | translate"
+      (itemClick)="openPortForm()"
+    ></tn-menu-item>
+
+    <tn-menu-item
+      [testId]="'manage-ports'"
+      [label]="'Manage Ports' | translate"
+      (itemClick)="onManagePorts()"
+    ></tn-menu-item>
+  </tn-menu>
+}

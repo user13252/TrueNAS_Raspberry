@@ -1,0 +1,22 @@
+<tn-dialog-shell testId="export-all-keys" [title]="'Keys for {id} datasets' | translate: { id: '\'' + dataset.id + '\'' }">
+<p>
+    {{ 'WARNING: Keys for all nested datasets with encryption applied will be downloaded.' | translate }}
+  </p>
+
+
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="close"
+    [label]="'Close' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+
+  <tn-button
+    color="primary"
+    testId="download-keys"
+    [label]="'Download Keys' | translate"
+    (onClick)="onDownload()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

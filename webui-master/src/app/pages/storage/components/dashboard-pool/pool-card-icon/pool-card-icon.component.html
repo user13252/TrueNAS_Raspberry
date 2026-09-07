@@ -1,0 +1,42 @@
+@switch (type()) {
+  @case (poolCardIconType.Safe) {
+    <tn-icon
+      name="check-circle"
+      library="mdi"
+      class="pool-icon icon-online"
+      [tooltip]="tooltip()"
+    ></tn-icon>
+  }
+  @case (poolCardIconType.Warn) {
+    <tn-icon
+      name="alert-circle"
+      library="mdi"
+      class="pool-icon icon-warning"
+      [tooltip]="tooltip()"
+    ></tn-icon>
+  }
+  @case (poolCardIconType.Faulted) {
+    <tn-icon
+      name="help-circle-outline"
+      library="mdi"
+      class="pool-icon icon-faulted"
+      [tooltip]="tooltip()"
+    ></tn-icon>
+  }
+  @case (poolCardIconType.Error) {
+    <tn-icon
+      name="close-circle"
+      library="mdi"
+      class="pool-icon icon-error"
+      [tooltip]="tooltip()"
+    ></tn-icon>
+  }
+  @default {
+    <tn-icon
+      name="close-circle"
+      library="mdi"
+      class="pool-icon icon-error"
+      [tooltip]="tooltip()"
+    ></tn-icon>
+  }
+}

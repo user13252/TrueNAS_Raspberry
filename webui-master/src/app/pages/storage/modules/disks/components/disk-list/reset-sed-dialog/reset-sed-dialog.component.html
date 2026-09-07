@@ -1,0 +1,63 @@
+<tn-dialog-shell testId="reset-sed" [title]="'SED Reset - Secure Erase' | translate">
+<div>
+  <div class="warning-box" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="warning-header">
+      <tn-icon name="alert" library="mdi"></tn-icon>
+      <span>{{ 'CRITICAL WARNING' | translate }}</span>
+    </div>
+    <p class="warning-main">
+      {{ 'This operation is IRREVERSIBLE and will PERMANENTLY DESTROY ALL DATA on this disk.' | translate }}
+    </p>
+    <ul class="warning-list">
+      <li>{{ 'All data will be cryptographically erased and cannot be recovered' | translate }}</li>
+      <li>{{ 'The disk will be reset to factory default settings' | translate }}</li>
+      <li>{{ 'This process cannot be undone or interrupted' | translate }}</li>
+      <li>{{ 'Make absolutely sure you have backups of any important data' | translate }}</li>
+    </ul>
+  </div>
+
+  <p class="disk-name">{{ 'Disk:' | translate }} <strong>{{ data.diskName }}</strong></p>
+
+  <form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+    <tn-form-field [label]="'Physical Security ID (PSID)' | translate">
+      <tn-input
+        testId="psid"
+        formControlName="psid"
+        [placeholder]="'Enter PSID from drive label (e.g., ABCD1234EFGH5678)' | translate"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field>
+      <tn-checkbox
+        testId="confirm"
+        formControlName="confirm"
+        [label]="'I understand this will permanently destroy all data on this disk' | translate"
+        [required]="true"
+      ></tn-checkbox>
+    </tn-form-field>
+  </form>
+
+  <div class="psid-info-box">
+    <p class="psid-info-title">{{ 'Where to find the PSID:' | translate }}</p>
+    <div class="psid-info-content">
+      <tn-icon name="harddisk" library="mdi"></tn-icon>
+      <div class="psid-info-text">
+        <span class="drive-label">{{ 'Hard Disk Drive' | translate }}</span>
+        <span class="drive-description">{{ 'Physical label on drive' | translate }}</span>
+        <span class="drive-hint">{{ 'Look for "PSID:" or "Physical Security ID"' | translate }}</span>
+      </div>
+    </div>
+    <div class="psid-example">
+      <span class="example-label">{{ 'Example PSID format:' | translate }}</span>
+      <code>ABCD1234EFGH5678IJKL9012</code>
+    </div>
+  </div>
+</div>
+
+<ix-form-actions tnDialogAction>
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close()"></tn-button>
+
+  <tn-button *ixRequiresRoles="[Role.DiskWrite]" color="warn" testId="reset-sed" [label]="'Perform SED Reset' | translate" [disabled]="form.invalid" (onClick)="onSubmit()"></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

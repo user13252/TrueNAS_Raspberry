@@ -1,0 +1,127 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnButtonHarness } from '@truenas/ui-components';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { MailSecurity } from 'app/enums/mail-security.enum';
+import { MailConfig, MailOauthConfig } from 'app/interfaces/mail-config.interface';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import { EmailCardComponent } from 'app/pages/system/general-settings/email/email-card/email-card.component';
+import { EmailFormComponent } from 'app/pages/system/general-settings/email/email-form/email-form.component';
+
+const fakeEmailConfig: MailConfig = {
+  id: 1,
+  fromemail: 'root@truenas.local',
+  outgoingserver: 'google.com',
+  port: 25,
+  security: MailSecurity.Plain,
+  smtp: false,
+  pass: '',
+  fromname: 'Test',
+  oauth: {},
+  user: null as string,
+};
+
+describe('EmailCardComponent with SMTP', () => {
+  let spectator: Spectator<EmailCardComponent>;
+  let loader: HarnessLoader;
+  const createComponent = createComponentFactory({
+    component: EmailCardComponent,
+    providers: [
+      mockApi([
+        mockCall('mail.config', fakeEmailConfig),
+      ]),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  it('shows Email related settings', () => {
+    const items = spectator.queryAll<HTMLElement>('tn-list-item');
+    const itemTexts = items.map((item) => item.textContent!.trim().replace(/\s+/g, ' '));
+
+    expect(itemTexts).toEqual([
+      'Send Mail Method: SMTP',
+      'From: Test root@truenas.local via google.com',
+    ]);
+  });
+
+  it('opens Email form when Settings button is pressed', async () => {
+    const configureButton = await loader.getHarness(TnButtonHarness.with({ label: 'Settings' }));
+    await configureButton.click();
+
+    expect(spectator.inject(FormSidePanelService).open)
+      .toHaveBeenCalledWith(EmailFormComponent, { title: 'Email Options', inputs: { config: fakeEmailConfig } });
+  });
+});
+
+describe('EmailCardComponent with Gmail OAuth', () => {
+  let spectator: Spectator<EmailCardComponent>;
+  const createComponent = createComponentFactory({
+    component: EmailCardComponent,
+    providers: [
+      mockApi([
+        mockCall('mail.config', {
+          ...fakeEmailConfig,
+          oauth: { client_id: '123', provider: 'gmail' } as MailOauthConfig,
+        }),
+      ]),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+  });
+
+  it('shows Email related settings', () => {
+    const items = spectator.queryAll<HTMLElement>('tn-list-item');
+    const itemTexts = items.map((item) => item.textContent!.trim().replace(/\s+/g, ' '));
+
+    expect(itemTexts).toEqual([
+      'Send Mail Method: GMail OAuth',
+      'From: Test root@truenas.local',
+    ]);
+  });
+});
+
+describe('EmailCardComponent with Outlook OAuth', () => {
+  let spectator: Spectator<EmailCardComponent>;
+  const createComponent = createComponentFactory({
+    component: EmailCardComponent,
+    providers: [
+      mockApi([
+        mockCall('mail.config', {
+          ...fakeEmailConfig,
+          oauth: { client_id: '123', provider: 'outlook' } as MailOauthConfig,
+        }),
+      ]),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+  });
+
+  it('shows Email related settings', () => {
+    const items = spectator.queryAll<HTMLElement>('tn-list-item');
+    const itemTexts = items.map((item) => item.textContent!.trim().replace(/\s+/g, ' '));
+
+    expect(itemTexts).toEqual([
+      'Send Mail Method: Outlook OAuth',
+      'From: Test root@truenas.local',
+    ]);
+  });
+});

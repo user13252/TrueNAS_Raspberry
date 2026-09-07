@@ -1,0 +1,188 @@
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, signal, inject, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Validators, ReactiveFormsModule, NonNullableFormBuilder } from '@angular/forms';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  InputType, TnAutocompleteComponent, TnCheckboxComponent,
+  TnFormFieldComponent, TnFormSectionComponent, TnInputComponent, TnSelectComponent,
+} from '@truenas/ui-components';
+import { Role } from 'app/enums/role.enum';
+import { UpsMode } from 'app/enums/ups-mode.enum';
+import { choicesToOptions, singleArrayToOptions } from 'app/helpers/operators/options.operators';
+import { helptextServiceUps } from 'app/helptext/services/components/service-ups';
+import { UpsConfigUpdate } from 'app/interfaces/ups-config.interface';
+import { IxFormHostForm } from 'app/modules/forms/ix-forms/components/ix-form/ix-form-host-form.directive';
+import {
+  IxFormComponent, SubmitResult,
+} from 'app/modules/forms/ix-forms/components/ix-form/ix-form.component';
+import { translateOptions } from 'app/modules/translate/translate.helper';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  serviceConfigSavedMessage,
+} from 'app/pages/services/components/service-config-forms.constants';
+
+// Built here rather than inline in the component, and left with an inferred return type — see
+// the `V` type parameter on IxFormHostForm for why.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function createUpsForm(fb: NonNullableFormBuilder) {
+  return fb.group({
+    identifier: [null as string | null, [Validators.required, Validators.pattern(/^[\w|,|.|\-|_]+$/)]],
+    mode: [null as UpsMode | null],
+    remotehost: [null as string | null, Validators.required],
+    remoteport: [null as number | null, Validators.required],
+    driver: [null as string | null, Validators.required],
+    port: [null as string | null, Validators.required],
+    monuser: [null as string | null, Validators.required],
+    monpwd: [null as string | null, Validators.pattern(/^((?![#|\s]).)*$/)],
+    extrausers: [null as string | null],
+    rmonitor: [false],
+    shutdown: [null as string | null],
+    shutdowntimer: [null as number | null],
+    shutdowncmd: [null as string | null],
+    powerdown: [false],
+    nocommwarntime: [300 as number | null],
+    hostsync: [15],
+    options: [null as string | null],
+    optionsupsd: [null as string | null],
+  });
+}
+
+/** The form's own value shape, which is NOT `UpsConfigUpdate` — every control is nullable here. */
+type UpsFormValue = ReturnType<ReturnType<typeof createUpsForm>['getRawValue']>;
+
+@Component({
+  selector: 'ix-service-ups',
+  templateUrl: './service-ups.component.html',
+  styleUrls: ['./service-ups.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    IxFormComponent,
+    ReactiveFormsModule,
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TnSelectComponent,
+    TnCheckboxComponent,
+    TnAutocompleteComponent,
+    TranslateModule,
+  ],
+})
+export class ServiceUpsComponent extends IxFormHostForm<boolean, UpsFormValue> implements OnInit {
+  private api = inject(ApiService);
+  private fb = inject(NonNullableFormBuilder);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly requiredRoles = [Role.SystemGeneralWrite];
+  protected readonly InputType = InputType;
+
+  protected readonly isMasterMode = signal(true);
+
+  protected readonly form = createUpsForm(this.fb);
+
+  readonly helptext = helptextServiceUps;
+  readonly labels = {
+    identifier: helptextServiceUps.identifierLabel,
+    mode: helptextServiceUps.modeLabel,
+    remotehost: helptextServiceUps.remotehostLabel,
+    remoteport: helptextServiceUps.remoteportLabel,
+    driver: helptextServiceUps.driverLabel,
+    port: helptextServiceUps.portLabel,
+    monuser: helptextServiceUps.monuserLabel,
+    monpwd: helptextServiceUps.monpwdLabel,
+    extrausers: helptextServiceUps.extrausersLabel,
+    rmonitor: helptextServiceUps.rmonitorLabel,
+    shutdown: helptextServiceUps.shutdownLabel,
+    shutdowntimer: helptextServiceUps.shutdowntimerLabel,
+    shutdowncmd: helptextServiceUps.shutdowncmdLabel,
+    powerdown: helptextServiceUps.powerdownLabel,
+    nocommwarntime: helptextServiceUps.nocommwarntimeLabel,
+    hostsync: helptextServiceUps.hostsyncLabel,
+    options: helptextServiceUps.optionsLabel,
+    optionsupsd: helptextServiceUps.optionsupsdLabel,
+  };
+
+  /** Driver options: label is the description, value is the `driver$name` key. */
+  readonly driverOptions$ = this.api.call('ups.driver_choices').pipe(choicesToOptions());
+
+  /** Detected device paths; the label IS the value, so tn-autocomplete fits. */
+  readonly portOptions$ = this.api.call('ups.port_choices').pipe(singleArrayToOptions());
+
+  readonly tooltips = {
+    identifier: helptextServiceUps.identifierTooltip,
+    mode: this.translate.instant(
+      'Choose <i>Master</i> if the UPS is plugged directly\
+ into the system serial port. The UPS will remain the\
+ last item to shut down. Choose <i>Slave</i> to have\
+ this system shut down before <i>Master</i>. See the\
+ <a href="{url}"\
+ target="_blank">Network UPS Tools Overview</a>.',
+      { url: 'https://networkupstools.org/docs/user-manual.chunked/ar01s02.html#_monitoring_client' },
+    ),
+    remotehost: helptextServiceUps.remotehostTooltip,
+    remoteport: helptextServiceUps.remoteportTooltip,
+    driver: helptextServiceUps.driverTooltip,
+    port: helptextServiceUps.portTooltip,
+    monuser: helptextServiceUps.monuserTooltip,
+    monpwd: helptextServiceUps.monpwdTooltip,
+    extrausers: helptextServiceUps.extrausersTooltip,
+    rmonitor: helptextServiceUps.rmonitorTooltip,
+    shutdown: helptextServiceUps.shutdownTooltip,
+    shutdowntimer: helptextServiceUps.shutdowntimerTooltip,
+    shutdowncmd: helptextServiceUps.shutdowncmdTooltip,
+    powerdown: helptextServiceUps.powerdownTooltip,
+    nocommwarntime: helptextServiceUps.nocommwarntimeTooltip,
+    hostsync: helptextServiceUps.hostsyncTooltip,
+    options: helptextServiceUps.optionsTooltip,
+    optionsupsd: helptextServiceUps.optionsupsdTooltip,
+  };
+
+  // tn-select does not translate option labels, so translate up-front.
+  readonly modeOptions = translateOptions(this.translate, helptextServiceUps.modeOptions);
+  readonly shutdownOptions = translateOptions(this.translate, helptextServiceUps.shutdownOptions);
+
+  ngOnInit(): void {
+    this.loadFormConfig(this.api.call('ups.config'), (config) => this.form.patchValue(config));
+    this.form.controls.remotehost.disable();
+    this.form.controls.remoteport.disable();
+
+    this.form.controls.mode.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((mode) => {
+      if (mode === UpsMode.Master) {
+        this.form.controls.remotehost.disable();
+        this.form.controls.remoteport.disable();
+        this.form.controls.port.setValidators(Validators.required);
+        this.form.controls.driver.enable();
+        this.isMasterMode.set(true);
+      } else {
+        this.form.controls.remotehost.enable();
+        this.form.controls.remoteport.enable();
+        this.form.controls.port.clearValidators();
+        this.form.controls.driver.disable();
+        this.isMasterMode.set(false);
+      }
+    });
+  }
+
+  // The one form here that reads the live form rather than the event's `allValues`: the mode
+  // watcher disables the fields belonging to the other mode, and `form.value` is what drops them
+  // (`allValues` is a `getRawValue()`, disabled controls included). Copied because keys are deleted
+  // below and `form.value` hands back the FormGroup's own live value object.
+  protected handleSubmit = (): SubmitResult => {
+    const params = { ...this.form.value };
+
+    // Belt-and-braces given the disables above, but they are what pins the payload to the mode.
+    if (this.isMasterMode()) {
+      delete params.remoteport;
+      delete params.remotehost;
+    } else {
+      delete params.driver;
+    }
+
+    return {
+      request$: this.api.call('ups.update', [params as UpsConfigUpdate]),
+      successMessage: this.translate.instant(serviceConfigSavedMessage),
+    };
+  };
+}

@@ -1,0 +1,255 @@
+import { DialogRef, DIALOG_DATA } from '@angular/cdk/dialog';
+import { AsyncPipe } from '@angular/common';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormControl } from '@ngneat/reactive-forms';
+import { Store } from '@ngrx/store';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCheckboxComponent, TnFormFieldComponent, TnInputComponent, TnSelectComponent, TnSelectOption,
+} from '@truenas/ui-components';
+import * as cronParser from 'cron-parser';
+import { DayOfTheWeekRange, MonthRange } from 'cron-parser/types';
+import { helptextGlobal } from 'app/helptext/global-helptext';
+import {
+  SchedulerModalConfig,
+} from 'app/modules/scheduler/components/scheduler-modal/scheduler-modal-config.interface';
+import {
+  CrontabPart,
+  CrontabPartValidatorService,
+} from 'app/modules/scheduler/services/crontab-part-validator.service';
+import { getDefaultCrontabPresets } from 'app/modules/scheduler/utils/get-default-crontab-presets.utils';
+import { TooltipComponent } from 'app/modules/tooltip/tooltip.component';
+import { AppState } from 'app/store';
+import { selectTimezone } from 'app/store/system-config/system-config.selectors';
+import { SchedulerPreviewColumnComponent } from './scheduler-preview-column/scheduler-preview-column.component';
+
+@Component({
+  selector: 'ix-scheduler-modal',
+  templateUrl: './scheduler-modal.component.html',
+  styleUrls: ['./scheduler-modal.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    TnSelectComponent,
+    TooltipComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TnCheckboxComponent,
+    TnButtonComponent,
+    SchedulerPreviewColumnComponent,
+    TranslateModule,
+    AsyncPipe,
+  ],
+})
+export class SchedulerModalComponent implements OnInit {
+  private dialogRef = inject<DialogRef<string, SchedulerModalComponent>>(DialogRef);
+  private formBuilder = inject(FormBuilder);
+  private translate = inject(TranslateService);
+  private validators = inject(CrontabPartValidatorService);
+  private store$ = inject<Store<AppState>>(Store);
+  config = inject<SchedulerModalConfig>(DIALOG_DATA);
+  private destroyRef = inject(DestroyRef);
+
+  protected form = this.formBuilder.group({
+    preset: [''],
+    minutes: ['', [Validators.required, this.validators.crontabPartValidator(CrontabPart.Minutes)]],
+    hours: ['', [Validators.required, this.validators.crontabPartValidator(CrontabPart.Hours)]],
+    days: ['', [Validators.required, this.validators.crontabPartValidator(CrontabPart.Days)]],
+    months: this.formBuilder.group<Record<string, boolean>>({}),
+    weekdays: this.formBuilder.group({
+      mon: [false],
+      tue: [false],
+      wed: [false],
+      thu: [false],
+      fri: [false],
+      sat: [false],
+      sun: [false],
+    }),
+  });
+
+  crontab: string;
+  timezone: string;
+
+  // TODO: This belongs elsewhere, for example in date-fns.
+  readonly months = [
+    { label: this.translate.instant('Jan'), value: '1' },
+    { label: this.translate.instant('Feb'), value: '2' },
+    { label: this.translate.instant('Mar'), value: '3' },
+    { label: this.translate.instant('Apr'), value: '4' },
+    { label: this.translate.instant('May'), value: '5' },
+    { label: this.translate.instant('Jun'), value: '6' },
+    { label: this.translate.instant('Jul'), value: '7' },
+    { label: this.translate.instant('Aug'), value: '8' },
+    { label: this.translate.instant('Sep'), value: '9' },
+    { label: this.translate.instant('Oct'), value: '10' },
+    { label: this.translate.instant('Nov'), value: '11' },
+    { label: this.translate.instant('Dec'), value: '12' },
+  ];
+
+  // TODO: This belongs elsewhere.
+  // TODO: Not every locale uses Sun as first day of the week.
+  // TODO: Update in harness too.
+  // TODO: Limit type.
+  readonly weekdays = [
+    { label: this.translate.instant('Sun'), value: 'sun' },
+    { label: this.translate.instant('Mon'), value: 'mon' },
+    { label: this.translate.instant('Tue'), value: 'tue' },
+    { label: this.translate.instant('Wed'), value: 'wed' },
+    { label: this.translate.instant('Thu'), value: 'thu' },
+    { label: this.translate.instant('Fri'), value: 'fri' },
+    { label: this.translate.instant('Sat'), value: 'sat' },
+  ];
+
+  readonly presets = getDefaultCrontabPresets(this.translate);
+  readonly presetSelectOptions: TnSelectOption<string>[] = this.presets.map((preset) => ({
+    label: preset.label,
+    value: preset.value,
+  }));
+
+  readonly tooltips = {
+    general: helptextGlobal.scheduler.general.tooltip,
+    minutes: helptextGlobal.scheduler.minutes.tooltip,
+    hours: helptextGlobal.scheduler.hours.tooltip,
+    days: helptextGlobal.scheduler.days.tooltip,
+    orTooltip: helptextGlobal.scheduler.orTooltip,
+  };
+
+  readonly hasOrConditionExplanation$ = this.form.select((values) => {
+    return !this.areAllWeekdaysSelected && values.days !== '*';
+  });
+
+  ngOnInit(): void {
+    this.dialogRef.addPanelClass('scheduler-modal');
+    this.generateMonthControls();
+    this.setupFormSubscriptions();
+    this.setInitialValues();
+    this.setTimezone();
+  }
+
+  onDone(): void {
+    this.dialogRef.close(this.crontab);
+  }
+
+  closeModal(): void {
+    this.dialogRef.close();
+  }
+
+  private setInitialValues(): void {
+    if (this.config.crontab) {
+      this.setValuesFromCrontab(this.config.crontab);
+    } else {
+      this.form.patchValue({ preset: this.presets[0].value });
+    }
+    this.crontab = this.getCrontabFromForm();
+  }
+
+  private setTimezone(): void {
+    this.store$.select(selectTimezone).pipe(takeUntilDestroyed(this.destroyRef)).subscribe((timezone) => {
+      if (timezone) {
+        this.timezone = timezone;
+      }
+      this.crontab = this.getCrontabFromForm();
+    });
+  }
+
+  private setupFormSubscriptions(): void {
+    this.form.controls.preset.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((preset) => {
+      if (!preset) {
+        return;
+      }
+
+      this.setValuesFromCrontab(preset);
+    });
+
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.form.invalid) {
+        return;
+      }
+
+      this.crontab = this.getCrontabFromForm();
+      this.updatePresetToMatchCrontab();
+    });
+  }
+
+  private generateMonthControls(): void {
+    this.months.forEach((month) => {
+      this.form.controls.months.addControl(month.value as string, new FormControl(false));
+    });
+  }
+
+  private setValuesFromCrontab(crontab: string): void {
+    const [minutes, hours, days] = crontab.split(' ');
+    this.form.patchValue({ minutes, hours, days });
+    try {
+      const parsed = cronParser.parseExpression(crontab);
+
+      const monthValues: Record<string, boolean> = {};
+      this.months.forEach((month) => {
+        monthValues[month.value] = parsed.fields.month.includes(Number(month.value) as MonthRange);
+      });
+
+      const weekdayNumberToWeekday = new Map<DayOfTheWeekRange, string>([
+        [0, 'sun'],
+        [1, 'mon'],
+        [2, 'tue'],
+        [3, 'wed'],
+        [4, 'thu'],
+        [5, 'fri'],
+        [6, 'sat'],
+        [7, 'sun'], // Sunday can be expressed both as 0 and 7
+      ]);
+      const enabledWeekdays = parsed.fields.dayOfWeek.map((weekdayNumber) => {
+        return weekdayNumberToWeekday.get(weekdayNumber);
+      });
+      const weekdayValues: Record<string, boolean> = {};
+      this.weekdays.forEach((weekday) => {
+        weekdayValues[weekday.value] = enabledWeekdays.includes(weekday.value as string);
+      });
+
+      this.form.patchValue({
+        months: monthValues,
+        weekdays: weekdayValues,
+      });
+    } catch (error: unknown) {
+      console.error(error);
+    }
+  }
+
+  private getCrontabFromForm(): string {
+    const {
+      minutes, hours, days, months,
+    } = this.form.value;
+
+    const selectedMonths = Object.entries(months)
+      .filter(([, isSelected]) => isSelected)
+      .map(([month]) => month);
+    const areAllMonthsSelected = selectedMonths.length === 0 || selectedMonths.length === 12;
+    const monthsPart = areAllMonthsSelected ? '*' : selectedMonths.join(',');
+
+    const weekdaysPart = this.areAllWeekdaysSelected ? '*' : this.selectedWeekdays.join(',');
+
+    return [minutes, hours, days, monthsPart, weekdaysPart].join(' ');
+  }
+
+  private get selectedWeekdays(): string[] {
+    return Object.entries(this.form.value.weekdays)
+      .filter(([, isSelected]) => isSelected)
+      .map(([weekday]) => weekday);
+  }
+
+  private get areAllWeekdaysSelected(): boolean {
+    return this.selectedWeekdays.length === 0 || this.selectedWeekdays.length === 7;
+  }
+
+  private updatePresetToMatchCrontab(): void {
+    const matchingPreset = this.presets.some((preset) => {
+      return preset.value === this.crontab;
+    });
+
+    this.form.patchValue({ preset: matchingPreset ? this.crontab : '' }, { emitEvent: false });
+  }
+}

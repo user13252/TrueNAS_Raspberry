@@ -1,0 +1,32 @@
+import { ChangeDetectionStrategy, Component, computed, input, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnCardComponent, TnIconComponent, TnTestIdDirective } from '@truenas/ui-components';
+import { helptextAbout } from 'app/helptext/about';
+import { CopyrightLineComponent } from 'app/modules/layout/copyright-line/copyright-line.component';
+import { SlotSize } from 'app/pages/dashboard/types/widget.interface';
+import { AppState } from 'app/store';
+import { selectIsEnterprise } from 'app/store/system-info/system-info.selectors';
+
+@Component({
+  selector: 'ix-widget-help',
+  templateUrl: './widget-help.component.html',
+  styleUrl: './widget-help.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnCardComponent,
+    TnTestIdDirective,
+    TnIconComponent,
+    CopyrightLineComponent,
+    TranslateModule,
+  ],
+})
+export class WidgetHelpComponent {
+  private store$ = inject<Store<AppState>>(Store);
+
+  readonly size = input.required<SlotSize>();
+  readonly isEnterprise = toSignal(this.store$.select(selectIsEnterprise));
+  readonly fullSize = computed(() => this.size() === SlotSize.Full);
+  protected readonly helptext = helptextAbout;
+}

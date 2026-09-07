@@ -1,0 +1,75 @@
+:host {
+  display: block;
+  max-width: 100%;
+}
+
+.job-item {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  padding: 8px 12px;
+  place-content: center space-between;
+
+  &.abortable .job-item-body {
+    max-width: calc(100% - 48px);
+  }
+
+  .job-item-body {
+    flex: 1;
+    max-width: 100%;
+
+    .job-description {
+      white-space: pre-line;
+      word-break: break-word;
+    }
+  }
+
+  &.interactive {
+    &:hover {
+      background: var(--hover-bg);
+      cursor: pointer;
+    }
+
+    &:focus,
+    &:active {
+      background: var(--hover-bg);
+    }
+  }
+}
+
+.description-line {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.job-progress {
+  margin: 3px 0;
+}
+
+.job-progress-description {
+  display: block;
+  max-width: 100%;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+.job-time,
+.job-credentials {
+  opacity: 0.5;
+}
+
+.job-icon-failed {
+  color: var(--red);
+}
+
+.job-icon-waiting {
+  color: var(--accent);
+}
+
+.job-icon-success {
+  color: var(--green);
+}

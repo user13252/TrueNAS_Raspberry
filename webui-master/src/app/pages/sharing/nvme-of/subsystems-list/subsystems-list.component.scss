@@ -1,0 +1,28 @@
+@import 'scss-imports/variables';
+
+:host ::ng-deep .view-details-column {
+  align-items: center;
+  display: flex;
+  height: inherit;
+  justify-content: flex-end;
+
+  @media (min-width: calc($breakpoint-tablet + 1px)) {
+    display: none;
+  }
+}
+
+// TEMP: until @truenas/ui-components rounds the table-over-pager combo itself
+// (library follow-up owed under Epic NAS-141021 — table+pager flush-corner mode).
+// Square the table's bottom corners so it meets the pager flush, and round the
+// pager's bottom corners — together they read as one block with an 8px rounded edge.
+:host ::ng-deep {
+  tn-table .tn-table__table {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  tn-table-pager {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+  }
+}

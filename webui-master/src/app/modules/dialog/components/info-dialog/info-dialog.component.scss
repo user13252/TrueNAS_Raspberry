@@ -1,0 +1,57 @@
+:host {
+  display: block;
+  min-width: 330px;
+  max-width: 480px;
+
+  // The empty shell header is collapsed globally via the
+  // `ix-info-dialog .tn-dialog__header` rule in _tn-styles.scss — the
+  // component-scoped ::ng-deep did not pierce into tn-dialog-shell reliably.
+}
+
+.info-panel {
+  border: 0;
+  max-height: 65vh;
+  overflow: hidden;
+  padding: 0;
+  transition: max-height 0.5s linear;
+
+  span {
+    display: block;
+    font-family: var(--font-family-monospace);
+    unicode-bidi: embed;
+    white-space: pre-line;
+  }
+
+  .textarea {
+    background: var(--contrast-darker);
+    border: 1px solid var(--lines);
+    color: var(--fg2);
+    height: 100%;
+    min-height: 100px;
+    overflow: auto;
+    padding: 1rem;
+  }
+}
+
+.ip-overflow-auto {
+  overflow: auto !important;
+}
+
+h1 {
+  align-items: center;
+  display: flex;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.information-icon {
+  align-items: center;
+  display: flex;
+  margin-right: 5px;
+}
+
+.information-title {
+  align-items: center;
+  display: flex;
+}

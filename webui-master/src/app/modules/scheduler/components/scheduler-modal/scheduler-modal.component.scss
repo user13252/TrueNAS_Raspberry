@@ -1,0 +1,116 @@
+// TEMP (NAS-141021): TnDialog's global `.tn-dialog-panel > .cdk-dialog-container > :first-child` rule
+// forces the projected modal host to `flex-direction: column`; this two-column scheduler (settings +
+// preview) needs a row. Scoped to our own `.scheduler-modal` panelClass so it only affects this dialog.
+// Remove if the modal adopts `tn-dialog-shell` or the library stops forcing the column direction.
+::ng-deep .scheduler-modal.tn-dialog-panel > .cdk-dialog-container > ix-scheduler-modal {
+  flex-direction: row;
+}
+
+:host {
+  display: flex;
+}
+
+.settings-column {
+  flex: 1 1 auto;
+  margin-bottom: 10px;
+  margin-top: 19px;
+  min-width: 0;
+
+  form {
+    padding: 4px 20px 8px;
+  }
+
+  .no-spaces-hint {
+    color: var(--fg2);
+    font-size: 85%;
+    margin-bottom: 10px;
+  }
+
+  section {
+    border-bottom: 1px solid var(--lines);
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+
+    h4 {
+      margin-bottom: 8px;
+    }
+
+    // No trailing divider directly above the Done action.
+    &:last-of-type {
+      border-bottom: 0;
+      margin-bottom: 8px;
+    }
+  }
+
+  .input {
+    display: block;
+    margin-bottom: 20px;
+
+    &:last-of-type {
+      margin-bottom: 0;
+    }
+  }
+
+  .months {
+    display: grid;
+    gap: 8px 10px;
+    grid-template-columns: repeat(4, 1fr);
+    margin-top: 4px;
+  }
+
+  .weekdays {
+    display: grid;
+    gap: 8px 10px;
+    grid-template-columns: repeat(4, 1fr);
+    margin-bottom: 4px;
+    margin-top: 4px;
+  }
+
+  .form-actions {
+    display: flex;
+    justify-content: center;
+    padding-top: 4px;
+  }
+
+  .input.days-of-month-input {
+    margin-bottom: 0;
+  }
+
+  .or-condition-explanation {
+    align-items: center;
+    display: flex;
+    margin-bottom: 3px;
+    padding: 0 3px;
+
+    .line {
+      border-top: 1px solid var(--lines);
+      flex-grow: 1;
+    }
+
+    .or-label {
+      background-color: var(--bg2);
+      display: flex;
+      justify-items: center;
+      padding-left: 13px;
+      padding-right: 12px;
+
+      ix-tooltip {
+        margin-left: 4px;
+      }
+    }
+  }
+
+  .days-of-week-header {
+    color: var(--fg2);
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-bottom: 0;
+    margin-top: 12px;
+  }
+}
+
+.settings-column,
+ix-scheduler-preview-column {
+  max-height: 90vh;
+  overflow: hidden auto;
+}

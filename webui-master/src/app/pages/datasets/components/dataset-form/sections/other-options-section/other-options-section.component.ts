@@ -1,0 +1,582 @@
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, input, OnChanges, OnInit, output, signal, inject } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  InputType,
+  TnFormFieldComponent,
+  TnFormSectionComponent,
+  TnInputComponent,
+  TnSelectComponent,
+} from '@truenas/ui-components';
+import {
+  combineLatest, Observable, of, take,
+} from 'rxjs';
+import { startWith } from 'rxjs/operators';
+import {
+  specialVdevDefaultThreshold,
+  specialVdevMaxThreshold,
+  specialVdevMinThreshold,
+} from 'app/constants/dataset.constants';
+import { AclMode, aclModeLabels } from 'app/enums/acl-type.enum';
+import {
+  DatasetAclType,
+  DatasetCaseSensitivity,
+  datasetCaseSensitivityLabels,
+  DatasetChecksum,
+  DatasetPreset,
+  DatasetRecordSize,
+  DatasetSnapdev,
+  datasetSnapdevLabels,
+  DatasetSnapdir,
+  datasetSnapdirLabels,
+  DatasetSync,
+  datasetSyncLabels,
+} from 'app/enums/dataset.enum';
+import { DeduplicationSetting, deduplicationSettingLabels } from 'app/enums/deduplication-setting.enum';
+import { OnOff, onOffLabels } from 'app/enums/on-off.enum';
+import { inherit, WithInherit } from 'app/enums/with-inherit.enum';
+import { ZfsPropertySource } from 'app/enums/zfs-property-source.enum';
+import { choicesToOptions, singleArrayToOptions } from 'app/helpers/operators/options.operators';
+import { mapToOptions } from 'app/helpers/options.helper';
+import { helptextDatasetForm } from 'app/helptext/storage/volumes/datasets/dataset-form';
+import { Dataset, DatasetCreate, DatasetUpdate } from 'app/interfaces/dataset.interface';
+import { Option } from 'app/interfaces/option.interface';
+import { IxSimpleChanges } from 'app/interfaces/simple-changes.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { WarningComponent } from 'app/modules/forms/ix-forms/components/warning/warning.component';
+import { IxFormatterService } from 'app/modules/forms/ix-forms/services/ix-formatter.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { DatasetFormService } from 'app/pages/datasets/components/dataset-form/utils/dataset-form.service';
+import { getFieldValue } from 'app/pages/datasets/components/dataset-form/utils/zfs-property.utils';
+import { getUserProperty, transformSpecialSmallBlockSizeForPayload } from 'app/pages/datasets/utils/dataset.utils';
+import { SharingTierService } from 'app/pages/sharing/components/sharing-tier.service';
+import { LicenseService } from 'app/services/license.service';
+import { SystemGeneralService } from 'app/services/system-general.service';
+
+@Component({
+  selector: 'ix-other-options-section',
+  styleUrls: ['./other-options-section.component.scss'],
+  templateUrl: './other-options-section.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TranslateModule,
+    ReactiveFormsModule,
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TnSelectComponent,
+    WarningComponent,
+    AsyncPipe,
+  ],
+})
+export class OtherOptionsSectionComponent implements OnInit, OnChanges {
+  private formBuilder = inject(NonNullableFormBuilder);
+  private translate = inject(TranslateService);
+  private licenseService = inject(LicenseService);
+  private cdr = inject(ChangeDetectorRef);
+  private systemGeneralService = inject(SystemGeneralService);
+  private dialogService = inject(DialogService);
+  private formatter = inject(IxFormatterService);
+  private api = inject(ApiService);
+  private datasetFormService = inject(DatasetFormService);
+  private tierService = inject(SharingTierService);
+  private destroyRef = inject(DestroyRef);
+
+  protected tierEnabled = signal(false);
+
+  readonly parent = input<Dataset>();
+  readonly existing = input<Dataset>();
+  readonly datasetPreset = input<DatasetPreset>();
+  readonly advancedMode = input<boolean>();
+
+  readonly advancedModeChange = output();
+  readonly formValidityChange = output<boolean>();
+
+  protected readonly hasDeduplication = toSignal(this.licenseService.hasDedup$, { initialValue: false });
+  hasRecordsizeWarning = false;
+  wasDedupChecksumWarningShown = false;
+  minimumRecommendedRecordsize = '128K' as DatasetRecordSize;
+
+  readonly form = this.formBuilder.group({
+    comments: [''],
+    sync: [inherit as WithInherit<DatasetSync>],
+    compression: [inherit as WithInherit<string>],
+    atime: [inherit as WithInherit<OnOff>],
+    deduplication: [inherit as WithInherit<DeduplicationSetting>],
+    checksum: [inherit as WithInherit<DatasetChecksum>],
+    readonly: [inherit as WithInherit<OnOff>],
+    exec: [inherit as WithInherit<OnOff>],
+    snapdir: [inherit as WithInherit<DatasetSnapdir>],
+    snapdev: [inherit as WithInherit<DatasetSnapdev>],
+    copies: [inherit as WithInherit<number>],
+    recordsize: [inherit as string],
+    acltype: [DatasetAclType.Inherit as DatasetAclType],
+    aclmode: [AclMode.Inherit as AclMode],
+    casesensitivity: [DatasetCaseSensitivity.Sensitive as DatasetCaseSensitivity],
+    special_small_block_size: [inherit as WithInherit<OnOff>],
+    special_small_block_size_custom: [null as number | null],
+  });
+
+  syncOptions$: Observable<Option[]>;
+  compressionOptions$: Observable<Option[]>;
+  atimeOptions$: Observable<Option[]>;
+  deduplicationOptions$: Observable<Option[]>;
+  checksumOptions$: Observable<Option[]>;
+  readonlyOptions$: Observable<Option[]>;
+  execOptions$: Observable<Option[]>;
+  snapdirOptions$: Observable<Option[]>;
+  snapdevOptions$: Observable<Option[]>;
+  copiesOptions$: Observable<Option[]>;
+
+  recordsizeOptions$: Observable<Option[]>;
+  caseSensitivityOptions$ = of(mapToOptions(datasetCaseSensitivityLabels, this.translate));
+  aclTypeOptions$ = of([
+    { label: this.translate.instant('Inherit'), value: DatasetAclType.Inherit },
+    { label: this.translate.instant('Off'), value: DatasetAclType.Off },
+    { label: this.translate.instant('SMB/NFSv4'), value: DatasetAclType.Nfsv4 },
+    { label: this.translate.instant('POSIX'), value: DatasetAclType.Posix },
+  ]);
+
+  aclModeOptions$ = of(mapToOptions(aclModeLabels, this.translate));
+  specialSmallBlockSizeOptions$: Observable<Option[]>;
+
+  private readonly defaultSyncOptions$ = of(mapToOptions(datasetSyncLabels, this.translate));
+  private readonly defaultSpecialSmallBlockSizeOptions$ = of([
+    { label: this.translate.instant('On'), value: OnOff.On },
+    { label: this.translate.instant('Off'), value: OnOff.Off },
+  ]);
+
+  private readonly defaultCompressionOptions$ = this.api.call('pool.dataset.compression_choices').pipe(choicesToOptions());
+  private readonly defaultAtimeOptions$ = of(mapToOptions(onOffLabels, this.translate));
+  private defaultDeduplicationOptions$ = of(mapToOptions(deduplicationSettingLabels, this.translate));
+  private defaultChecksumOptions$ = this.api.call('pool.dataset.checksum_choices').pipe(
+    choicesToOptions(),
+  );
+
+  private onOffOptions$ = of(mapToOptions(onOffLabels, this.translate));
+  private defaultSnapdirOptions$ = of(mapToOptions(datasetSnapdirLabels, this.translate));
+  private defaultSnapdevOptions$ = of(mapToOptions(datasetSnapdevLabels, this.translate));
+  private defaultCopiesOptions$ = of([
+    { label: '1', value: 1 },
+    { label: '2', value: 2 },
+    { label: '3', value: 3 },
+  ]);
+
+  private defaultRecordSizeOptions$ = this.api.call('pool.dataset.recordsize_choices').pipe(
+    singleArrayToOptions(),
+  );
+
+  readonly helptext = helptextDatasetForm;
+  readonly OnOff = OnOff;
+  protected readonly InputType = InputType;
+
+  get hasChecksumWarning(): boolean {
+    return this.form.value.checksum === DatasetChecksum.Sha256
+      && this.form.value.deduplication !== DeduplicationSetting.Off;
+  }
+
+  ngOnChanges(changes: IxSimpleChanges<this>): void {
+    if (changes.datasetPreset?.currentValue) {
+      this.setUpDatasetPresetSelect();
+    }
+
+    if (!changes.existing?.currentValue && !changes.parent?.currentValue) {
+      return;
+    }
+
+    this.setUpRecordsizeWarning();
+    this.setSelectOptions();
+
+    this.setFormValues();
+
+    this.checkDedupChecksum();
+    this.setUpDedupWarning();
+    this.setUpAclTypeWarning();
+    this.updateAclMode();
+    this.disableCaseSensitivityOnEdit();
+    this.listenForSyncChanges();
+  }
+
+  ngOnInit(): void {
+    this.tierService.getTierConfig().pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((config) => {
+      this.tierEnabled.set(config.enabled);
+    });
+
+    this.form.controls.acltype.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.updateAclMode();
+    });
+
+    this.form.controls.special_small_block_size.valueChanges.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((value) => {
+      const customControl = this.form.controls.special_small_block_size_custom;
+      if (value === OnOff.On) {
+        customControl.setValidators([
+          Validators.min(specialVdevMinThreshold),
+          Validators.max(specialVdevMaxThreshold),
+        ]);
+        // Set default threshold if not already set
+        if (!customControl.value) {
+          customControl.setValue(specialVdevDefaultThreshold);
+        }
+      } else {
+        customControl.clearValidators();
+      }
+      customControl.updateValueAndValidity();
+    });
+
+    this.form.statusChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((status) => {
+      this.formValidityChange.emit(status === 'VALID');
+    });
+  }
+
+  getPayload(): Partial<DatasetCreate> | Partial<DatasetUpdate> {
+    const values = this.form.value;
+
+    const payload = {
+      ...values,
+      checksum: values.checksum as DatasetChecksum,
+      copies: values.copies ?? inherit,
+      snapdir: values.snapdir ?? inherit,
+    } as Record<string, unknown>;
+
+    if (this.tierEnabled()) {
+      delete payload.special_small_block_size;
+      delete payload.special_small_block_size_custom;
+    } else {
+      // Handle special_small_block_size transformation
+      payload.special_small_block_size = transformSpecialSmallBlockSizeForPayload(
+        values.special_small_block_size,
+        values.special_small_block_size_custom,
+      );
+
+      // Remove UI-only field
+      delete payload.special_small_block_size_custom;
+    }
+
+    if (values.acltype && [DatasetAclType.Posix, DatasetAclType.Off].includes(values.acltype)) {
+      payload.aclmode = AclMode.Discard;
+    } else if (values.acltype === DatasetAclType.Inherit) {
+      payload.aclmode = AclMode.Inherit;
+    }
+
+    return payload as Partial<DatasetCreate> | Partial<DatasetUpdate>;
+  }
+
+  private getCopiesValue(dataset: Dataset): number | typeof inherit {
+    if (!this.parent()) {
+      return Number(dataset.copies.value);
+    }
+
+    // Check if inherited or default
+    if ([ZfsPropertySource.Default, ZfsPropertySource.Inherited].includes(dataset.copies.source)) {
+      return inherit;
+    }
+
+    // Return the parsed numeric value for LOCAL source
+    return dataset.copies.parsed;
+  }
+
+  private setFormValues(): void {
+    const existing = this.existing();
+    if (!existing) {
+      return;
+    }
+
+    // Check if special_small_block_size is inherited or locally set
+    const isInherited = !existing.special_small_block_size
+      || existing.special_small_block_size.source === ZfsPropertySource.Inherited
+      || existing.special_small_block_size.source === ZfsPropertySource.Default;
+
+    let specialSmallBlockSizeValue: WithInherit<OnOff> = inherit;
+    let customValue: number | null = null;
+
+    if (!isInherited && existing.special_small_block_size) {
+      const sizeInBytes = this.formatter.convertHumanStringToNum(existing.special_small_block_size.value);
+
+      if (sizeInBytes === 0) {
+        // 0 means OFF (disabled)
+        specialSmallBlockSizeValue = OnOff.Off;
+      } else if (sizeInBytes > 0) {
+        // Any value > 0 means ON
+        specialSmallBlockSizeValue = OnOff.On;
+        customValue = sizeInBytes;
+      }
+    }
+
+    const comments = getUserProperty<string>(existing, 'comments');
+    this.form.patchValue({
+      comments: comments?.source === ZfsPropertySource.Local ? comments.value : '',
+      sync: getFieldValue(existing.sync, this.parent()),
+      compression: getFieldValue(existing.compression, this.parent()),
+      atime: getFieldValue(existing.atime, this.parent()),
+      deduplication: getFieldValue(existing.deduplication, this.parent()),
+      checksum: getFieldValue(existing.checksum, this.parent()),
+      readonly: getFieldValue(existing.readonly, this.parent()),
+      exec: getFieldValue(existing.exec, this.parent()),
+      recordsize: getFieldValue(existing.recordsize, this.parent()),
+      snapdir: getFieldValue(existing.snapdir, this.parent()),
+      snapdev: getFieldValue(existing.snapdev, this.parent()),
+      copies: this.getCopiesValue(existing),
+      acltype: getFieldValue(existing.acltype, this.parent()) as DatasetAclType,
+      aclmode: getFieldValue(existing.aclmode, this.parent()) as AclMode,
+      casesensitivity: existing.casesensitivity?.value,
+      special_small_block_size: specialSmallBlockSizeValue,
+      special_small_block_size_custom: customValue,
+    });
+  }
+
+  private updateAclMode(): void {
+    const aclModeControl = this.form.controls.aclmode;
+    const aclTypeControl = this.form.controls.acltype;
+
+    const invalidPosixOrOffAclType = (aclTypeControl.value === DatasetAclType.Posix
+      || aclTypeControl.value === DatasetAclType.Off) && aclModeControl.value !== AclMode.Discard;
+
+    const invalidInheritAclType = aclTypeControl.value === DatasetAclType.Inherit
+      && aclModeControl.value !== AclMode.Inherit;
+
+    if (!!this.existing() && (invalidPosixOrOffAclType || invalidInheritAclType) && !aclTypeControl.touched) {
+      return;
+    }
+
+    if (!this.parent()) {
+      aclModeControl.disable({ emitEvent: false });
+      aclTypeControl.disable({ emitEvent: false });
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
+    switch (aclTypeControl.value) {
+      case DatasetAclType.Nfsv4:
+        if (!this.existing()) {
+          aclModeControl.setValue(AclMode.Passthrough);
+        }
+        aclModeControl.enable();
+        break;
+      case DatasetAclType.Posix:
+      case DatasetAclType.Off:
+        aclModeControl.setValue(AclMode.Discard);
+        aclModeControl.disable();
+        break;
+      case DatasetAclType.Inherit:
+        aclModeControl.setValue(AclMode.Inherit);
+        aclModeControl.disable();
+        break;
+    }
+  }
+
+  private setSelectOptions(): void {
+    const parent = this.parent();
+    if (!parent) {
+      this.syncOptions$ = this.defaultSyncOptions$;
+      this.compressionOptions$ = this.defaultCompressionOptions$;
+      this.atimeOptions$ = this.defaultAtimeOptions$;
+      this.deduplicationOptions$ = this.defaultDeduplicationOptions$;
+      this.checksumOptions$ = this.defaultChecksumOptions$;
+      this.readonlyOptions$ = this.onOffOptions$;
+      this.execOptions$ = this.onOffOptions$;
+      this.snapdirOptions$ = this.defaultSnapdirOptions$;
+      this.snapdevOptions$ = this.defaultSnapdevOptions$;
+      this.copiesOptions$ = this.defaultCopiesOptions$;
+      this.recordsizeOptions$ = this.defaultRecordSizeOptions$;
+      this.specialSmallBlockSizeOptions$ = this.defaultSpecialSmallBlockSizeOptions$;
+
+      return;
+    }
+
+    this.syncOptions$ = this.defaultSyncOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.sync.value),
+    );
+    this.compressionOptions$ = this.defaultCompressionOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.compression.value),
+    );
+    this.atimeOptions$ = this.defaultAtimeOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.atime.value),
+    );
+    this.deduplicationOptions$ = this.defaultDeduplicationOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.deduplication.value),
+    );
+    this.checksumOptions$ = this.defaultChecksumOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.checksum.value),
+    );
+    this.readonlyOptions$ = this.onOffOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.readonly.value),
+    );
+    this.execOptions$ = this.onOffOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.exec.value),
+    );
+    this.snapdirOptions$ = this.defaultSnapdirOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.snapdir.value),
+    );
+    this.snapdevOptions$ = this.defaultSnapdevOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.snapdev.value),
+    );
+    this.copiesOptions$ = this.defaultCopiesOptions$.pipe(
+      this.datasetFormService.addInheritOption(String(parent.copies.value)),
+    );
+
+    this.recordsizeOptions$ = this.defaultRecordSizeOptions$.pipe(
+      this.datasetFormService.addInheritOption(
+        parent.recordsize.value,
+      ),
+    );
+
+    this.specialSmallBlockSizeOptions$ = this.defaultSpecialSmallBlockSizeOptions$.pipe(
+      this.datasetFormService.addInheritOption(parent.special_small_block_size?.value || 'off'),
+    );
+  }
+
+  private setUpDatasetPresetSelect(): void {
+    if (!this.datasetPreset() || this.existing()) {
+      return;
+    }
+
+    if (this.datasetPreset() === DatasetPreset.Smb) {
+      this.form.patchValue({
+        aclmode: AclMode.Restricted,
+        casesensitivity: DatasetCaseSensitivity.Insensitive,
+      });
+      this.form.controls.aclmode.disable();
+      this.form.controls.casesensitivity.disable();
+    } else {
+      this.form.controls.aclmode.enable();
+      this.form.controls.casesensitivity.enable();
+
+      // Only apply the preset's defaults when the user hasn't explicitly chosen a value;
+      // otherwise a preset change would silently discard their selection.
+      if (!this.form.controls.aclmode.dirty) {
+        this.form.patchValue({ aclmode: AclMode.Passthrough });
+      }
+      if (!this.form.controls.casesensitivity.dirty) {
+        this.form.patchValue({ casesensitivity: DatasetCaseSensitivity.Sensitive });
+      }
+    }
+  }
+
+  private setUpDedupWarning(): void {
+    this.form.controls.deduplication.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((dedup) => {
+      if (!dedup || [DeduplicationSetting.Off, inherit].includes(dedup)) {
+        this.cdr.markForCheck();
+        return;
+      }
+
+      this.dialogService.confirm({
+        title: this.translate.instant('Warning'),
+        message: this.translate.instant(helptextDatasetForm.deduplicationWarning),
+        hideCheckbox: true,
+      })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((confirmed) => {
+          if (confirmed) {
+            this.checkDedupChecksum();
+          } else {
+            this.form.patchValue({
+              deduplication: inherit,
+            });
+          }
+        });
+    });
+  }
+
+  private checkDedupChecksum(): void {
+    const dedup = this.form.controls.deduplication.value;
+    if (!dedup || [DeduplicationSetting.Off, inherit].includes(dedup)) {
+      return;
+    }
+
+    const checksum = this.form.controls.checksum.value;
+    if (
+      this.wasDedupChecksumWarningShown
+      || !checksum
+      || checksum === DatasetChecksum.Sha512
+      || checksum !== DatasetChecksum.Sha256
+    ) {
+      return;
+    }
+
+    this.showDedupChecksumWarning();
+    this.form.patchValue({
+      checksum: DatasetChecksum.Sha512,
+    });
+  }
+
+  private setUpAclTypeWarning(): void {
+    this.form.controls.acltype.valueChanges
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.dialogService.warn(
+          this.translate.instant('ACL Types & ACL Modes'),
+          helptextDatasetForm.aclTypeChangeWarning,
+        );
+      });
+  }
+
+  private showDedupChecksumWarning(): void {
+    this.wasDedupChecksumWarningShown = true;
+    this.dialogService.confirm({
+      hideCancel: true,
+      title: this.translate.instant('Default Checksum Warning'),
+      hideCheckbox: true,
+      message: this.translate.instant(helptextDatasetForm.deduplicationChecksumWarning),
+      buttonText: this.translate.instant('OK'),
+    });
+  }
+
+  private disableCaseSensitivityOnEdit(): void {
+    if (!this.existing()) {
+      return;
+    }
+
+    this.form.controls.casesensitivity.disable();
+  }
+
+  private setUpRecordsizeWarning(): void {
+    const parent = this.parent();
+    if (!parent) {
+      return;
+    }
+
+    const root = parent.id.split('/')[0];
+    combineLatest([
+      this.form.controls.recordsize.valueChanges.pipe(startWith(this.form.controls.recordsize.value)),
+      this.api.call('pool.dataset.recommended_zvol_blocksize', [root]),
+    ])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(([recordsizeValue, recommendedAsString]) => {
+        const recordsizeAsString = recordsizeValue === '512' ? '512B' : recordsizeValue;
+        const recordsize = this.formatter.memorySizeParsing(recordsizeAsString);
+        const recommended = this.formatter.memorySizeParsing(recommendedAsString);
+
+        this.hasRecordsizeWarning = Boolean(recordsize
+          && !!recommended
+          && recordsizeAsString !== inherit
+          && recordsize < recommended);
+
+        this.minimumRecommendedRecordsize = recommendedAsString;
+
+        if (this.hasRecordsizeWarning) {
+          this.advancedModeChange.emit();
+        }
+        this.cdr.markForCheck();
+      });
+  }
+
+  private listenForSyncChanges(): void {
+    this.form.controls.sync.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((value) => {
+      if (value === DatasetSync.Disabled && this.form.controls.sync.dirty) {
+        this.dialogService.confirm({
+          title: this.translate.instant('Warning'),
+          message: this.translate.instant(helptextDatasetForm.disabledSyncWarning),
+          buttonText: this.translate.instant('Okay'),
+          hideCheckbox: true,
+          hideCancel: true,
+        });
+      }
+    });
+  }
+}

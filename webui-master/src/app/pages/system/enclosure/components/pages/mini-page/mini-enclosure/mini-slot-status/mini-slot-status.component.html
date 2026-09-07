@@ -1,0 +1,47 @@
+@if (slot().pool_info; as poolInfo) {
+  @if (poolInfo.vdev_type === vDevType.Spare || poolInfo.vdev_type?.includes('spare')) {
+    <tn-icon name="database-plus" library="mdi" class="status-icon status-spare"></tn-icon>
+  } @else {
+    @switch (poolInfo.disk_status) {
+        @case (EnclosureDiskStatus.Online) {
+          <tn-icon name="check-circle" library="mdi" class="status-icon status-online"></tn-icon>
+        }
+        @case (EnclosureDiskStatus.Faulted) {
+          <tn-icon name="alert-circle" library="mdi" class="status-icon status-faulted"></tn-icon>
+        }
+        @case (EnclosureDiskStatus.Degraded) {
+          <tn-icon name="alert-circle" library="mdi" class="status-icon status-degraded"></tn-icon>
+        }
+        @case (EnclosureDiskStatus.Unknown) {
+          <tn-icon name="help-circle" library="mdi" class="status-icon status-unknown"></tn-icon>
+        }
+        @case (EnclosureDiskStatus.Offline) {
+          <tn-icon name="minus-circle" library="mdi" class="status-icon status-offline"></tn-icon>
+        }
+        @case (EnclosureDiskStatus.Unavail) {
+          <tn-icon name="minus-circle" library="mdi" class="status-icon status-unavailable"></tn-icon>
+        }
+        @case (EnclosureDiskStatus.Removed) {
+          <tn-icon name="minus-circle" library="mdi" class="status-icon status-removed"></tn-icon>
+        }
+        @default {
+          <tn-icon name="check-circle" library="mdi" class="status-icon"></tn-icon>
+        }
+      }
+  }
+
+  @if (poolInfo.vdev_type === vDevType.Spare || poolInfo.vdev_type?.includes('spare')) {
+    {{ 'Spare' | translate }}
+  } @else {
+    {{ poolInfo.disk_status | mapValue: enclosureDiskStatusLabels | translate }}
+  }
+}
+@else {
+  <tn-icon
+    name="circle-outline"
+    library="mdi"
+    class="status-icon status-empty"
+  ></tn-icon>
+
+  {{ slot().dev ? ('Unassigned' | translate) : ('Empty' | translate) }}
+}

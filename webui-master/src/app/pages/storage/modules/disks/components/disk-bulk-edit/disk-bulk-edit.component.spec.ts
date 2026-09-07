@@ -1,0 +1,240 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { Spectator } from '@ngneat/spectator';
+import { createComponentFactory, mockProvider } from '@ngneat/spectator/jest';
+import { TnSelectHarness } from '@truenas/ui-components';
+import { of, throwError } from 'rxjs';
+import { fakeSuccessfulJob } from 'app/core/testing/utils/fake-job.utils';
+import { mockJob, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { DiskPowerLevel } from 'app/enums/disk-power-level.enum';
+import { DiskStandby } from 'app/enums/disk-standby.enum';
+import {
+  CoreBulkQuery,
+  CoreBulkResponse,
+} from 'app/interfaces/core-bulk.interface';
+import { Disk } from 'app/interfaces/disk.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { ixFormMinSubmitFeedbackMs } from 'app/modules/forms/ix-forms/components/ix-form/ix-form.component';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { ixFormTestingProviders } from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { DiskBulkEditComponent } from './disk-bulk-edit.component';
+
+const mockJobSuccessResponse = [
+  {
+    error: null,
+    result: true,
+  },
+  {
+    error: null,
+    result: true,
+  },
+] as CoreBulkResponse[];
+
+describe('DiskBulkEditComponent', () => {
+  let spectator: Spectator<DiskBulkEditComponent>;
+  let loader: HarnessLoader;
+  let api: ApiService;
+
+  const dataDisk1 = {
+    name: 'sda',
+    identifier: '{serial}VB76b9dd9d-4e5d8cf2',
+    hddstandby: DiskStandby.AlwaysOn,
+    advpowermgmt: DiskPowerLevel.Disabled,
+  } as Disk;
+  const dataDisk2 = {
+    name: 'sdc',
+    identifier: '{serial}VB5a315293-ea077d3d',
+    hddstandby: DiskStandby.Minutes10,
+    advpowermgmt: DiskPowerLevel.Level64,
+  } as Disk;
+
+  const createComponent = createComponentFactory({
+    component: DiskBulkEditComponent,
+    imports: [ReactiveFormsModule],
+    providers: [
+      mockAuth(),
+      ...ixFormTestingProviders(),
+      // The side-panel host otherwise holds a successful submit for the
+      // minimum-feedback window before emitting `closed`.
+      { provide: ixFormMinSubmitFeedbackMs, useValue: 0 },
+      mockProvider(DialogService),
+      mockApi([
+        mockJob('core.bulk', fakeSuccessfulJob(mockJobSuccessResponse)),
+      ]),
+    ],
+  });
+
+  function getSelect(controlName: string): Promise<TnSelectHarness> {
+    return loader.getHarness(TnSelectHarness.with({ selector: `[formControlName="${controlName}"]` }));
+  }
+
+  async function fillSettings(): Promise<void> {
+    await (await getSelect('hddstandby')).selectOption('10');
+    await (await getSelect('advpowermgmt')).selectOption('Level 64 - Intermediate power usage with Standby');
+  }
+
+  beforeEach(() => {
+    spectator = createComponent({ props: { disksToEdit: [dataDisk1, dataDisk2] } });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    api = spectator.inject(ApiService);
+  });
+
+  it('sets disks settings when form is opened', async () => {
+    // the two disks disagree on both settings, so neither select is pre-filled
+    expect(await (await getSelect('hddstandby')).getDisplayText()).toBe('Select an option');
+    expect(await (await getSelect('advpowermgmt')).getDisplayText()).toBe('Select an option');
+
+    const diskNames = spectator.queryAll('[role="listitem"]').map((item) => item.textContent.trim());
+    expect(diskNames).toEqual(['sda', 'sdc']);
+  });
+
+  it('updates selected disks when form is submitted', async () => {
+    await fillSettings();
+
+    spectator.component.submit();
+
+    const req: CoreBulkQuery = [
+      'disk.update',
+      [
+        [
+          '{serial}VB76b9dd9d-4e5d8cf2',
+          {
+            advpowermgmt: '64',
+            hddstandby: '10',
+          },
+        ],
+        [
+          '{serial}VB5a315293-ea077d3d',
+          {
+            advpowermgmt: '64',
+            hddstandby: '10',
+          },
+        ],
+      ],
+    ];
+
+    expect(api.job).toHaveBeenCalledWith('core.bulk', req);
+    expect(spectator.inject(SnackbarService).success).toHaveBeenCalled();
+  });
+
+  it('emits the disk updates through closed so the opener can reconcile its rows', async () => {
+    const closed = jest.fn();
+    spectator.component.closed.subscribe(closed);
+
+    await fillSettings();
+    spectator.component.submit();
+
+    expect(closed).toHaveBeenCalledWith([
+      { identifier: '{serial}VB76b9dd9d-4e5d8cf2', advpowermgmt: '64', hddstandby: '10' },
+      { identifier: '{serial}VB5a315293-ea077d3d', advpowermgmt: '64', hddstandby: '10' },
+    ]);
+  });
+
+  function mockPartialFailure(): void {
+    jest.spyOn(api, 'job').mockImplementation((job) => {
+      if (job === 'core.bulk') {
+        return of(
+          fakeSuccessfulJob([
+            // first one did not succeed, but the second one did;
+            // this should pop an error dialog up to the user.
+            { error: 'mock error', result: false },
+            { error: null, result: true },
+          ]),
+        );
+      }
+
+      return of(fakeSuccessfulJob(mockJobSuccessResponse));
+    });
+  }
+
+  it('opens an error dialog if not all jobs are successful', async () => {
+    const dialogService = spectator.inject(DialogService);
+    mockPartialFailure();
+
+    await fillSettings();
+    spectator.component.submit();
+
+    expect(api.job).toHaveBeenCalledWith('core.bulk', expect.anything());
+    expect(dialogService.error).toHaveBeenCalledWith([
+      { title: expect.any(String), message: 'mock error' },
+    ]);
+    // The partial failure resolves through the success path (so the panel closes and the
+    // opener reloads), but the "Successfully saved" snackbar is withheld beside the dialog.
+    expect(spectator.inject(SnackbarService).success).not.toHaveBeenCalled();
+    expect(spectator.component.isBusy()).toBe(false);
+  });
+
+  it('reports every distinct failure reason in one dialog', async () => {
+    const dialogService = spectator.inject(DialogService);
+    jest.spyOn(api, 'job').mockReturnValue(of(fakeSuccessfulJob([
+      { error: 'disk is busy', result: false },
+      { error: 'disk is gone', result: false },
+      { error: 'disk is busy', result: false },
+    ])));
+
+    await fillSettings();
+    spectator.component.submit();
+
+    // One dialog for the whole bulk (a dialog per failed disk was a storm), but every distinct
+    // reason survives — reporting only the first would hide the second disk's failure entirely.
+    expect(dialogService.error).toHaveBeenCalledTimes(1);
+    expect(dialogService.error).toHaveBeenCalledWith([
+      { title: expect.any(String), message: 'disk is busy' },
+      { title: expect.any(String), message: 'disk is gone' },
+    ]);
+  });
+
+  it('emits only the disks that did succeed when the bulk job partially fails', async () => {
+    const closed = jest.fn();
+    spectator.component.closed.subscribe(closed);
+    mockPartialFailure();
+
+    await fillSettings();
+    spectator.component.submit();
+
+    // core.bulk is not transactional, so the second disk was updated even though the first
+    // failed — the opener has to hear about it to refresh that row.
+    expect(closed).toHaveBeenCalledWith([
+      { identifier: '{serial}VB5a315293-ea077d3d', advpowermgmt: '64', hddstandby: '10' },
+    ]);
+    // Full and partial saves share one close path, so the opener can never see two emissions.
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes the host contract the side panel Save is bound to', async () => {
+    // The panel footer owns Save and drives it through these, so cover them here — the spec
+    // itself submits via `submit()` for the same reason.
+    expect(spectator.component.canSubmit()).toBe(true);
+    expect(spectator.component.hasUnsavedChanges()).toBe(false);
+
+    await fillSettings();
+
+    expect(spectator.component.canSubmit()).toBe(true);
+    expect(spectator.component.hasUnsavedChanges()).toBe(true);
+  });
+
+  it('handles validation errors on exception', async () => {
+    const errorHandler = spectator.inject(FormErrorHandlerService);
+    const jobSpy = jest.spyOn(api, 'job');
+
+    jobSpy.mockImplementation((job) => {
+      if (job === 'core.bulk') {
+        // fake an exception being thrown - no reason to actually mock a response
+        // since we're just counting on `handleValidationErrors` to be called
+        return throwError(() => new Error());
+      }
+
+      return of(fakeSuccessfulJob(mockJobSuccessResponse));
+    });
+
+    await fillSettings();
+    spectator.component.submit();
+
+    expect(api.job).toHaveBeenCalledWith('core.bulk', expect.anything());
+    expect(errorHandler.handleValidationErrors).toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,59 @@
+name: Claude Review
+
+# Calls the shared review workflow in iXsystems/ux-github-workflows, which is
+# where the schema, the severity rubric and the gate script live. Only the
+# trigger below and the secret name are this repo's.
+#
+# It posts inline comments plus one edited-in-place summary, and fails the job
+# at MEDIUM and above. Whether that stops a merge is branch protection, which
+# is set here rather than there.
+#
+# `.claude/review-prompt.md` in this repo is what it reads, and the shared
+# severity rubric is appended after it — so that file says what to look for in
+# *this* code and nothing about grading.
+#
+# Reports as `review / <job names in ux-github-workflows>` — two checks, since
+# the shared workflow runs the write-access gate as a job of its own. The job id
+# below stays `review`, but it stops being a normal job, so adopting this
+# renames the checks now: the single `review` is gone, as is `check-ux-team /
+# Check UX Team Membership`. Any rule or merge-queue config requiring either has
+# to be updated as this merges, not eventually.
+#
+# Branch protection matches those whole strings, so the shared workflow's job
+# names are API from here on: renaming one there silently stops the check
+# reporting. Either way a required check that never reports does not fail, it
+# stays pending — the PR is unmergeable with nothing red on it to explain why.
+# Same caveat, same wording, as `check-ticket.yml` in this repo.
+#
+# The trigger stays here rather than moving upstream: a `workflow_call` has no
+# say in what triggers its caller, and both the `NAS-*` base branches and the
+# i18n ignore are specific to this repo.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - master
+      - 'NAS-*'
+    paths-ignore:
+      - 'src/assets/i18n/**'
+
+jobs:
+  review:
+    uses: iXsystems/ux-github-workflows/.github/workflows/claude-review.yml@master
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      id-token: write
+    secrets:
+      # Both are mapped on purpose, and the shared workflow prefers the token.
+      # `UX_CLAUDE_CODE_OAUTH_TOKEN` is an org secret granted per repository:
+      # where the grant is missing it resolves to the empty string rather than
+      # failing, so the API key below covers that case and this repo moves to
+      # subscription billing on its own once the grant lands. Drop the key line
+      # when API billing is retired, not before.
+      claude-code-oauth-token: ${{ secrets.UX_CLAUDE_CODE_OAUTH_TOKEN }}
+      # Named rather than inherited, because the repos call it different things
+      # — truenas-connect/ui calls the same secret CLAUDE_TOKEN.
+      anthropic-api-key: ${{ secrets.CLAUDE_API_KEY }}

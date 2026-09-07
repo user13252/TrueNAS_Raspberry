@@ -1,0 +1,14 @@
+<div class="relative">
+  @if (isLoading()) {
+    <tn-progress-bar mode="indeterminate"></tn-progress-bar>
+  }
+
+  <tn-button
+    testId="export"
+    color="default"
+    [disabled]="isLoading()"
+    [ariaLabel]="ariaLabel() || ('Export' | translate)"
+    [label]="'Export As {fileType}' | translate:{ fileType: displayFormat() || fileType().toUpperCase()}"
+    (onClick)="onExport()"
+  ></tn-button>
+</div>

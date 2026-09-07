@@ -1,0 +1,29 @@
+<tn-card
+  padding="small"
+  [title]="'ZFS Info' | translate"
+  [primaryAction]="extendAction()"
+  [secondaryAction]="removeAction()"
+  [headerMenu]="actionsMenu()"
+  [headerMenuTriggerTestId]="'zfs-actions'"
+>
+  <div>
+    @if (topologyParentItem()?.name) {
+      <div class="details-item">
+        <div class="label">{{ 'Parent' | translate }}:</div>
+        <div class="value">{{ topologyParentItem()?.name | uppercase }}</div>
+      </div>
+    }
+    <div class="details-item">
+      <div class="label">{{ 'Read Errors' | translate }}:</div>
+      <div class="value">{{ topologyItem().stats?.read_errors }}</div>
+    </div>
+    <div class="details-item">
+      <div class="label">{{ 'Write Errors' | translate }}:</div>
+      <div class="value">{{ topologyItem().stats?.write_errors }}</div>
+    </div>
+    <div class="details-item">
+      <div class="label">{{ 'Checksum Errors' | translate }}:</div>
+      <div class="value">{{ topologyItem().stats?.checksum_errors }}</div>
+    </div>
+  </div>
+</tn-card>

@@ -1,0 +1,41 @@
+<tn-dialog-shell testId="save-as-preset" [title]="'Save As Preset' | translate">
+<form [formGroup]="form" (submit)="onSubmit()">
+  <div>
+    <p>{{ 'Save current ACL entries as a preset for future use.' | translate }}</p>
+
+    <div class="exist-content">
+      <h4 class="label">{{ 'Existing presets' | translate }}:</h4>
+      <div class="presets">
+        @for (preset of presets; track preset.id) {
+          <div class="preset" [ngClass]="{ 'preset-disabled': !isCurrentAclType(preset.acltype) }">
+            <div class="preset-name">{{ preset.name }}</div>
+            <div class="preset-type">{{ preset.acltype }}</div>
+            @if (!preset.builtin) {
+              <tn-icon-button
+                testId="remove-preset"
+                class="preset-remove"
+                name="close-circle"
+                library="mdi"
+                [ariaLabel]="'Remove preset' | translate"
+                (onClick)="onRemovePreset(preset)"
+              ></tn-icon-button>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="save-content">
+      <h4 class="label">{{ 'Save ACL as preset' | translate }}:</h4>
+      <tn-form-field [label]="'Preset Name' | translate">
+        <tn-input testId="preset-name" formControlName="presetName"></tn-input>
+      </tn-form-field>
+    </div>
+  </div>
+</form>
+
+<ix-form-actions tnDialogAction class="form-actions">
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close()"></tn-button>
+  <tn-button color="primary" testId="save" [label]="'Save' | translate" [disabled]="form.invalid || isFormLoading()" (onClick)="onSubmit()"></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

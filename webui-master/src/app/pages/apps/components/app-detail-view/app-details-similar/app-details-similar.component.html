@@ -1,0 +1,23 @@
+<h2>{{ 'Similar Apps' | translate }}</h2>
+
+@if (isLoading()) {
+  <div class="similar-app-loaders">
+    <ngx-skeleton-loader class="similar-app-loader"></ngx-skeleton-loader>
+    <ngx-skeleton-loader class="similar-app-loader"></ngx-skeleton-loader>
+  </div>
+} @else if (loadingError()) {
+  <h4 class="no-similar">{{ 'Error when loading similar apps.' | translate }}</h4>
+} @else if (similarApps().length) {
+  <div class="similar-apps">
+    @for (app of similarApps(); track trackByAppId($index, app)) {
+      <a
+        [routerLink]="['/apps', 'available', app.train, app.name]"
+        [ixTest]="['open', app.train, app.name]"
+      >
+        <ix-app-card [app]="app"></ix-app-card>
+      </a>
+    }
+  </div>
+} @else {
+  <h4 class="no-similar">{{ 'No similar apps found.' | translate }}</h4>
+}

@@ -1,0 +1,48 @@
+@if (label() || tooltip()) {
+  <ix-label
+    [label]="label()"
+    [tooltip]="tooltip()"
+    [required]="required()"
+  ></ix-label>
+}
+
+<div
+  class="container-items"
+  cdkDropList
+  [style.minHeight]="minHeight()"
+  [style.maxHeight]="maxHeight()"
+  (cdkDropListDropped)="drop($event)"
+  >
+  <tn-list [attr.aria-label]="label()">
+    @for (item of items; track item.value) {
+      <tn-list-item cdkDrag>
+        <tn-icon
+          tnListIcon
+          name="drag-vertical"
+          library="mdi"
+          aria-hidden="true"
+        ></tn-icon>
+
+        <!--
+          tn-slide-toggle exposes no blur output (it reports touches only through its own
+          CVA, which is unused here), so the bubbling DOM event stands in for the
+          mat-slide-toggle `(blur)` this replaced. The toggle has a single focusable node,
+          so it still fires once, when focus leaves the row.
+        -->
+        <tn-slide-toggle
+          color="primary"
+          labelPosition="before"
+          [fullWidth]="true"
+          [label]="item.label | translate"
+          [checked]="isChecked(item.value)"
+          [disabled]="isDisabled"
+          [testId]="item.testId"
+          (change)="onCheckboxChanged(item.value)"
+          (focusout)="onTouch()"
+        ></tn-slide-toggle>
+      </tn-list-item>
+    }
+  </tn-list>
+</div>
+
+<ix-errors [control]="controlDirective.control" [label]="label()"></ix-errors>

@@ -1,0 +1,44 @@
+<div class="scan-in-progress">
+  <div class="scan-description">
+    <span class="scan-label">
+      {{ scanLabel() }}
+    </span>
+    {{ scan().percentage / 100 | percent: '1.2-2' }}
+  </div>
+
+  @if (scan().total_secs_left && !isScrubPaused()) {
+    <div class="time-left">
+      {{ timeLeftString() }}
+    </div>
+  }
+
+  <tn-progress-bar
+    class="progress"
+    [value]="scan().percentage"
+  ></tn-progress-bar>
+</div>
+
+@if (isScrub()) {
+  <ng-container *ixRequiresRoles="[Role.PoolScrubWrite]">
+    <div class="controls">
+      <tn-button
+        [testId]="'stop-scrub'"
+        [label]="'Stop Scrub' | translate"
+        (onClick)="onStopScrub()"
+      ></tn-button>
+      @if (isScrubPaused()) {
+        <tn-button
+          [testId]="'resume-scrub'"
+          [label]="'Resume Scrub' | translate"
+          (onClick)="onResumeScrub()"
+        ></tn-button>
+      } @else {
+        <tn-button
+          [testId]="'pause-scrub'"
+          [label]="'Pause Scrub' | translate"
+          (onClick)="onPauseScrub()"
+        ></tn-button>
+      }
+    </div>
+  </ng-container>
+}

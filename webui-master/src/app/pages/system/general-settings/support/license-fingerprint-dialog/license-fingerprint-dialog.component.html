@@ -1,0 +1,50 @@
+<tn-dialog-shell testId="license-fingerprint" [title]="'System Thumbprint' | translate">
+<div class="dialog-content">
+  @if (isLoading()) {
+    <div class="loading">
+      <tn-spinner [diameter]="36"></tn-spinner>
+      <span>{{ 'Loading thumbprint…' | translate }}</span>
+    </div>
+  } @else {
+    @if (fingerprintFields(); as fields) {
+      <dl class="fingerprint-fields">
+        @for (field of fields; track field.key) {
+          <div class="field">
+            <dt class="field-label">{{ field.label | translate }}</dt>
+            <dd class="field-value">
+              @if (field.values.length === 1) {
+                {{ field.values[0] }}
+              } @else {
+                <ul class="field-list">
+                  @for (item of field.values; track $index) {
+                    <li>{{ item }}</li>
+                  }
+                </ul>
+              }
+            </dd>
+          </div>
+        }
+      </dl>
+    } @else if (fingerprintFallback()) {
+      <pre class="fingerprint-raw">{{ fingerprintFallback() }}</pre>
+    }
+  }
+</div>
+
+<div tnDialogAction class="dialog-actions">
+  <tn-icon-button
+    testId="copy-fingerprint"
+    name="content-copy"
+    library="mdi"
+    size="md"
+    [disabled]="isLoading() || !fingerprintRaw()"
+    [tooltip]="'Copy raw thumbprint to clipboard' | translate"
+    [ariaLabel]="'Copy raw thumbprint to clipboard' | translate"
+    (onClick)="copyToClipboard()"
+  ></tn-icon-button>
+
+  <span class="spacer"></span>
+
+  <tn-button variant="outline" testId="close" [label]="'Close' | translate" (onClick)="dialogRef.close(true)"></tn-button>
+</div>
+</tn-dialog-shell>

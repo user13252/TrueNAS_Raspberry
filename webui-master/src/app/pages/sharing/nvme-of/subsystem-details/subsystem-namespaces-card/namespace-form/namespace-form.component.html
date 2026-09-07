@@ -1,0 +1,12 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="isEdit()"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <ix-base-namespace-form
+    [group]="form"
+    [namespace]="existingNamespace()"
+  ></ix-base-namespace-form>
+</ix-form>

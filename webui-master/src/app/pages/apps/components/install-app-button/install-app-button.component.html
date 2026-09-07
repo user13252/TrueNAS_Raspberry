@@ -1,0 +1,19 @@
+@if (selectedPool()) {
+  <tn-button
+    *ixRequiresRoles="appInstallRole"
+    color="primary"
+    [testId]="[app()?.name, 'install']"
+    [disabled]="!app()"
+    [label]="app().installed ? ('Install Another Instance' | translate) : ('Install' | translate)"
+    (onClick)="navigateToInstallPage()"
+  ></tn-button>
+} @else {
+  <tn-button
+    *ixRequiresRoles="selectPoolRole"
+    color="primary"
+    testId="setup-pool"
+    [label]="'Setup Pool To Install' | translate"
+    (onClick)="showChoosePoolModal()"
+  ></tn-button>
+}
+

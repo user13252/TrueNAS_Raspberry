@@ -1,0 +1,141 @@
+import { DialogRef } from '@angular/cdk/dialog';
+import { AsyncPipe } from '@angular/common';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCheckboxComponent, TnDialogShellComponent, TnFormFieldComponent, TnSelectComponent,
+} from '@truenas/ui-components';
+import {
+  forkJoin, Observable, of, take,
+} from 'rxjs';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { helptextApps } from 'app/helptext/apps/apps';
+import { Option } from 'app/interfaces/option.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ignoreTranslation } from 'app/modules/translate/translate.helper';
+import { ApplicationsService } from 'app/pages/apps/services/applications.service';
+import { DockerStore } from 'app/pages/apps/store/docker.store';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-select-pool-dialog',
+  templateUrl: './select-pool-dialog.component.html',
+  styleUrls: ['./select-pool-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    TnDialogShellComponent,
+    ReactiveFormsModule,
+    TranslateModule,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    TnCheckboxComponent,
+    RequiresRolesDirective,
+  ],
+})
+export class SelectPoolDialog implements OnInit {
+  private formBuilder = inject(FormBuilder);
+  private dialogService = inject(DialogService);
+  private appService = inject(ApplicationsService);
+  private router = inject(Router);
+  private errorHandler = inject(ErrorHandlerService);
+  private loader = inject(LoaderService);
+  private translate = inject(TranslateService);
+  protected dialogRef = inject<DialogRef<unknown, SelectPoolDialog>>(DialogRef);
+  private snackbar = inject(SnackbarService);
+  private dockerStore = inject(DockerStore);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.AppsWrite];
+
+  form = this.formBuilder.nonNullable.group({
+    pool: [''],
+    migrateApplications: [false],
+  });
+
+  pools$: Observable<Option[]>;
+  private selectedPoolName: string | null = null;
+
+  get showMigrateCheckbox(): boolean {
+    const selected = this.form.value.pool;
+    return !!this.selectedPoolName && selected && selected !== this.selectedPoolName;
+  }
+
+  ngOnInit(): void {
+    this.loadPools();
+  }
+
+  onSubmit(): void {
+    const { pool, migrateApplications } = this.form.getRawValue();
+
+    this.dockerStore.setDockerPool(pool, migrateApplications).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => {
+      this.snackbar.success(
+        this.translate.instant('Using pool {name}', { name: this.form.value.pool }),
+      );
+      this.dialogRef.close(true);
+    });
+  }
+
+  private loadPools(): void {
+    forkJoin([
+      this.dockerStore.selectedPool$.pipe(take(1)),
+      this.appService.getPoolList(),
+    ])
+      .pipe(this.loader.withLoader(), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ([selectedPool, pools]) => {
+          this.form.patchValue({
+            pool: selectedPool || '',
+          });
+
+          this.selectedPoolName = selectedPool || null;
+
+          this.form.patchValue({
+            pool: selectedPool || '',
+          });
+
+          const poolOptions = pools.map((pool) => ({
+            label: ignoreTranslation(pool.name),
+            value: pool.name,
+          }));
+          this.pools$ = of(poolOptions);
+
+          if (!pools.length) {
+            this.showNoPoolsWarning();
+          }
+        },
+        error: (error: unknown) => {
+          this.errorHandler.showErrorModal(error);
+          this.dialogRef.close(false);
+        },
+      });
+  }
+
+  private showNoPoolsWarning(): void {
+    this.dialogService.confirm({
+      title: this.translate.instant(helptextApps.noPool.title),
+      message: this.translate.instant(helptextApps.noPool.message),
+      hideCheckbox: true,
+      buttonText: this.translate.instant(helptextApps.noPool.action),
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe((confirmed) => {
+      this.dialogRef.close(false);
+      if (!confirmed) {
+        return;
+      }
+      this.router.navigate(['/storage', 'create']);
+    });
+  }
+}

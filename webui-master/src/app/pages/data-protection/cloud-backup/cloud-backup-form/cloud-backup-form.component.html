@@ -1,0 +1,241 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [addTitle]="'Add TrueCloud Backup Task' | translate"
+  [editTitle]="'Edit TrueCloud Backup Task' | translate"
+  [requiredRoles]="requiredRoles"
+  [externalLoading]="isLoading()"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <!-- Onboarding guidance is only relevant while creating a task; on edit the account and
+       credentials already exist, so the banner would just take up permanent space. -->
+  @if (isNew) {
+    <tn-banner
+      type="info"
+      [heading]="helptext.introHeading | translate"
+      [message]="helptext.introMessage | translate"
+    >
+      <a target="_blank" rel="noopener noreferrer" tnBannerAction [href]="storjAccountUrl">
+        {{ helptext.createStorjAccountLink | translate }}
+      </a>
+      <a target="_blank" rel="noopener noreferrer" tnBannerAction [href]="documentationUrl">
+        {{ helptext.viewDocumentationLink | translate }}
+      </a>
+    </tn-banner>
+  }
+
+  <div class="fieldsets">
+    <tn-form-section class="fieldset" [heading]="helptext.local | translate">
+      <tn-form-field
+        [label]="helptext.sourcePath | translate"
+        [tooltip]="helptext.sourcePathTooltip | translate"
+        [required]="true"
+      >
+        <ix-explorer
+          formControlName="path"
+          [multiple]="false"
+          [rootNodes]="slashRootNode"
+          [nodeProvider]="fileNodeProvider"
+        >
+          <ix-explorer-create-dataset></ix-explorer-create-dataset>
+        </ix-explorer>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="helptext.cachePath | translate"
+        [tooltip]="helptext.cachePathTooltip | translate"
+      >
+        <ix-explorer
+          formControlName="cache_path"
+          [multiple]="false"
+          [nodeProvider]="directoriesNodeProvider"
+        >
+          <ix-explorer-create-dataset></ix-explorer-create-dataset>
+        </ix-explorer>
+      </tn-form-field>
+    </tn-form-section>
+
+    <tn-form-section class="fieldset" [heading]="helptext.remote | translate">
+      <ix-cloud-credentials-select
+        formControlName="credentials"
+        [label]="helptext.credentials | translate"
+        [tooltip]="helptext.credentialsTooltip | translate"
+        [filterByProviders]="[CloudSyncProviderName.Storj]"
+        [required]="true"
+      ></ix-cloud-credentials-select>
+      @if (form.controls.bucket.enabled) {
+        <tn-form-field [label]="helptext.bucket | translate" [required]="true">
+          <tn-select
+            name="bucket"
+            testId="bucket"
+            formControlName="bucket"
+            [options]="(bucketOptions$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+      }
+      @if (form.controls.bucket_input.enabled) {
+        <tn-form-field
+          [label]="helptext.newBucket | translate"
+          [tooltip]="helptext.newBucketTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="bucket_input"
+            testId="bucket-input"
+            formControlName="bucket_input"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+      }
+      @if (form.controls.folder.enabled) {
+        @if (isNewBucketOptionSelected) {
+          <tn-form-field
+            [label]="helptext.folder | translate"
+            [tooltip]="helptext.folderTooltip | translate"
+            [required]="true"
+          >
+            <tn-input
+              name="folder"
+              testId="folder"
+              formControlName="folder"
+              [required]="true"
+            ></tn-input>
+          </tn-form-field>
+        } @else {
+          <tn-form-field
+            [label]="helptext.folder | translate"
+            [tooltip]="helptext.folderTooltip | translate"
+            [required]="true"
+          >
+            <ix-explorer
+              formControlName="folder"
+              [rootNodes]="slashRootNode"
+              [nodeProvider]="bucketNodeProvider"
+            ></ix-explorer>
+          </tn-form-field>
+        }
+      }
+    </tn-form-section>
+
+    <tn-form-section class="fieldset" [heading]="helptext.taskSettings | translate">
+      <tn-form-field [label]="helptext.name | translate" [required]="true">
+        <tn-input
+          name="description"
+          testId="description"
+          formControlName="description"
+          [required]="true"
+        ></tn-input>
+      </tn-form-field>
+      <tn-form-field
+        [label]="helptext.keepLast | translate"
+        [tooltip]="helptext.keepLastTooltip | translate"
+        [required]="true"
+      >
+        <tn-input
+          name="keep_last"
+          testId="keep-last"
+          formControlName="keep_last"
+          [inputType]="InputType.Number"
+          [required]="true"
+        ></tn-input>
+      </tn-form-field>
+      <tn-form-field
+        [label]="helptext.rateLimit | translate"
+        [tooltip]="helptext.rateLimitTooltip | translate"
+      >
+        <tn-input
+          name="rate_limit"
+          testId="rate-limit"
+          formControlName="rate_limit"
+          [inputType]="InputType.Number"
+        ></tn-input>
+      </tn-form-field>
+      <tn-form-field [label]="helptext.password | translate" [required]="true">
+        <tn-input
+          name="password"
+          testId="password"
+          formControlName="password"
+          [inputType]="InputType.Password"
+          [showPasswordToggle]="true"
+          [required]="true"
+        ></tn-input>
+      </tn-form-field>
+    </tn-form-section>
+
+    <tn-form-section class="fieldset" [heading]="helptext.control | translate">
+      <ix-scheduler
+        formControlName="schedule"
+        [label]="helptext.schedule | translate"
+        [required]="true"
+      ></ix-scheduler>
+      <tn-form-field>
+        <tn-checkbox
+          testId="enabled"
+          formControlName="enabled"
+          [label]="helptext.enabled | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </tn-form-section>
+
+    <tn-form-section class="fieldset" [heading]="helptext.advancedOptions | translate">
+      <tn-form-field [tooltip]="helptext.useSnapshotTooltip | translate">
+        <tn-checkbox
+          testId="snapshot"
+          formControlName="snapshot"
+          [label]="helptext.useSnapshot | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+      <tn-form-field [tooltip]="helptext.absolutePathsTooltip | translate">
+        <tn-checkbox
+          testId="absolute-paths"
+          formControlName="absolute_paths"
+          [label]="helptext.absolutePaths | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+      <tn-form-field
+        [label]="helptext.preScript | translate"
+        [tooltip]="helptext.preScriptTooltip | translate"
+      >
+        <tn-input
+          name="pre_script"
+          testId="pre-script"
+          formControlName="pre_script"
+          [multiline]="true"
+        ></tn-input>
+      </tn-form-field>
+      <tn-form-field
+        [label]="helptext.postScript | translate"
+        [tooltip]="helptext.postScriptTooltip | translate"
+      >
+        <tn-input
+          name="post_script"
+          testId="post-script"
+          formControlName="post_script"
+          [multiline]="true"
+        ></tn-input>
+      </tn-form-field>
+      <tn-form-field
+        [label]="helptext.exclude | translate"
+        [tooltip]="helptext.excludeTooltip | translate"
+      >
+        <tn-chip-input
+          testId="exclude"
+          formControlName="exclude"
+          [allowCustomValue]="true"
+        ></tn-chip-input>
+      </tn-form-field>
+    </tn-form-section>
+
+    <tn-form-section class="fieldset" [heading]="helptext.advancedRemoteOptions | translate">
+      <tn-form-field [label]="helptext.transferSetting | translate" [required]="true">
+        <tn-select
+          name="transfer_setting"
+          testId="transfer-setting"
+          formControlName="transfer_setting"
+          [options]="(transferSettings$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    </tn-form-section>
+  </div>
+</ix-form>

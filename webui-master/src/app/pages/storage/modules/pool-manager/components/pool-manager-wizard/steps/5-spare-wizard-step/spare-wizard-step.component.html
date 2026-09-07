@@ -1,0 +1,44 @@
+<ix-layout-step
+  [description]="helptext.spareVdevDescription | translate"
+  [type]="vDevType.Spare"
+  [inventory]="(inventory$ | async) || []"
+  [canChangeLayout]="false"
+  [limitLayouts]="allowedLayouts"
+  [isStepActive]="isStepActive()"
+></ix-layout-step>
+
+@if (stepWarning()) {
+  <p class="error-warning">
+    {{ stepWarning() }}
+  </p>
+}
+
+<ix-form-actions>
+  <tn-button
+    tnStepperPrevious
+    color="secondary"
+    [testId]="'back-spare'"
+    [label]="'Back' | translate"
+  ></tn-button>
+  <tn-button
+    tnStepperNext
+    color="primary"
+    [testId]="'next-spare'"
+    [label]="'Next' | translate"
+  ></tn-button>
+
+  <tn-button
+    color="warn"
+    [testId]="'reset-fields-in-spare-step'"
+    [label]="'Reset Step' | translate"
+    (onClick)="resetStep()"
+  ></tn-button>
+
+  <tn-button
+    color="secondary"
+    [testId]="'save-and-go-to-review-spare'"
+    [label]="'Go to Review' | translate"
+    (onClick)="goToReviewStep()"
+  ></tn-button>
+</ix-form-actions>
+

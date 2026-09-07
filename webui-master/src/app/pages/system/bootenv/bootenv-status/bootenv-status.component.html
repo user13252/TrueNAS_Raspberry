@@ -1,0 +1,74 @@
+<ix-fake-progress-bar
+  class="loader-bar"
+  [loading]="isLoading()"
+></ix-fake-progress-bar>
+
+<div class="tree-wrapper" [ixUiSearch]="searchableElements.elements.bootStatus">
+  <div class="tree-inner">
+    @if (poolInstance && poolInstance.scan) {
+      <tn-expansion-panel [title]="poolInstance.scan.function">
+        <tn-list>
+          <tn-list-item>
+            {{ 'Status' | translate }}:
+            {{ poolInstance.scan.pause !== null ? 'PAUSED' : poolInstance.scan.state ? poolInstance.scan.state : ('None requested' | translate) }}
+          </tn-list-item>
+          @if (poolInstance.scan.errors !== null) {
+            <tn-list-item>
+              {{ 'Errors' | translate }}:
+              {{ poolInstance.scan.errors }}
+            </tn-list-item>
+          }
+          @if (poolInstance.scan.start_time?.$date) {
+            <tn-list-item>
+              {{ 'Date' | translate }}:
+              {{ poolInstance.scan.start_time.$date | formatDateTime }}
+            </tn-list-item>
+          }
+        </tn-list>
+      </tn-expansion-panel>
+    }
+
+    @if (dataSource) {
+      <div class="tree-header">
+        <div class="name-header">
+          <span >{{ 'Name' | translate }}</span>
+        </div>
+        <div>{{ 'Status' | translate }}</div>
+        <div>{{ 'Read' | translate }}</div>
+        <div>{{ 'Write' | translate }}</div>
+        <div>{{ 'Checksum' | translate }}</div>
+        <div>{{ 'Errors' | translate }}</div>
+      </div>
+
+      <tn-tree
+        class="tree"
+        [dataSource]="dataSource"
+        [treeControl]="treeControl"
+      >
+        <tn-nested-tree-node *cdkTreeNodeDef="let topologyItem">
+          <ix-bootenv-node-item
+            [node]="topologyItem"
+            [poolInstance]="poolInstance"
+            [oneDisk]="oneDisk"
+            (invokeAction)="doAction($event)"
+          ></ix-bootenv-node-item>
+        </tn-nested-tree-node>
+
+        <tn-nested-tree-node
+          *cdkTreeNodeDef="let topologyItem; when: hasNestedChild"
+          [toggleAriaLabel]="'Toggle {row}' | translate: { row: topologyItem.guid }"
+          [toggleTestId]="['toggle-row', topologyItem.guid]"
+        >
+          <ix-bootenv-node-item
+            [node]="topologyItem"
+            [poolInstance]="poolInstance"
+            [oneDisk]="oneDisk"
+            (invokeAction)="doAction($event)"
+          ></ix-bootenv-node-item>
+
+          <ng-container slot="children" tnTreeNodeOutlet></ng-container>
+        </tn-nested-tree-node>
+      </tn-tree>
+    }
+  </div>
+</div>

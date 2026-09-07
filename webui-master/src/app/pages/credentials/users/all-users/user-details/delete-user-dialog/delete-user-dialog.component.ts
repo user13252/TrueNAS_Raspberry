@@ -1,0 +1,79 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnCheckboxComponent, TnFormFieldComponent, TnDialogShellComponent } from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { User } from 'app/interfaces/user.interface';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-delete-user-dialog',
+  templateUrl: './delete-user-dialog.component.html',
+  styleUrls: ['./delete-user-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    TnCheckboxComponent, TnFormFieldComponent,
+    ReactiveFormsModule,
+    FormActionsComponent,
+    TnButtonComponent,
+    RequiresRolesDirective,
+    TranslateModule,
+  ],
+})
+export class DeleteUserDialog implements OnInit {
+  private errorHandler = inject(ErrorHandlerService);
+  private api = inject(ApiService);
+  private loader = inject(LoaderService);
+  user = inject<User>(DIALOG_DATA);
+  protected dialogRef = inject<DialogRef<unknown, DeleteUserDialog>>(DialogRef);
+  private snackbar = inject(SnackbarService);
+  private translate = inject(TranslateService);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.AccountWrite];
+
+  deleteGroupCheckbox = new FormControl(false, { nonNullable: true });
+  isLastGroupMember = false;
+
+  readonly deleteMessage = T('Are you sure you want to delete user <b>"{user}"</b>?');
+
+  ngOnInit(): void {
+    this.checkIfLastGroupMember();
+  }
+
+  protected onDelete(): void {
+    this.api.call('user.delete', [this.user.id, { delete_group: this.deleteGroupCheckbox.value }])
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.snackbar.success(this.translate.instant('User deleted'));
+        this.dialogRef.close(true);
+      });
+  }
+
+  private checkIfLastGroupMember(): void {
+    this.api.call('group.query', [[['id', '=', this.user.group.id]]])
+      .pipe(
+        this.loader.withLoader(),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((groups) => {
+        this.isLastGroupMember = groups[0].users.length === 1;
+        this.cdr.markForCheck();
+      });
+  }
+}

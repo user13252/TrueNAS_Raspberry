@@ -1,0 +1,79 @@
+<div class="header">
+  <h3 class="title" [class.no-buttons]="dataset().locked || isZvol()">
+    <div class="mobile-prefix">
+      <ix-mobile-back-button
+        (closed)="onCloseMobileDetails()"
+      ></ix-mobile-back-button>
+      {{ 'Details for' | translate }}
+    </div>
+
+    <span class="prefix">
+      {{ 'Details for' | translate }}
+    </span>
+
+    <div class="full-path">
+      <ix-dataset-icon [dataset]="dataset()"></ix-dataset-icon>
+      <span class="own-name" [tnTooltip]="ownName()">{{ ownName() }}</span>
+    </div>
+  </h3>
+
+  <div class="add-buttons">
+    @if (!dataset().locked && !isZvol()) {
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        [testId]="'add-zvol'"
+        [label]="'Add Zvol' | translate"
+        [ixUiSearch]="searchableElements.elements.addZvol"
+        (onClick)="onAddZvol()"
+      ></tn-button>
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        color="primary"
+        [testId]="'add-dataset'"
+        [label]="'Add Dataset' | translate"
+        [ixUiSearch]="searchableElements.elements.addDataset"
+        (onClick)="onAddDataset()"
+      ></tn-button>
+    }
+  </div>
+</div>
+
+<div class="cards">
+  <div class="scroll-window">
+    <ix-dataset-details-card
+      [ixUiSearch]="searchableElements.elements.datasetDetailsCard"
+      [dataset]="dataset()"
+    ></ix-dataset-details-card>
+    @if (isCapacityAllowed()) {
+      <ix-dataset-capacity-management-card
+        [ixUiSearch]="searchableElements.elements.datasetCapacityCard"
+          [dataset]="dataset()"
+      ></ix-dataset-capacity-management-card>
+    }
+    @if (isEncryptionAllowed()) {
+      <ix-zfs-encryption-card
+        [dataset]="dataset()"
+        [ixUiSearch]="searchableElements.elements.datasetZfsEncryptionCard"
+          [parentDataset]="selectedParentDataset$ | async"
+      ></ix-zfs-encryption-card>
+    }
+    <ix-data-protection-card
+      [dataset]="dataset()"
+      [ixUiSearch]="searchableElements.elements.datasetDataProtectionCard"
+    ></ix-data-protection-card>
+    @if (hasRoles()) {
+      <ix-usage-card
+        [dataset]="dataset()"
+        [hasChildrenWithShares]="hasChildrenWithShares()"
+        [ixUiSearch]="searchableElements.elements.datasetRolesCard"
+          [systemDataset]="systemDataset()"
+      ></ix-usage-card>
+    }
+    @if (hasPermissions()) {
+      <ix-permissions-card
+        [ixUiSearch]="searchableElements.elements.datasetPermissionsCard"
+          [dataset]="dataset()"
+      ></ix-permissions-card>
+    }
+  </div>
+</div>

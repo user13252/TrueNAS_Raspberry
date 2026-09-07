@@ -1,0 +1,65 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder } from '@ngneat/reactive-forms';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnFormFieldComponent, TnInputComponent,
+} from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+
+@Component({
+  selector: 'ix-create-storj-bucket-dialog',
+  templateUrl: './create-storj-bucket-dialog.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    ReactiveFormsModule,
+    TnFormFieldComponent,
+    TnInputComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    RequiresRolesDirective,
+    TranslateModule,
+  ],
+})
+export class CreateStorjBucketDialog {
+  private formBuilder = inject(FormBuilder);
+  protected dialogRef = inject<DialogRef<unknown, CreateStorjBucketDialog>>(DialogRef);
+  private api = inject(ApiService);
+  private loader = inject(LoaderService);
+  data = inject<{
+    credentialsId: number;
+  }>(DIALOG_DATA, { optional: true });
+
+  private formErrorHandler = inject(FormErrorHandlerService);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.CloudSyncWrite];
+
+  form = this.formBuilder.group({
+    bucket: ['', Validators.required],
+  });
+
+  onSubmit(): void {
+    this.api.call('cloudsync.create_bucket', [this.data.credentialsId, this.form.controls.bucket.value])
+      .pipe(
+        this.loader.withLoader(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.dialogRef.close(this.form.controls.bucket.value);
+        },
+        error: (error: unknown) => {
+          this.formErrorHandler.handleValidationErrors(error, this.form);
+        },
+      });
+  }
+}

@@ -1,0 +1,90 @@
+<tn-card class="card" [ixUiSearch]="searchableElements.elements.topology">
+  <h3 tnCardHeader class="tn-card__title">
+    <span>
+      {{ 'VDEVs' | translate }}
+    </span>
+
+    <tn-icon
+      name="help-circle-outline"
+      library="mdi"
+      class="pool-icon"
+      [tnTooltip]="vdevsHelpTooltip"
+    ></tn-icon>
+
+    <ix-pool-card-icon [type]="iconType()" [tooltip]="iconTooltip()"></ix-pool-card-icon>
+  </h3>
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      [testId]="'manage-vdevs'"
+      [ixUiSearch]="searchableElements.elements.viewVdevs"
+      [label]="'View VDEVs' | translate"
+      (onClick)="router.navigate(['/storage', this.poolState().id, 'vdevs'])"
+    ></tn-button>
+  </ng-template>
+
+  <div class="card-content">
+    <div class="content-container">
+      @if (topologyState.data.assigned) {
+        <div class="vdev-line">
+          <b>
+            {{ 'Data VDEVs' | translate }}
+            @if (showTierLabels()) {
+              <span class="tier-label">({{ 'Regular Tier' | translate }})</span>
+            }
+          </b>
+          <div class="vdev-stats">
+            @if (!!topologyWarningsState.data && !isPoolOffline()) {
+              <span
+                class="warning"
+                [tnTooltip]="topologyWarningsState.data"
+              >
+                <tn-icon name="alert-circle" library="mdi" class="pool-icon icon-warning"></tn-icon>
+              </span>
+            }
+            @if (isPoolOffline()) {
+              <span class="warning">
+                <tn-icon name="alert-circle" library="mdi" class="pool-icon icon-warning"></tn-icon>
+              </span>
+              <span class="offline-data-vdevs">{{ 'Offline VDEVs' | translate }}</span>
+            } @else {
+              <span class="vdev-value">{{ topologyState.data.text }}</span>
+            }
+          </div>
+        </div>
+      }
+
+      @for (row of otherVdevRows; track row.key) {
+        @if (topologyState[row.key].assigned && !isPoolOffline() && !(row.hidden && row.hidden())) {
+          <div class="vdev-line">
+            <b>
+              {{ row.titleKey | translate }}
+              @if (row.tierLabelKey && showTierLabels()) {
+                <span class="tier-label">({{ row.tierLabelKey | translate }})</span>
+              }
+            </b>
+            <div class="vdev-stats">
+              @if (!!topologyWarningsState[row.key]) {
+                <span class="warning" [tnTooltip]="topologyWarningsState[row.key]">
+                  <tn-icon name="alert-circle" library="mdi" class="pool-icon icon-warning"></tn-icon>
+                </span>
+              }
+              <span class="vdev-value">{{ topologyState[row.key].text }}</span>
+            </div>
+          </div>
+        }
+      }
+
+      @if (noOtherVdevTypes()) {
+        <div class="empty-vdev-state">
+          <div class="empty-message">
+            {{ 'Pool configuration complete.' | translate }}
+          </div>
+          <div class="empty-description">
+            {{ 'Optional VDEV types like cache, log, or spare can improve performance.' | translate }}
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</tn-card>

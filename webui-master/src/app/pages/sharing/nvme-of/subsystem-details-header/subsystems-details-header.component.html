@@ -1,0 +1,13 @@
+<span>
+  {{ 'Details for' | translate }}
+  {{ subsystem()?.name }}
+</span>
+
+<div class="detail-actions">
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    [testId]="'delete-subsys'"
+    [label]="'Delete' | translate"
+    (onClick)="deleteSubsystem()"
+  ></tn-button>
+</div>

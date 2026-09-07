@@ -1,0 +1,27 @@
+<div class="header-container">
+  <ix-breadcrumb class="breadcrumbs"></ix-breadcrumb>
+  <div class="title-container">
+    <div class="title-and-indicator">
+      @let title = pageTitle();
+      <h1>{{ title ? (title | translate) : (currentTitle$ | async) | translate }}</h1>
+
+      @if (tooltip()) {
+        <ix-tooltip
+          class="tooltip"
+          [message]="tooltip() | translate"
+        ></ix-tooltip>
+      }
+
+      @if ((hasNewIndicator$ | async) || customBadgeTitle()) {
+        <ix-header-badge [customBadgeTitle]="customBadgeTitle()"></ix-header-badge>
+      }
+    </div>
+
+    <div class="actions-container">
+      <ng-content></ng-content>
+    </div>
+  </div>
+  @if (loading()) {
+    <ix-fake-progress-bar [loading]="true"></ix-fake-progress-bar>
+  }
+</div>

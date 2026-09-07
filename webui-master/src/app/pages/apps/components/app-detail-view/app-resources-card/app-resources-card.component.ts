@@ -1,0 +1,61 @@
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, inject, input, OnInit, signal,
+} from '@angular/core';
+import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnCardComponent } from '@truenas/ui-components';
+import { NgxSkeletonLoaderModule } from 'ngx-skeleton-loader';
+import { map, throttleTime } from 'rxjs';
+import { MemoryUpdate } from 'app/interfaces/reporting.interface';
+import { FileSizePipe } from 'app/modules/pipes/file-size/file-size.pipe';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { DockerStore } from 'app/pages/apps/store/docker.store';
+
+@Component({
+  selector: 'ix-app-resources-card',
+  templateUrl: './app-resources-card.component.html',
+  styleUrls: ['./app-resources-card.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TranslateModule,
+    TnCardComponent,
+    NgxSkeletonLoaderModule,
+    FileSizePipe,
+  ],
+})
+export class AppResourcesCardComponent implements OnInit {
+  private api = inject(ApiService);
+  private dockerStore = inject(DockerStore);
+  private destroyRef = inject(DestroyRef);
+
+  readonly isLoading = input<boolean>();
+  readonly cpuPercentage = signal(0);
+  readonly memoryUsed = signal(0);
+  readonly memoryTotal = signal(0);
+  readonly availableSpace = toSignal(this.api.call('app.available_space'));
+  readonly selectedPool = toSignal(this.dockerStore.selectedPool$);
+
+  ngOnInit(): void {
+    this.getResourcesUsageUpdates();
+  }
+
+  private getResourcesUsageUpdates(): void {
+    this.api.subscribe('reporting.realtime').pipe(
+      map((event) => event.fields),
+      throttleTime(2000),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((update) => {
+      if (update?.cpu?.cpu?.usage) {
+        this.cpuPercentage.set(parseInt(update.cpu.cpu.usage.toFixed(1)));
+      }
+
+      if (update?.memory) {
+        const memStats: MemoryUpdate = { ...update.memory };
+
+        const services = memStats.physical_memory_total - memStats.physical_memory_available - memStats.arc_size;
+        this.memoryUsed.set(memStats.arc_size + services);
+        this.memoryTotal.set(memStats.physical_memory_total);
+      }
+    });
+  }
+}

@@ -1,0 +1,117 @@
+@import 'mixins/tn-list';
+
+:host {
+  display: block;
+  height: 85vh;
+  min-width: 80vw;
+
+  .inner-container {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    padding: 0;
+
+    .left-pane {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      flex-shrink: 0;
+      max-width: 260px;
+      min-width: 260px;
+
+      // tn-list renders as a card by default (background, radius, padding);
+      // here it's a plain nav sidebar, so strip that styling.
+      tn-list {
+        background-color: transparent;
+        border-radius: 0;
+        padding: 0;
+      }
+    }
+
+    .right-pane {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+  }
+
+  .header {
+    padding: 12px 23px 10px;
+  }
+
+  .label {
+    height: auto;
+    margin-top: 0;
+  }
+
+  .vdevs-header {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+
+    h3 {
+      display: inline-block;
+      font-weight: 500;
+    }
+
+    .close-icon {
+      cursor: pointer;
+    }
+  }
+
+  .header-divider {
+    margin-bottom: 16px;
+  }
+
+  .vdev-type {
+    border-bottom: 1px solid var(--lines);
+    cursor: pointer;
+    position: relative;
+
+    // Text lives in tn-list-item's internal content wrapper, so padding set here
+    // is the single source of truth (the host is forced to padding: 0 by the lib).
+    @include tn-list-item-content {
+      padding: 11px 21px 13px;
+    }
+
+    &:hover {
+      background-color: var(--hover-bg);
+    }
+
+    // Full-height bar aligned to the item, so the selected indicator lines up
+    // with the text regardless of the list-item's internal padding.
+    &.selected::before {
+      background-color: var(--primary);
+      bottom: 0;
+      content: '';
+      left: 0;
+      position: absolute;
+      top: 0;
+      width: 3px;
+    }
+  }
+
+  .dialog-header {
+    align-items: center;
+    border-bottom: 1px solid var(--lines);
+    display: flex;
+    flex-shrink: 0;
+    padding-bottom: 18px;
+    padding-top: 17px;
+
+    h3 {
+      font-weight: 500;
+    }
+  }
+
+  .vdevs-container {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: auto;
+    padding: 0 24px;
+    padding-bottom: 16px;
+    row-gap: 8px;
+  }
+}

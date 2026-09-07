@@ -1,0 +1,35 @@
+<ix-page-header
+  [pageTitle]="pageTitle$ | async | titlecase | translate"
+  [loading]="!!(isLoading$ | async)"
+>
+  <ix-custom-app-button></ix-custom-app-button>
+</ix-page-header>
+
+@if (isLoading$ | async) {
+  <ngx-skeleton-loader
+    class="fake-apps"
+    [count]="9"
+    [animation]="false"
+  ></ngx-skeleton-loader>
+} @else {
+  <div class="apps">
+    @for (app of apps$ | async; track trackByAppId($index, app)) {
+      <a
+        tnTestIdType="link"
+        [routerLink]="['/apps', 'available', app.train, app.name]"
+        [tnTestId]="['open', app.train, app.name]"
+      >
+        <ix-app-card [app]="app"></ix-app-card>
+      </a>
+    }
+  </div>
+
+  <div class="view-all">
+    <tn-button
+      [testId]="['back-to-discover-page']"
+      [label]="'Back to Discover Page' | translate"
+      [routerLink]="['/apps', 'available']"
+    ></tn-button>
+  </div>
+}
+

@@ -1,0 +1,72 @@
+@import 'scss-imports/cssvars';
+@import '../../widget-group/widget-group-mixin';
+@import '../../../dashboard-variables';
+
+:host {
+  @include widget-group;
+  height: $widget-group-height;
+  width: $widget-group-width;
+
+  @media #{$media-lt-sm} {
+    height: $widget-group-height;
+    width: 100%;
+  }
+
+  .slot {
+    appearance: none;
+    // Matches .tn-card's border radius so the selection/focus outline hugs the card.
+    border-radius: 8px;
+    // Mirror the body/group-container context widgets render in on the live
+    // dashboard — otherwise UA button defaults (white bg, black text) leak
+    // through the rounded tn-card corners and into inherited text color.
+    background: var(--bg1);
+    border-style: none;
+    color: var(--fg1);
+    cursor: pointer;
+    height: 100%;
+    outline-color: transparent;
+    overflow: auto;
+    padding: 0;
+    text-align: unset;
+    transition: outline-color ease-in 250ms;
+
+    &.selected {
+      outline: 2px solid var(--primary);
+    }
+
+    // :focus-visible (not :focus) so pointer clicks show the blue selection
+    // outline immediately; keyboard navigation still gets the focus ring.
+    &:focus-visible {
+      outline: 2px solid var(--fg2);
+    }
+
+    &.empty {
+      align-items: center;
+      background: var(--bg2);
+      color: var(--fg2);
+      display: flex;
+      flex-direction: column;
+      font-size: 13px;
+      justify-content: center;
+    }
+
+    .inert-container {
+      height: 100%;
+    }
+  }
+
+  .error {
+    align-items: center;
+    background: var(--bg2);
+    color: var(--fg2);
+    display: flex;
+    font-size: 13px;
+    height: 100%;
+    justify-content: center;
+  }
+
+  .error-icon {
+    margin-right: 5px;
+  }
+}
+

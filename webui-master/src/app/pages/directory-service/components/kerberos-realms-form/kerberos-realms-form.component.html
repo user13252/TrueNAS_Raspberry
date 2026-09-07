@@ -1,0 +1,63 @@
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-section>
+    <tn-form-field
+      [label]="'Realm' | translate"
+      [tooltip]="tooltips.realm | translate"
+      [required]="true"
+    >
+      <tn-input
+        name="realm"
+        testId="realm"
+        formControlName="realm"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Primary KDC' | translate"
+      [tooltip]="tooltips.primary_kdc | translate"
+    >
+      <tn-input
+        name="primary_kdc"
+        testId="primary_kdc"
+        formControlName="primary_kdc"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'KDC' | translate"
+      [tooltip]="tooltips.kdc | translate"
+    >
+      <tn-chip-input
+        formControlName="kdc"
+        testId="kdc"
+        [allowCustomValue]="true"
+        [placeholder]="'KDC' | translate"
+      ></tn-chip-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Admin Servers' | translate"
+      [tooltip]="tooltips.admin_server | translate"
+    >
+      <tn-chip-input
+        formControlName="admin_server"
+        testId="admin_server"
+        [allowCustomValue]="true"
+        [placeholder]="'Admin Servers' | translate"
+      ></tn-chip-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Password Servers' | translate"
+      [tooltip]="tooltips.kpasswd_server | translate"
+    >
+      <tn-chip-input
+        formControlName="kpasswd_server"
+        testId="kpasswd_server"
+        [allowCustomValue]="true"
+        [placeholder]="'Password Servers' | translate"
+      ></tn-chip-input>
+    </tn-form-field>
+  </tn-form-section>
+</form>

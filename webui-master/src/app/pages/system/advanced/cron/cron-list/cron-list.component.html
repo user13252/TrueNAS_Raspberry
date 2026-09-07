@@ -1,0 +1,83 @@
+<ix-page-header>
+  <ix-basic-search [query]="searchQuery()" (queryChange)="onListFiltered($event)"></ix-basic-search>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    [testId]="'add-cronjob'"
+    [label]="'Add' | translate"
+    (onClick)="doAdd()"
+  ></tn-button>
+</ix-page-header>
+
+@if (!(dataProvider.currentPageCount$ | async) && !(dataProvider.isLoading$ | async)) {
+  <tn-empty
+    [ixUiSearch]="searchableElements.elements.cron"
+    [title]="emptyService.titleForType(dataProvider.emptyType$ | async)"
+  ></tn-empty>
+} @else {
+  <tn-table
+    class="table"
+    [ixUiSearch]="searchableElements.elements.cron"
+    [dataSource]="(dataProvider.currentPage$ | async) ?? []"
+    [displayedColumns]="displayedColumns"
+    [trackBy]="trackBy"
+    [loading]="!!(dataProvider.isLoading$ | async)"
+    [expandable]="true"
+    (sortChange)="onSortChange($event)"
+  >
+    <ng-container [tnColumnDef]="'user'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Users' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.user }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'command'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Command' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.command }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'description'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Description' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.description }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'schedule'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Schedule' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.schedule | scheduleDescription }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'enabled'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Enabled' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.enabled | yesNo | translate }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'next_run'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Next Run' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ getNextRun(row) }}</ng-template>
+    </ng-container>
+
+    <ng-template let-cronjob tnDetailRowDef>
+      <div class="table-details-row-actions">
+        <tn-button
+          *ixRequiresRoles="requiredRoles"
+          [testId]="[cronjob.id, 'run_now']"
+          [label]="'Run Now' | translate"
+          (onClick)="runNow(cronjob)"
+        ></tn-button>
+        <tn-button
+          [testId]="[cronjob.id, 'edit']"
+          [label]="'Edit' | translate"
+          (onClick)="doEdit(cronjob)"
+        ></tn-button>
+        <tn-button
+          *ixRequiresRoles="requiredRoles"
+          [testId]="[cronjob.id, 'delete']"
+          [label]="'Delete' | translate"
+          (onClick)="doDelete(cronjob)"
+        ></tn-button>
+      </div>
+    </ng-template>
+  </tn-table>
+}
+
+<tn-table-pager [dataProvider]="dataProvider"></tn-table-pager>

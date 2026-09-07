@@ -1,0 +1,77 @@
+@import 'scss-imports/cssvars';
+
+:host {
+  flex-direction: column;
+  justify-content: space-between;
+
+  @media (min-width: $breakpoint-xs) {
+    flex-direction: row;
+  }
+
+  .chart-info {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px 0;
+    width: 100%;
+
+    small {
+      display: none;
+    }
+
+    @media (min-width: $breakpoint-xs) {
+      flex: 1;
+      flex-direction: column;
+      height: 100%;
+      padding: 6px 0 6px 8px;
+
+      small {
+        display: inline;
+      }
+    }
+
+    h4 {
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    h4,
+    small {
+      color: var(--fg2);
+    }
+
+    small {
+      font-weight: 500;
+      opacity: 0.75;
+    }
+
+    .in-out {
+      font-size: 12px;
+
+      @media (max-width: $breakpoint-xs) {
+        display: flex;
+        flex-flow: row;
+        gap: 8px;
+      }
+    }
+
+    .in-out-row {
+      align-items: center;
+      display: flex;
+      gap: 4px;
+      white-space: nowrap;
+    }
+  }
+
+  .chart-graph {
+    max-width: 100%;
+
+    @media (min-width: $breakpoint-xs) {
+      max-width: auto;
+    }
+
+    .skeleton {
+      display: flex;
+      padding: 4px;
+    }
+  }
+}

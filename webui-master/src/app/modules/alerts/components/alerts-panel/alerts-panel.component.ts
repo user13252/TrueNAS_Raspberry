@@ -1,0 +1,343 @@
+import { Overlay, OverlayContainer } from '@angular/cdk/overlay';
+import { AsyncPipe } from '@angular/common';
+import { DestroyRef, ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { NavigationExtras, Router } from '@angular/router';
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+import { Store } from '@ngrx/store';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  tnIconMarker, TnIconButtonComponent, TnIconComponent, TnMenuComponent, TnMenuItemComponent,
+  TnMenuTriggerDirective, TnProgressBarComponent, TnTestIdDirective,
+} from '@truenas/ui-components';
+import { map } from 'rxjs/operators';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { AlertLevel } from 'app/enums/alert-level.enum';
+import { Role } from 'app/enums/role.enum';
+import { Alert } from 'app/interfaces/alert.interface';
+import { AlertWithDuplicates, EnhancedAlert, SmartAlertCategory } from 'app/interfaces/smart-alert.interface';
+import { AlertComponent } from 'app/modules/alerts/components/alert/alert.component';
+import { AlertPanelOverlayContainer } from 'app/modules/alerts/components/alerts-panel/alert-panel-overlay-container.service';
+import { SmartAlertService } from 'app/modules/alerts/services/smart-alert.service';
+import {
+  alertPanelClosed,
+  dismissAllAlertsPressed,
+  reopenAllAlertsPressed,
+} from 'app/modules/alerts/store/alert.actions';
+import {
+  criticalLevels,
+  selectAlertState,
+  selectDismissedAlerts,
+  selectUnreadAlerts,
+} from 'app/modules/alerts/store/alert.selectors';
+import { consolidateAlerts, getAlertConsolidationKey } from 'app/modules/alerts/utils/alert-consolidation.utils';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { EmailFormComponent } from 'app/pages/system/general-settings/email/email-form/email-form.component';
+import { AppState } from 'app/store';
+import { selectIsHaLicensed } from 'app/store/ha-info/ha-info.selectors';
+import { selectIsEnterprise } from 'app/store/system-info/system-info.selectors';
+
+@Component({
+  selector: 'ix-alerts-panel',
+  templateUrl: './alerts-panel.component.html',
+  styleUrls: ['./alerts-panel.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [
+    AlertPanelOverlayContainer,
+    { provide: OverlayContainer, useExisting: AlertPanelOverlayContainer },
+    Overlay,
+  ],
+  imports: [
+    TnIconButtonComponent,
+    TnIconComponent,
+    TnTestIdDirective,
+    TnMenuComponent,
+    TnMenuItemComponent,
+    TnMenuTriggerDirective,
+    TnProgressBarComponent,
+    AlertComponent,
+    TranslateModule,
+    AsyncPipe,
+    RequiresRolesDirective,
+  ],
+})
+export class AlertsPanelComponent implements OnInit {
+  private store$ = inject<Store<AppState>>(Store);
+  private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
+  private smartAlertService = inject(SmartAlertService);
+  private destroyRef = inject(DestroyRef);
+  private formPanel = inject(FormSidePanelService);
+  private translate = inject(TranslateService);
+
+  protected readonly requiredRoles = [Role.AlertListWrite];
+
+  error$ = this.store$.select(selectAlertState).pipe(map((state) => state.error));
+  isLoading$ = this.store$.select(selectAlertState).pipe(map((state) => state.isLoading));
+
+  private readonly isEnterprise = toSignal(this.store$.select(selectIsEnterprise));
+  isHaLicensed = false;
+  protected readonly bellIcon = tnIconMarker('bell-outline', 'mdi');
+
+  // The button-label computeds below cache translated strings, so they have to re-run
+  // on a language switch.
+  private langChange = toSignal(this.translate.onLangChange, { initialValue: null });
+
+  // Severity filter
+  protected severityFilter = signal<'all' | 'critical' | 'warning' | 'info' | 'dismissed'>('all');
+
+  // Convert observables to signals for enhanced alerts
+  private unreadAlertsSignal = toSignal(this.store$.select(selectUnreadAlerts), { initialValue: [] });
+  private dismissedAlertsSignal = toSignal(this.store$.select(selectDismissedAlerts), { initialValue: [] });
+
+  // Enhance alerts with smart actions, then consolidate alerts of the same kind
+  // into a single entry so repeated messages don't fill the panel.
+  private enhancedUnread = computed(() => {
+    return this.unreadAlertsSignal().map((alert) => this.smartAlertService.enhanceAlert(alert));
+  });
+
+  private enhancedDismissed = computed(() => {
+    return this.dismissedAlertsSignal().map((alert) => this.smartAlertService.enhanceAlert(alert));
+  });
+
+  private allEnhancedUnreadAlerts = computed<AlertWithDuplicates[]>(() => {
+    return consolidateAlerts(this.enhancedUnread());
+  });
+
+  private allEnhancedDismissedAlerts = computed<AlertWithDuplicates[]>(() => {
+    return consolidateAlerts(this.enhancedDismissed());
+  });
+
+  // Filtered alerts based on severity
+  protected unreadAlerts = computed<AlertWithDuplicates[]>(() => {
+    return this.filterBySeverity(this.allEnhancedUnreadAlerts());
+  });
+
+  protected dismissedAlerts = computed<AlertWithDuplicates[]>(() => {
+    return this.filterBySeverity(this.allEnhancedDismissedAlerts());
+  });
+
+  // Counts for filter buttons
+  // Counts stay per alert instance (not per consolidated entry) so they match the nav badges.
+  protected alertCounts = computed(() => {
+    const unreadAlerts = this.enhancedUnread();
+    const dismissedAlerts = this.enhancedDismissed();
+    return {
+      all: unreadAlerts.length,
+      critical: unreadAlerts.filter((a) => this.isCritical(a.level)).length,
+      warning: unreadAlerts.filter((a) => this.isWarning(a.level)).length,
+      info: unreadAlerts.filter((a) => this.isInfo(a.level)).length,
+      dismissed: dismissedAlerts.length,
+    };
+  });
+
+  // Group alerts by category (always enabled)
+  protected groupedUnreadAlerts = computed(() => {
+    return this.smartAlertService.groupAlertsByCategory(this.unreadAlerts());
+  });
+
+  protected groupedDismissedAlerts = computed(() => {
+    return this.smartAlertService.groupAlertsByCategory(this.dismissedAlerts());
+  });
+
+  // Category labels for display
+  protected readonly categoryLabels: Record<SmartAlertCategory, string> = {
+    [SmartAlertCategory.Storage]: T('Storage'),
+    [SmartAlertCategory.Network]: T('Network'),
+    [SmartAlertCategory.Services]: T('Services'),
+    [SmartAlertCategory.System]: T('System'),
+    [SmartAlertCategory.Security]: T('Security'),
+    [SmartAlertCategory.Hardware]: T('Hardware'),
+    [SmartAlertCategory.Tasks]: T('Tasks'),
+    [SmartAlertCategory.Applications]: T('Applications'),
+  };
+
+  // Category icons for display - matching side navigation icons
+  protected readonly categoryIcons: Record<SmartAlertCategory, string> = {
+    [SmartAlertCategory.Storage]: tnIconMarker('dns', 'material'),
+    [SmartAlertCategory.Network]: tnIconMarker('network', 'mdi'),
+    [SmartAlertCategory.Services]: tnIconMarker('cog', 'mdi'),
+    [SmartAlertCategory.System]: tnIconMarker('cog', 'mdi'),
+    [SmartAlertCategory.Security]: tnIconMarker('vpn_key', 'material'),
+    [SmartAlertCategory.Hardware]: tnIconMarker('server', 'mdi'),
+    [SmartAlertCategory.Tasks]: tnIconMarker('security', 'material'),
+    [SmartAlertCategory.Applications]: tnIconMarker('apps', 'material'),
+  };
+
+  ngOnInit(): void {
+    this.checkHaStatus();
+  }
+
+  /**
+   * Identifies a row across refreshes. Not the alert id: consolidation picks the newest
+   * alert as the representative, so a newer group member would change it and Angular would
+   * rebuild the `ix-alert`, resetting whether the user had expanded it.
+   */
+  protected trackAlert(alert: AlertWithDuplicates): string {
+    return getAlertConsolidationKey(alert);
+  }
+
+  /** Number of alerts a category holds, counting every alert a consolidated entry stands for. */
+  protected getCategoryCount(alerts: AlertWithDuplicates[]): number {
+    return alerts.reduce((total, alert) => total + alert.duplicateCount, 0);
+  }
+
+  onPanelClosed(): void {
+    this.store$.dispatch(alertPanelClosed());
+  }
+
+  onReopenAll(): void {
+    const alertIds = this.dismissedAlerts().flatMap((alert) => alert.allIds);
+    this.store$.dispatch(reopenAllAlertsPressed({ alertIds }));
+  }
+
+  onDismissAll(): void {
+    const alertIds = this.unreadAlerts().flatMap((alert) => alert.allIds);
+    this.store$.dispatch(dismissAllAlertsPressed({ alertIds }));
+  }
+
+  setSeverityFilter(filter: 'all' | 'critical' | 'warning' | 'info' | 'dismissed'): void {
+    this.severityFilter.set(filter);
+  }
+
+  /**
+   * Check if we should show dismissed alerts section
+   */
+  protected shouldShowDismissed = computed(() => {
+    return this.severityFilter() === 'dismissed';
+  });
+
+  /**
+   * Check if we should show unread alerts section
+   */
+  protected shouldShowUnread = computed(() => {
+    return this.severityFilter() !== 'dismissed';
+  });
+
+  /**
+   * Get text for "Dismiss All" button based on current filter
+   */
+  protected dismissAllButtonText = computed(() => {
+    this.langChange();
+    const filter = this.severityFilter();
+    switch (filter) {
+      case 'critical':
+        return this.translate.instant('Dismiss All Critical Alerts');
+      case 'warning':
+        return this.translate.instant('Dismiss All Warnings');
+      case 'info':
+        return this.translate.instant('Dismiss All Info Alerts');
+      default:
+        return this.translate.instant('Dismiss All Alerts');
+    }
+  });
+
+  /**
+   * Get text for "Re-Open All" button based on current filter
+   */
+  protected reopenAllButtonText = computed(() => {
+    this.langChange();
+    const filter = this.severityFilter();
+    switch (filter) {
+      case 'critical':
+        return this.translate.instant('Re-Open All Critical Alerts');
+      case 'warning':
+        return this.translate.instant('Re-Open All Warnings');
+      case 'info':
+        return this.translate.instant('Re-Open All Info Alerts');
+      default:
+        return this.translate.instant('Re-Open All Alerts');
+    }
+  });
+
+  private filterBySeverity<T extends Alert & EnhancedAlert>(alerts: T[]): T[] {
+    const filter = this.severityFilter();
+    if (filter === 'all') {
+      return alerts;
+    }
+    if (filter === 'critical') {
+      return alerts.filter((a) => this.isCritical(a.level));
+    }
+    if (filter === 'warning') {
+      return alerts.filter((a) => this.isWarning(a.level));
+    }
+    if (filter === 'info') {
+      return alerts.filter((a) => this.isInfo(a.level));
+    }
+    return alerts;
+  }
+
+  private isCritical(level: AlertLevel): boolean {
+    return criticalLevels.includes(level);
+  }
+
+  private isWarning(level: AlertLevel): boolean {
+    return level === AlertLevel.Warning;
+  }
+
+  private isInfo(level: AlertLevel): boolean {
+    return [AlertLevel.Info, AlertLevel.Notice].includes(level);
+  }
+
+  navigateTo(route: string[], extras?: NavigationExtras): void {
+    this.closePanel();
+    this.router.navigate(route, extras);
+  }
+
+  openEmailForm(): void {
+    this.closePanel();
+    this.formPanel.open(EmailFormComponent, {
+      title: this.translate.instant('Email Options'),
+    });
+  }
+
+  closePanel(): void {
+    this.store$.dispatch(alertPanelClosed());
+  }
+
+  /**
+   * Helper to convert Map entries to array for template iteration
+   * Sorts categories with known categories first
+   */
+  getCategoryEntries(
+    categoryMap: Map<string, AlertWithDuplicates[]> | null,
+  ): [string, AlertWithDuplicates[]][] {
+    if (!categoryMap) return [];
+
+    const knownCategories = Object.values(SmartAlertCategory);
+
+    return Array.from(categoryMap.entries()).sort((a, b) => {
+      const aIsKnown = knownCategories.includes(a[0] as SmartAlertCategory);
+      const bIsKnown = knownCategories.includes(b[0] as SmartAlertCategory);
+
+      // Push unknown categories to the end (defensive - all alerts should have known categories)
+      if (!aIsKnown && bIsKnown) return 1;
+      if (aIsKnown && !bIsKnown) return -1;
+      // Keep other categories in their original order
+      return 0;
+    });
+  }
+
+  // Helper to get category icon
+  getCategoryIcon(category: string): string {
+    return this.categoryIcons[category as SmartAlertCategory] || tnIconMarker('alert-circle', 'mdi');
+  }
+
+  // Helper to get category label
+  getCategoryLabel(category: string): string {
+    return this.categoryLabels[category as SmartAlertCategory] || category;
+  }
+
+  private checkHaStatus(): void {
+    if (!this.isEnterprise()) {
+      return;
+    }
+
+    this.store$.select(selectIsHaLicensed)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((isHaLicensed) => {
+        this.isHaLicensed = isHaLicensed;
+        this.cdr.markForCheck();
+      });
+  }
+}

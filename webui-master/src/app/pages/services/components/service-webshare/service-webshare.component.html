@@ -1,0 +1,22 @@
+<ix-form
+  [formGroup]="form"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field
+      [tooltip]="helptext.search_enabled_tooltip | translate"
+      [hint]="isTruenasConnectConfigured() ? '' : ('TrueSearch requires TrueNAS Connect to be configured.' | translate)"
+    >
+      <tn-checkbox formControlName="search" [label]="'Enable TrueSearch' | translate"></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Passkey' | translate"
+      [tooltip]="helptext.passkey_tooltip | translate"
+    >
+      <tn-select formControlName="passkey" [options]="passkeyOptions"></tn-select>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

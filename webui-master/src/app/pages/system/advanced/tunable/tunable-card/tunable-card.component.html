@@ -1,0 +1,62 @@
+<tn-card
+  padding="small"
+  [ixUiSearch]="searchableElements.elements.tunable"
+  [title]="'Tunable' | translate"
+  [titleRouterLink]="['/system', 'tunable']"
+>
+
+  @if (!(dataProvider.currentPageCount$ | async) && !(dataProvider.isLoading$ | async)) {
+    <tn-empty [title]="emptyService.titleForType(dataProvider.emptyType$ | async)"></tn-empty>
+  } @else {
+    <tn-table
+      class="table"
+      [dataSource]="(dataProvider.currentPage$ | async) ?? []"
+      [displayedColumns]="displayedColumns"
+      [trackBy]="trackByVar"
+      [loading]="!!(dataProvider.isLoading$ | async)"
+    >
+      <ng-container [tnColumnDef]="'var'">
+        <ng-template tnHeaderCellDef>{{ 'Var' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.var }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'value'">
+        <ng-template tnHeaderCellDef>{{ 'Value' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.value }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'enabled'">
+        <ng-template tnHeaderCellDef>{{ 'Enabled' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.enabled | yesNo | translate }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'comment'">
+        <ng-template tnHeaderCellDef>{{ 'Description' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.comment }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'actions'" [width]="'80px'">
+        <ng-template tnHeaderCellDef></ng-template>
+        <ng-template let-row tnCellDef>
+          <ix-table-actions-cell
+            [actions]="actions"
+            [row]="row"
+            [uniqueRowTag]="uniqueRowTag(row)"
+            [ariaLabel]="ariaLabel(row)"
+          ></ix-table-actions-cell>
+        </ng-template>
+      </ng-container>
+    </tn-table>
+  }
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      [testId]="['tunable', 'add']"
+      [ixUiSearch]="searchableElements.elements.addTunable"
+      [label]="'Add' | translate"
+      (onClick)="onAdd()"
+    ></tn-button>
+  </ng-template>
+</tn-card>

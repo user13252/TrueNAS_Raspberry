@@ -1,0 +1,198 @@
+<!-- Panel-hosted only: the title, Save and role gating live on the <tn-side-panel> host. -->
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="true"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field
+      [label]="'Name' | translate"
+      [tooltip]="helptext.name_tooltip | translate"
+      [required]="true"
+    >
+      <tn-input formControlName="name"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Description' | translate"
+      [tooltip]="helptext.description_tooltip | translate"
+    >
+      <tn-input formControlName="description"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'System Clock' | translate"
+      [tooltip]="helptext.time_tooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="time"
+        [options]="(timeOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Boot Method' | translate"
+      [tooltip]="helptext.bootloader_tooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="bootloader"
+        [options]="(bootloaderOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Shutdown Timeout' | translate"
+      [tooltip]="helptext.shutdown_timeout.tooltip | translate"
+    >
+      <tn-input
+        formControlName="shutdown_timeout"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.autostart_tooltip | translate">
+      <tn-checkbox
+        formControlName="autostart"
+        [label]="'Start on Boot' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.hyperv_enlightenments_tooltip | translate">
+      <tn-checkbox
+        formControlName="hyperv_enlightenments"
+        [label]="'Enable Hyper-V Enlightenments' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.enableTrustedPlatformModule | translate">
+      <tn-checkbox
+        formControlName="trusted_platform_module"
+        [label]="'Enable Trusted Platform Module (TPM)' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+
+  <tn-form-section [heading]="'CPUs and Memory' | translate">
+    <tn-form-field
+      [label]="'Virtual CPUs' | translate"
+      [tooltip]="helptext.vcpus_tooltip | translate"
+    >
+      <tn-input
+        formControlName="vcpus"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Cores' | translate"
+      [tooltip]="helptext.cores.tooltip | translate"
+    >
+      <tn-input
+        formControlName="cores"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Threads' | translate"
+      [tooltip]="helptext.threads.tooltip | translate"
+    >
+      <tn-input
+        formControlName="threads"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Optional: CPU Set (Examples: 0-3,8-11)' | translate"
+      [tooltip]="helptext.cpuset.tooltip | translate"
+    >
+      <tn-input formControlName="cpuset"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.pin_vcpus.tooltip | translate">
+      <tn-checkbox
+        formControlName="pin_vcpus"
+        [label]="'Pin vcpus' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [label]="'CPU Mode' | translate" [required]="true">
+      <tn-select
+        formControlName="cpu_mode"
+        [options]="(cpuModeOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (showCpuModelField) {
+      <tn-form-field [label]="'CPU Model' | translate">
+        <tn-select
+          formControlName="cpu_model"
+          [options]="(cpuModelOptions$ | async) ?? []"
+          [allowEmpty]="true"
+        ></tn-select>
+      </tn-form-field>
+    }
+
+    <!--
+      Byte-count fields. `InputType.Size` keeps the exact value the user typed since
+      @truenas/ui-components 0.7.x: it renders a byte count in a unit that states it exactly
+      (1500 MiB stays '1500 MiB' rather than collapsing to a lossy '1.46 GiB'), and both fields
+      hold whole MiB anyway. Unit-less input is read as MiB, matching the formatter these
+      replaced.
+    -->
+    <tn-form-field
+      [label]="'Memory Size' | translate"
+      [tooltip]="helptext.memory_tooltip | translate"
+    >
+      <tn-input
+        formControlName="memory"
+        [inputType]="InputType.Size"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Minimum Memory Size' | translate"
+      [tooltip]="helptext.min_memory_tooltip | translate"
+    >
+      <tn-input
+        formControlName="min_memory"
+        [inputType]="InputType.Size"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Optional: NUMA nodeset (Example: 0-1)' | translate"
+      [tooltip]="helptext.nodeset.tooltip | translate"
+    >
+      <tn-input formControlName="nodeset"></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+  <tn-form-section [heading]="'GPU' | translate">
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="hide_from_msr"
+        [label]="'Hide from MSR' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="ensure_display_device"
+        [label]="'Ensure Display Device' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [label]="'GPUs' | translate">
+      <tn-select
+        formControlName="gpus"
+        [multiple]="true"
+        [options]="(gpuOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

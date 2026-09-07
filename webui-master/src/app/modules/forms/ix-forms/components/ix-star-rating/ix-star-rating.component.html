@@ -1,0 +1,30 @@
+@if (label() || tooltip()) {
+  <ix-label
+    [label]="label()"
+    [tooltip]="tooltip()"
+    [required]="required()"
+  ></ix-label>
+}
+
+<div class="star-rating" [attr.aria-label]="label()">
+  @for (rating of ratings(); track index; let index = $index) {
+    <div>
+      <button
+        mat-icon-button
+        type="button"
+        [disabled]="isDisabled"
+        [ixTest]="[controlDirective.name, index + 1]"
+        [attr.aria-label]="'Click to give {index} star rating.' | translate: { index: index + 1 }"
+        (click)="onValueChanged(index + 1)"
+        (blur)="onTouch()"
+      >
+        <tn-icon customSize="28px" [name]="value >= index + 1 ? tnIconMarker('star', 'mdi') : tnIconMarker('star-outline', 'mdi')"></tn-icon>
+      </button>
+    </div>
+  }
+</div>
+
+@let control = controlDirective.control;
+@if (control) {
+  <ix-errors [control]="control" [label]="label()"></ix-errors>
+}

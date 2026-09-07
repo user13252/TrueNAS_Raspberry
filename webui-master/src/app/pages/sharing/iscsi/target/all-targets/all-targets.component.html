@@ -1,0 +1,48 @@
+@let target = dataProvider.expandedRow;
+@let showDetails = !masterList.searchQuery() || target.name.toLowerCase().includes(masterList.searchQuery().toLowerCase());
+
+<ix-master-detail-view
+  #masterDetailView="masterDetailViewContext"
+  [selectedItem]="target"
+  [showDetails]="showDetails"
+  (mobileDetailsClosed)="onMobileDetailsClosed()"
+>
+  <ix-iscsi-target-list
+    #masterList
+    master
+    [dataProvider]="dataProvider"
+    [targets]="targets()"
+    (toggleShowMobileDetails)="masterDetailView.toggleShowMobileDetails($event)"
+  ></ix-iscsi-target-list>
+
+  <div detail-header class="detail-header">
+    @if (target) {
+      <span>
+        {{ 'Details for' | translate }}
+        {{ target?.name }}
+      </span>
+
+      <div class="detail-actions">
+        <tn-button
+          *ixRequiresRoles="requiredRoles"
+          [testId]="'edit-target'"
+          [label]="'Edit' | translate"
+          (onClick)="editTarget(target)"
+        ></tn-button>
+
+        <tn-button
+          *ixRequiresRoles="requiredRoles"
+          [testId]="'delete-target'"
+          [label]="'Delete' | translate"
+          (onClick)="deleteTarget(target)"
+        ></tn-button>
+      </div>
+    }
+  </div>
+
+  <ng-container detail>
+    @if (target) {
+      <ix-target-details [target]="target"></ix-target-details>
+    }
+  </ng-container>
+</ix-master-detail-view>

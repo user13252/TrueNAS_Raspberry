@@ -1,0 +1,165 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, input, OnChanges, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnCheckboxComponent, TnFormFieldComponent, TnFormSectionComponent, TnSelectComponent,
+} from '@truenas/ui-components';
+import {
+  PosixAclTag, posixAclTagLabels, PosixPermission, posixPermissionLabels,
+} from 'app/enums/posix-acl.enum';
+import { mapToOptions } from 'app/helpers/options.helper';
+import { helptextAcl } from 'app/helptext/storage/volumes/datasets/dataset-acl';
+import { PosixAclItem } from 'app/interfaces/acl.interface';
+import { IxGroupComboboxComponent } from 'app/modules/forms/ix-forms/components/ix-group-combobox/ix-group-combobox.component';
+import { IxUserComboboxComponent } from 'app/modules/forms/ix-forms/components/ix-user-combobox/ix-user-combobox.component';
+import { DatasetAclEditorStore } from 'app/pages/datasets/modules/permissions/stores/dataset-acl-editor.store';
+
+@Component({
+  selector: 'ix-edit-posix-ace',
+  templateUrl: './edit-posix-ace.component.html',
+  styleUrls: ['./edit-posix-ace.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    IxUserComboboxComponent,
+    IxGroupComboboxComponent,
+    TnCheckboxComponent,
+    TranslateModule,
+  ],
+})
+export class EditPosixAceComponent implements OnInit, OnChanges {
+  private store = inject(DatasetAclEditorStore);
+  private formBuilder = inject(FormBuilder);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly ace = input.required<PosixAclItem>();
+
+  form = this.formBuilder.group({
+    tag: this.formBuilder.control<PosixAclTag | null>(null),
+    user: this.formBuilder.control<string | null>(null),
+    group: this.formBuilder.control<string | null>(null),
+    permissions: this.formBuilder.nonNullable.group({
+      [PosixPermission.Read]: false,
+      [PosixPermission.Write]: false,
+      [PosixPermission.Execute]: false,
+    }),
+    default: this.formBuilder.nonNullable.control(false),
+  });
+
+  readonly tags = mapToOptions(posixAclTagLabels, this.translate);
+  readonly permissionOptions = mapToOptions(posixPermissionLabels, this.translate);
+
+  readonly tooltips = {
+    user: helptextAcl.userTooltip,
+    group: helptextAcl.groupTooltip,
+  };
+
+  get isUserTag(): boolean {
+    return this.form.value.tag === PosixAclTag.User;
+  }
+
+  get isGroupTag(): boolean {
+    return this.form.value.tag === PosixAclTag.Group;
+  }
+
+  ngOnChanges(): void {
+    this.updateFormValues();
+  }
+
+  ngOnInit(): void {
+    this.setFormListeners();
+    this.updateFormValues();
+  }
+
+  private setFormListeners(): void {
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.onAceUpdated());
+    this.form.statusChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.onFormStatusUpdated());
+  }
+
+  private onFormStatusUpdated(): void {
+    // Don't update validation status while async validators are pending
+    // This prevents the "flash of invalid" during async validation
+    if (this.form.pending) {
+      return;
+    }
+    this.store.updateSelectedAceValidation(this.form.valid);
+  }
+
+  private onAceUpdated(): void {
+    const updatedAce = this.formValuesToAce();
+    this.store.updateSelectedAce(updatedAce);
+  }
+
+  private formValuesToAce(): PosixAclItem {
+    const formValues = this.form.getRawValue();
+
+    const ace = {
+      tag: formValues.tag,
+      default: formValues.default,
+      perms: {
+        [PosixPermission.Read]: formValues.permissions[PosixPermission.Read],
+        [PosixPermission.Write]: formValues.permissions[PosixPermission.Write],
+        [PosixPermission.Execute]: formValues.permissions[PosixPermission.Execute],
+      },
+    } as PosixAclItem;
+
+    if (this.isUserTag) {
+      ace.who = formValues.user || undefined;
+    } else if (this.isGroupTag) {
+      ace.who = formValues.group || undefined;
+    }
+
+    return ace;
+  }
+
+  private updateFormValues(): void {
+    // Use ace input values directly here, not the form getters
+    // The getters read from this.form.value which hasn't been patched yet
+    const aceTag = this.ace().tag;
+    const isUserTag = aceTag === PosixAclTag.User;
+    const isGroupTag = aceTag === PosixAclTag.Group;
+
+    const userField = this.form.controls.user;
+    const groupField = this.form.controls.group;
+
+    userField.clearValidators();
+    groupField.clearValidators();
+
+    if (isUserTag) {
+      userField.addValidators(Validators.required);
+    } else if (isGroupTag) {
+      groupField.addValidators(Validators.required);
+    }
+
+    const perms = this.ace().perms;
+    const formValues = {
+      tag: aceTag,
+      user: isUserTag ? this.ace().who : null,
+      group: isGroupTag ? this.ace().who : null,
+      default: this.ace().default,
+      permissions: {
+        [PosixPermission.Read]: !!perms[PosixPermission.Read],
+        [PosixPermission.Write]: !!perms[PosixPermission.Write],
+        [PosixPermission.Execute]: !!perms[PosixPermission.Execute],
+      },
+    };
+
+    this.form.patchValue(formValues, { emitEvent: false });
+    // Force status recalculation and event emission after patchValue
+    // This ensures statusChanges fires when async validators complete
+    userField.updateValueAndValidity({ onlySelf: true });
+    groupField.updateValueAndValidity({ onlySelf: true });
+    this.form.markAllAsTouched();
+
+    this.onFormStatusUpdated();
+  }
+}

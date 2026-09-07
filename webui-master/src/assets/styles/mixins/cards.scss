@@ -1,0 +1,300 @@
+@import 'mixins/animations';
+@import 'mixins/buttons';
+@import 'scss-imports/variables';
+
+@mixin details-cards {
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: 30px;
+  width: 100%;
+  word-break: break-word;
+
+  @media (max-width: $breakpoint-tablet) {
+    height: auto;
+    overflow: visible;
+  }
+
+  .scroll-window {
+    // A fixed column width, not a slice of the viewport: the old `calc(50vw / 2.7)` grew the
+    // cards with the screen (711px columns at 2560px), so a card holding "Type: Built-In" was
+    // mostly empty space. The width is the ideal, and the browser stretches the columns to
+    // fill the panel, so the card size is really capped by the details panel's own max-width
+    // (see tree-node-with-details-container in mixins/layout.scss).
+    columns: $card-width-slim;
+    gap: $gap;
+
+    @media (max-width: $breakpoint-tablet) {
+      columns: 1;
+      padding: 0 16px;
+    }
+
+    // The mobile overlay, where the panel is the full window. No column width of its own
+    // any more: `$card-width-slim` applies here too, so the overlay lays out the same cards
+    // as the docked panel does. Near the top of this band that is the narrower column — the
+    // old `calc(50vw / 1.5)` was 426px at 1279px — so just under $breakpoint-md the overlay
+    // now fits three columns where it used to fit two. At 768px both give two.
+    @media (min-width: $breakpoint-tablet) and (max-width: $breakpoint-md) {
+      padding: 0 16px;
+    }
+
+    > * {
+      display: inline-block;
+      width: 100%;
+
+      &:not(:last-child) {
+        margin-bottom: 8px;
+      }
+    }
+  }
+}
+
+@mixin details-card {
+  border: none;
+  border-radius: 0;
+  margin: 0;
+
+  mat-card-header {
+    align-items: center;
+    border-bottom: 1px solid var(--lines);
+    justify-content: space-between;
+    min-height: 40px;
+    padding: 8px 8px 8px 16px;
+
+    .mat-mdc-button {
+      flex-shrink: 0;
+    }
+  }
+
+  .mat-mdc-card-title {
+    align-items: center;
+    column-gap: 5px;
+    display: flex;
+    font-size: 1.65rem;
+    margin-bottom: 0;
+
+    // Smaller text for smaller screens
+    @media (max-width: $breakpoint-flex) {
+      font-size: 1.728em;
+    }
+  }
+
+  mat-card-content {
+    margin: 0;
+    padding: 16px !important;
+
+    > div {
+      padding: 0;
+    }
+  }
+
+  ngx-skeleton-loader {
+    flex: 1;
+  }
+
+  .details-item {
+    @include fade-in();
+
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    .label {
+      font-weight: bold;
+      margin-right: 5px;
+      white-space: normal;
+    }
+
+    .value {
+      font-weight: normal;
+      margin-right: 5px;
+      white-space: normal;
+    }
+
+    a {
+      color: var(--primary);
+      cursor: pointer;
+      margin-left: auto;
+      max-width: 100%;
+      overflow: hidden;
+      text-decoration: underline;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    ngx-skeleton-loader {
+      display: inline-block;
+      flex: 0;
+      height: 20px;
+      min-width: 30px;
+      width: 30%;
+
+      ::ng-deep .loader {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  mat-card-actions {
+    border-top: 1px solid var(--lines);
+    box-sizing: border-box;
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
+    padding: 8px 8px 8px 16px;
+
+    .mdc-button--outlined {
+      @include stroked-button();
+    }
+  }
+}
+
+@mixin resource-cards {
+  @include details-cards();
+
+  gap: 16px;
+
+  > * {
+    max-width: 360px;
+    min-width: 360px;
+  }
+}
+
+// Shared overrides for the apps detail cards migrated to tn-card (app-info,
+// app-metadata, app-notes). Hoisted here so the three siblings can't drift.
+//
+// Every `TEMP (NAS-141021)` block below works around a defect in the pinned
+// @truenas/ui-components; they are indexed in the tn-migration playbook's
+// "Known upstream defects" table, which is the checklist for the cleanup pass.
+@mixin tn-detail-card {
+  // TEMP (NAS-141021): cards that pass tn-card's [title] input get the library's
+  // own scoped .tn-card__title; cards that project a custom header (app-info,
+  // app-metadata, app-notes) instead mark their <h3> with .detail-card-title,
+  // since the library's scoped style can't reach projected content. Style both
+  // here so every detail-card title stays consistent. Drop once the library
+  // exposes a styled-title projection slot.
+  :host ::ng-deep .tn-card__title,
+  :host ::ng-deep .detail-card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  // TEMP (NAS-141021): tn-card's header/footer dividers use the unmapped
+  // --tn-lines token, which falls back to a light colour that looks wrong in the
+  // dark theme. Point them at webui's --lines until the design tokens are bridged.
+  :host ::ng-deep .tn-card__header,
+  :host ::ng-deep .tn-card__footer {
+    border-color: var(--lines);
+  }
+}
+
+// TEMP (NAS-141021): the library's `.tn-card__title` style is scoped to tn-card, so a consumer
+// that projects an adornment (a status icon) next to the title text can't lay the row out without
+// restating the class on its own heading. Hoisted here so the pool dashboard's four sibling cards
+// — disk-health, storage-health, pool-usage, vdevs — can't drift. Drop once the library exposes a
+// styled-title projection slot. Kept separate from `tn-detail-card` so title-only cards aren't
+// made flex.
+//
+// No `::ng-deep` here, unlike `tn-detail-card`: these four cards project their own
+// `<h3 tnCardHeader class="tn-card__title">` from their own template, so the heading already
+// carries the consumer's encapsulation attribute and a plain descendant selector reaches it.
+// `tn-detail-card` needs `::ng-deep` because it also has to reach the heading tn-card itself
+// renders from its `[title]` input, which carries the library's attribute instead.
+@mixin tn-card-inline-title {
+  :host .tn-card__title {
+    align-items: center;
+    column-gap: 5px;
+    display: flex;
+  }
+}
+
+// TEMP (NAS-141021): tn-card declares no host `display`, so it defaults to `inline`. An inline box
+// wrapping block content is split into fragments that each paint the host background and padding,
+// which shows up as stray rectangles above and below the card. Hoisted here so the pool-manager
+// preview cards can't drift. Drop once the library sets a block host display.
+@mixin tn-card-block-host {
+  :host,
+  .card {
+    display: block;
+  }
+}
+
+// Shared `.details-item` row layout for detail cards migrated to tn-card. Pair with
+// `tn-detail-card` (title + divider theming) which is included at the stylesheet top level;
+// this mixin is included inside the card host rule (e.g. `.card { @include tn-details-item(); }`).
+@mixin tn-details-item {
+  .details-item {
+    @include fade-in();
+
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    .label {
+      font-weight: bold;
+      margin-right: 5px;
+      white-space: normal;
+    }
+
+    .value {
+      font-weight: normal;
+      margin-right: 5px;
+      white-space: normal;
+    }
+
+    // `a` for real navigations. `.link-button` is for row actions that only run a handler:
+    // those are `<button>`s so that role, focusability and Enter/Space activation come from
+    // the element, and only the link *appearance* has to be restored here.
+    a,
+    .link-button {
+      color: var(--primary);
+      cursor: pointer;
+      margin-left: auto;
+      max-width: 100%;
+      overflow: hidden;
+      text-decoration: underline;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .link-button {
+      background: none;
+      border: 0;
+      font: inherit;
+      padding: 0;
+      text-align: inherit;
+    }
+
+    ngx-skeleton-loader {
+      display: inline-block;
+      flex: 0;
+      height: 20px;
+      min-width: 30px;
+      width: 30%;
+
+      ::ng-deep .loader {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+@mixin loader-block {
+  background: var(--fg2);
+  border-radius: 3px;
+  height: 20px;
+  opacity: 0.3;
+}

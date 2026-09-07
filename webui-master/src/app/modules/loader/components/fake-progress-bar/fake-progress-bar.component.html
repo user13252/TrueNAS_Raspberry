@@ -1,0 +1,11 @@
+@if (isVisible()) {
+  <tn-progress-bar
+    mode="determinate"
+    class="progress-bar"
+    animateOutClass="fade-out"
+    [value]="progress()"
+    [animateOut]="shouldFadeOut()"
+    [animateOutDuration]="250"
+    (animateOutComplete)="onFadeOutComplete()"
+  ></tn-progress-bar>
+}

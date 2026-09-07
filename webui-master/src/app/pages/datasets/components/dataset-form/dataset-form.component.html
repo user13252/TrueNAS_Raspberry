@@ -1,0 +1,34 @@
+<!-- Panel-hosted only: the title, Save and role gating live on the <tn-side-panel> host. -->
+<ix-form
+  [formGroup]="form"
+  [externalLoading]="isLoading()"
+  [extraDisabled]="!areSubFormsValid() || isMissingEditRecord() || isMissingParent()"
+  [submitHandler]="handleSubmit"
+  (closed)="onFormClosed($event)"
+>
+  <ix-name-and-options
+    [existing]="existingDataset()"
+    [parent]="parentDataset()"
+    (formValidityChange)="isNameAndOptionsValid.set($event)"
+  ></ix-name-and-options>
+  @if (isAdvancedMode() && isNew()) {
+    <ix-quotas-section
+      (formValidityChange)="isQuotaValid.set($event)"
+    ></ix-quotas-section>
+  }
+  @if (isNew()) {
+    <ix-encryption-section
+      [parent]="parentDataset()"
+      [advancedMode]="isAdvancedMode()"
+      (formValidityChange)="isEncryptionValid.set($event)"
+    ></ix-encryption-section>
+  }
+  <ix-other-options-section
+    [existing]="existingDataset()"
+    [parent]="parentDataset()"
+    [datasetPreset]="datasetPreset()"
+    [advancedMode]="isAdvancedMode()"
+    (advancedModeChange)="onSwitchToAdvanced()"
+    (formValidityChange)="isOtherOptionsValid.set($event)"
+  ></ix-other-options-section>
+</ix-form>

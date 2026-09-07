@@ -1,0 +1,43 @@
+@import 'mixins/cards';
+
+@include tn-detail-card;
+
+.card {
+  display: block;
+  position: relative;
+
+  ix-fake-progress-bar {
+    position: absolute;
+    top: 0;
+  }
+}
+
+// TEMP (NAS-141021): the migrated steps render bare `tn-form-field`s and `ix-form-actions`
+// rows that carry no vertical rhythm of their own — the legacy `ix-input`/`ix-select`
+// wrappers used to supply it. The spacing lives here once instead of in nine near-identical
+// step stylesheets. Drop once the library exposes a field-density input on `tn-form-field`.
+//
+// Scoped to `tn-stepper`, NOT `tn-step`: the stepper renders each step's body through an
+// `ngTemplateOutlet` in its own template, so the step content is never a DOM descendant of
+// the `<tn-step>` element that declared it. A per-step scoping class would not narrow this
+// either — the fields that need the rhythm are spread across the step components *and* their
+// children (`ix-disk-size-dropdowns`, `ix-pool-warnings`), so the reach is deliberately
+// "every field rendered anywhere inside this wizard's stepper", library components included.
+:host ::ng-deep tn-stepper {
+  // No `:last-child` reset here — `ix-disk-size-dropdowns` wraps its own field, so the
+  // Disk Size field is the last child of *that* element and would lose the gap before
+  // the sibling Width field.
+  tn-form-field {
+    display: block;
+    margin-bottom: 20px;
+  }
+
+  ix-form-actions {
+    margin-top: 24px;
+  }
+
+  .step-buttons {
+    display: flex;
+    gap: 12px;
+  }
+}

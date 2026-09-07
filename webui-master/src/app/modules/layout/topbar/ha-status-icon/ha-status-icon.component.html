@@ -1,0 +1,13 @@
+@if (isFailoverLicensed() && statusText()) {
+  <tn-icon-button
+    id="ha"
+    class="topbar-button-right"
+    size="lg"
+    [name]="iconName()"
+    [dense]="true"
+    [testId]="isDisabled() ? 'ha-indicator-disabled' : 'ha-indicator-enabled'"
+    [tooltip]="statusText()"
+    [ariaLabel]="statusText()"
+    (onClick)="showHaPopover()"
+  ></tn-icon-button>
+}

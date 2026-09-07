@@ -1,0 +1,290 @@
+// eslint-disable-next-line max-classes-per-file
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { Component } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnCheckboxHarness, TnInputHarness, TnSelectHarness } from '@truenas/ui-components';
+import { NEVER, of } from 'rxjs';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { AlertLevel } from 'app/enums/alert-level.enum';
+import { AlertServiceType } from 'app/enums/alert-service-type.enum';
+import { AlertService } from 'app/interfaces/alert-service.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import {
+  ixFormTestingProviders,
+} from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { AlertServiceComponent } from 'app/pages/system/alert-service/alert-service/alert-service.component';
+import {
+  AwsSnsServiceComponent,
+} from 'app/pages/system/alert-service/alert-service/alert-services/aws-sns-service/aws-sns-service.component';
+import {
+  BaseAlertServiceForm,
+} from 'app/pages/system/alert-service/alert-service/alert-services/base-alert-service-form';
+import {
+  OpsGenieServiceComponent,
+} from 'app/pages/system/alert-service/alert-service/alert-services/ops-genie-service/ops-genie-service.component';
+
+jest.mock('./alert-services/aws-sns-service/aws-sns-service.component', () => {
+  return {
+    AwsSnsServiceComponent: Component({
+      selector: 'ix-aws-service',
+      template: '',
+    })(class {
+      setValues = jest.fn() as BaseAlertServiceForm['setValues'];
+      getSubmitAttributes = jest.fn(() => ({
+        region: 'us-east-1',
+        topic_arn: 'arn:aws:sns:us-east-1:123456789012:MyTopic',
+        aws_access_key_id: 'KEY1',
+        aws_secret_access_key: 'SECRET1',
+      })) as BaseAlertServiceForm['getSubmitAttributes'];
+
+      form = {
+        get valid(): boolean {
+          return true;
+        },
+        get invalid(): boolean {
+          return false;
+        },
+        status: 'VALID',
+        statusChanges: NEVER,
+      } as unknown as FormGroup;
+    }),
+  };
+});
+
+jest.mock('./alert-services/ops-genie-service/ops-genie-service.component', () => {
+  return {
+    OpsGenieServiceComponent: Component({
+      selector: 'ix-ops-genie-service',
+      template: '',
+    })(class {
+      setValues = jest.fn() as BaseAlertServiceForm['setValues'];
+      getSubmitAttributes = jest.fn(() => ({
+        email: 'me@truenas.com',
+      })) as BaseAlertServiceForm['getSubmitAttributes'];
+
+      form = {
+        get valid(): boolean {
+          return true;
+        },
+        get invalid(): boolean {
+          return false;
+        },
+        status: 'VALID',
+        statusChanges: NEVER,
+      } as unknown as FormGroup;
+    }),
+  };
+});
+
+describe('AlertServiceComponent', () => {
+  let spectator: Spectator<AlertServiceComponent>;
+  let closedSpy: jest.SpyInstance;
+  let loader: HarnessLoader;
+
+  const getInput = (name: string): Promise<TnInputHarness> => loader.getHarness(
+    TnInputHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+  const getSelect = (name: string): Promise<TnSelectHarness> => loader.getHarness(
+    TnSelectHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+  const getCheckbox = (name: string): Promise<TnCheckboxHarness> => loader.getHarness(
+    TnCheckboxHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+
+  const existingService = {
+    id: 4,
+    name: 'Existing Service',
+    enabled: true,
+    level: AlertLevel.Warning,
+    attributes: {
+      type: AlertServiceType.AwsSns,
+      region: 'us-east-1',
+      topic_arn: 'arn:aws:sns:us-east-1:123456789012:MyTopic',
+      aws_access_key_id: 'KEY1',
+      aws_secret_access_key: 'SECRET1',
+    } as AlertService['attributes'],
+  } as AlertService;
+  const createComponent = createComponentFactory({
+    component: AlertServiceComponent,
+    providers: [
+      // This form delegates to `<ix-form>`; the helper zeroes the panel-host submit-feedback hold
+      // so a successful save closes synchronously here.
+      ...ixFormTestingProviders(),
+      mockProvider(SnackbarService, {
+        success: jest.fn(),
+      }),
+      mockProvider(DialogService, {
+        info: jest.fn(),
+      }),
+      mockApi([
+        mockCall('alertservice.test', true),
+        mockCall('alertservice.create'),
+        mockCall('alertservice.update'),
+      ]),
+      mockAuth(),
+    ],
+  });
+
+  describe('creates a new alert service', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      closedSpy = jest.spyOn(spectator.component.closed, 'emit');
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('shows form fields specific to an alert service when Type is changed', async () => {
+      await (await getSelect('type')).selectOption('OpsGenie');
+
+      const opsGenieForm = spectator.query(OpsGenieServiceComponent);
+      expect(opsGenieForm).toBeTruthy();
+    });
+
+    it('creates a new alert service when new form is submitted', async () => {
+      await (await getInput('name')).setValue('My Alert Service');
+      await (await getCheckbox('enabled')).check();
+      await (await getSelect('type')).selectOption('AWS SNS');
+      await (await getSelect('level')).selectOption('Error');
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      const awsSnsForm = spectator.query(AwsSnsServiceComponent)!;
+      expect(awsSnsForm.getSubmitAttributes).toHaveBeenCalled();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('alertservice.create', [{
+        name: 'My Alert Service',
+        enabled: true,
+        level: AlertLevel.Error,
+        attributes: {
+          type: AlertServiceType.AwsSns,
+          aws_access_key_id: 'KEY1',
+          aws_secret_access_key: 'SECRET1',
+          region: 'us-east-1',
+          topic_arn: 'arn:aws:sns:us-east-1:123456789012:MyTopic',
+        },
+      }]);
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalled();
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('disables Save while a Send Test Alert call is in flight', async () => {
+      // Override alertservice.test with NEVER so the call stays in flight,
+      // which keeps testAlertLoading=true and should feed the wrapper's
+      // externalLoading gate. The save button must reflect that.
+      const api = spectator.inject(ApiService);
+      (api.call as jest.Mock).mockImplementation((method: string) => {
+        return method === 'alertservice.test' ? NEVER : of(undefined);
+      });
+
+      await (await getInput('name')).setValue('My Alert Service');
+      await (await getCheckbox('enabled')).check();
+      await (await getSelect('type')).selectOption('AWS SNS');
+      await (await getSelect('level')).selectOption('Error');
+
+      // The host-owned Save reads `canSubmit()`.
+      expect(spectator.component.canSubmit()).toBe(true);
+
+      // Send Test Alert is now a side-panel footer action (rendered by the host
+      // container, not this component), so trigger it via the exposed action.
+      spectator.component.footerActions[0].onClick();
+      spectator.detectChanges();
+
+      expect(spectator.component.canSubmit()).toBe(false);
+    });
+
+    it('sends a test alert when Send Test Alert is pressed and shows validation result', async () => {
+      await (await getInput('name')).setValue('My Alert Service');
+      await (await getCheckbox('enabled')).check();
+      await (await getSelect('type')).selectOption('AWS SNS');
+      await (await getSelect('level')).selectOption('Error');
+
+      // Send Test Alert is now a side-panel footer action (rendered by the host
+      // container, not this component), so trigger it via the exposed action.
+      spectator.component.footerActions[0].onClick();
+      spectator.detectChanges();
+
+      const awsSnsForm = spectator.query(AwsSnsServiceComponent)!;
+      expect(awsSnsForm.getSubmitAttributes).toHaveBeenCalled();
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('alertservice.test', [{
+        attributes: {
+          type: AlertServiceType.AwsSns,
+          aws_access_key_id: 'KEY1',
+          aws_secret_access_key: 'SECRET1',
+          region: 'us-east-1',
+          topic_arn: 'arn:aws:sns:us-east-1:123456789012:MyTopic',
+        },
+        enabled: true,
+        level: AlertLevel.Error,
+        name: 'My Alert Service',
+      }]);
+
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalled();
+    });
+  });
+
+  describe('edits alert service', () => {
+    beforeEach(() => {
+      spectator = createComponent({ props: { alertServiceToEdit: existingService } });
+      closedSpy = jest.spyOn(spectator.component.closed, 'emit');
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('shows values for an existing alert service', async () => {
+      expect(await (await getInput('name')).getValue()).toBe('Existing Service');
+      expect(await (await getCheckbox('enabled')).isChecked()).toBe(true);
+      expect(await (await getSelect('type')).getDisplayText()).toBe('AWS SNS');
+      expect(await (await getSelect('level')).getDisplayText()).toBe('Warning');
+
+      spectator.detectChanges();
+      await spectator.fixture.whenStable();
+
+      const awsSnsForm = spectator.query(AwsSnsServiceComponent)!;
+      expect(awsSnsForm.setValues).toHaveBeenCalledWith(existingService.attributes);
+    });
+
+    it('does not request close confirmation right after opening in edit mode', () => {
+      // Edit-open patches `type`, which fires its valueChanges. That subscription
+      // must not flip the sticky dirty flag before the user has touched anything,
+      // or closing a freshly-opened edit prompts a bogus unsaved-changes dialog.
+      expect(spectator.component.hasUnsavedChanges()).toBe(false);
+    });
+
+    it('updates an existing alert service when update form is submitted', async () => {
+      await (await getInput('name')).setValue('Updated Service');
+      await (await getCheckbox('enabled')).uncheck();
+      await (await getSelect('type')).selectOption('OpsGenie');
+
+      // Panel-hosted form: the `<tn-side-panel>` footer owns Save and calls `submit()`.
+
+      spectator.component.submit();
+
+      spectator.detectChanges();
+
+      const opsGenie = spectator.query(OpsGenieServiceComponent)!;
+      expect(opsGenie.getSubmitAttributes).toHaveBeenCalled();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('alertservice.update', [
+        4,
+        {
+          name: 'Updated Service',
+          enabled: false,
+          level: AlertLevel.Warning,
+          attributes: {
+            type: AlertServiceType.OpsGenie,
+            email: 'me@truenas.com',
+          },
+        },
+      ]);
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalled();
+      expect(closedSpy).toHaveBeenCalledWith(true);
+    });
+  });
+});

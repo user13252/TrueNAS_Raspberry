@@ -1,0 +1,189 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <div class="columns">
+    <div class="column">
+      <tn-form-section [heading]="helptext.fieldsetExtentBasic | translate">
+        <tn-form-field
+          [label]="helptext.extent.nameLabel | translate"
+          [tooltip]="helptext.extent.nameTooltip | translate"
+        >
+          <tn-input
+            formControlName="name"
+            [required]="true"
+            [placeholder]="helptext.extent.nameLabel | translate"
+          ></tn-input>
+        </tn-form-field>
+
+        <tn-form-field [label]="helptext.extent.commentLabel | translate">
+          <tn-input
+            formControlName="comment"
+            [placeholder]="helptext.extent.commentLabel | translate"
+          ></tn-input>
+        </tn-form-field>
+
+        <tn-form-field [tooltip]="helptext.extent.enabledTooltip | translate">
+          <tn-checkbox
+            formControlName="enabled"
+            [label]="helptext.extent.enabledLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      </tn-form-section>
+      <tn-form-section [heading]="helptext.fieldsetExtentOptions | translate">
+        <tn-form-field [tooltip]="helptext.extent.tpcTooltip | translate">
+          <tn-checkbox
+            formControlName="insecure_tpc"
+            [label]="helptext.extent.tpcLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+
+        <tn-form-field [tooltip]="helptext.extent.xenTooltip | translate">
+          <tn-checkbox
+            formControlName="xen"
+            [label]="helptext.extent.xenLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+
+        <tn-form-field
+          [label]="helptext.extent.rpmLabel | translate"
+          [tooltip]="helptext.extent.rpmTooltip | translate"
+          [required]="true"
+        >
+          <tn-select
+            formControlName="rpm"
+            [options]="(rpms$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+
+        <tn-form-field [tooltip]="helptext.extent.readOnlyTooltip | translate">
+          <tn-checkbox
+            formControlName="ro"
+            [label]="helptext.extent.readOnlyLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      </tn-form-section>
+    </div>
+
+    <div class="column">
+      <tn-form-section [heading]="helptext.fieldsetExtentType | translate">
+        <tn-form-field
+          [label]="helptext.extent.typeLabel | translate"
+          [tooltip]="helptext.extent.typeTooltip | translate"
+          [required]="true"
+        >
+          <tn-select
+            formControlName="type"
+            [options]="(types$ | translateOptions | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+
+        @if (isDevice) {
+          <tn-form-field
+            [label]="helptext.extent.deviceLabel | translate"
+            [tooltip]="helptext.extent.deviceTooltip | translate"
+            [required]="true"
+          >
+            <tn-select
+              formControlName="disk"
+              [options]="(disks$ | async) ?? []"
+            ></tn-select>
+          </tn-form-field>
+
+          @if (isSnapshot) {
+            <div class="snapshot-info-box" role="status">
+              <div class="info-header">
+                <tn-icon name="information-outline" library="mdi"></tn-icon>
+                <span>{{ 'Snapshot Selected' | translate }}</span>
+              </div>
+              <p class="info-message">
+                {{ 'Snapshots preserve data at a specific point in time and cannot be changed. Clients can only read from this extent.' | translate }}
+              </p>
+            </div>
+          }
+        } @else {
+          <ix-explorer
+            formControlName="path"
+            [nodeProvider]="treeNodeProvider"
+            [label]="helptext.extent.pathLabel | translate"
+            [tooltip]="helptext.extent.pathTooltip | translate"
+            [required]="true"
+          >
+            @if (isNew) {
+              <ix-explorer-create-dataset></ix-explorer-create-dataset>
+            }
+          </ix-explorer>
+
+          <tn-form-field
+            [label]="helptext.extent.filesizeLabel | translate"
+            [tooltip]="helptext.extent.filesizeTooltip | translate"
+            [required]="true"
+          >
+            <tn-input
+              formControlName="filesize"
+              [inputType]="InputType.Size"
+              [required]="true"
+              [placeholder]="helptext.extent.filesizeLabel | translate"
+            ></tn-input>
+          </tn-form-field>
+        }
+
+        @if (!isNew) {
+          <tn-form-field
+            [label]="helptext.extent.serialLabel | translate"
+            [tooltip]="helptext.extent.serialTooltip | translate"
+          >
+            <tn-input
+              formControlName="serial"
+              [placeholder]="helptext.extent.serialLabel | translate"
+            ></tn-input>
+          </tn-form-field>
+        }
+
+        <tn-form-field
+          [label]="helptext.extent.productIdLabel | translate"
+          [tooltip]="helptext.extent.productIdTooltip | translate"
+        >
+          <tn-input
+            formControlName="product_id"
+            [placeholder]="helptext.extent.productIdPlaceholder | translate"
+          ></tn-input>
+        </tn-form-field>
+
+        <tn-form-field
+          [label]="helptext.extent.blocksizeLabel | translate"
+          [tooltip]="helptext.extent.blocksizeTooltip | translate"
+          [required]="true"
+        >
+          <tn-select
+            formControlName="blocksize"
+            [options]="(blocksizes$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+
+        <tn-form-field [tooltip]="helptext.extent.disablePhysicalBlockSizeTooltip | translate">
+          <tn-checkbox
+            formControlName="pblocksize"
+            [label]="helptext.extent.disablePhysicalBlockSizeLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+
+        @if (isAvailableThreshold) {
+          <tn-form-field
+            [label]="helptext.extent.thresholdLabel | translate"
+            [tooltip]="helptext.extent.thresholdTooltip | translate"
+          >
+            <tn-input
+              formControlName="avail_threshold"
+              [inputType]="InputType.Number"
+              [placeholder]="helptext.extent.thresholdLabel | translate"
+            ></tn-input>
+          </tn-form-field>
+        }
+      </tn-form-section>
+    </div>
+  </div>
+</ix-form>

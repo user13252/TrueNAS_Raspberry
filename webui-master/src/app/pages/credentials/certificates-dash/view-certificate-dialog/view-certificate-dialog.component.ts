@@ -1,0 +1,36 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnDialogShellComponent, TnTestIdDirective } from '@truenas/ui-components';
+import { CopyButtonComponent } from 'app/modules/buttons/copy-button/copy-button.component';
+import {
+  ViewCertificateDialogData,
+} from 'app/pages/credentials/certificates-dash/view-certificate-dialog/view-certificate-dialog-data.interface';
+import { DownloadService } from 'app/services/download.service';
+
+@Component({
+  selector: 'ix-view-certificate-dialog',
+  templateUrl: './view-certificate-dialog.component.html',
+  styleUrls: ['./view-certificate-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    TnTestIdDirective,
+    CopyButtonComponent,
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+export class ViewCertificateDialog {
+  private download = inject(DownloadService);
+  dialogRef = inject<DialogRef<unknown, ViewCertificateDialog>>(DialogRef);
+  data = inject<ViewCertificateDialogData>(DIALOG_DATA);
+
+
+  onDownloadPressed(): void {
+    const fileName = `${this.data.name}.${this.data.extension}`;
+    const blob = new Blob([this.data.certificate], { type: this.data.mimeType });
+
+    this.download.downloadBlob(blob, fileName);
+  }
+}

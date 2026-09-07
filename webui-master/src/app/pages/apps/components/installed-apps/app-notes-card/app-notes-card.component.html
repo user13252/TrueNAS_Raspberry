@@ -1,0 +1,18 @@
+<tn-card class="card" padding="small" elevation="none" [id]="anchorId">
+  <div tnCardHeader class="card-header">
+    <h3 class="detail-card-title">{{ 'Notes' | translate }}</h3>
+    <tn-icon-button
+      name="open-in-new"
+      library="mdi"
+      testId="expand-notes"
+      [tooltip]="'Expand' | translate"
+      [ariaLabel]="'Expand Notes' | translate"
+      (onClick)="openInDialog()"
+    ></tn-icon-button>
+  </div>
+  <ix-card-expand-collapse class="notes">
+    <div class="notes-list">
+      <markdown [data]="app().notes"></markdown>
+    </div>
+  </ix-card-expand-collapse>
+</tn-card>

@@ -1,0 +1,41 @@
+<form class="ix-form-container" (submit)="$event.preventDefault(); submit()">
+  <tn-form-section>
+    <div class="form-row">
+      <div class="layout-control">
+        <span id="widget-group-layout-label" class="layout-label">{{ 'Layout' | translate }}</span>
+        <tn-button-toggle-group
+          ariaLabelledby="widget-group-layout-label"
+          [formControl]="layoutControl"
+        >
+          @for (option of layoutOptions; track option.value) {
+            <tn-button-toggle
+              [value]="option.value"
+              [testId]="option.label"
+              [ariaLabel]="option.label | translate"
+            >
+              <tn-icon [name]="option.icon"></tn-icon>
+            </tn-button-toggle>
+          }
+        </tn-button-toggle-group>
+      </div>
+    </div>
+  </tn-form-section>
+
+  <div class="editor-container">
+    <ix-widget-editor-group
+      [group]="group()"
+      [selectedSlot]="selectedSlot().slotPosition"
+      [validationErrors]="validationErrors()"
+      (selectedSlotChange)="selectedSlotChanged($event)"
+    ></ix-widget-editor-group>
+  </div>
+
+  @if (selectedSlot()) {
+    <ix-widget-group-slot-form
+      #widgetGroupSlotForm
+      [slotConfig]="selectedSlot()"
+      (validityChange)="updateSlotValidation($event)"
+      (settingsChange)="updateSlotSettings($event)"
+    ></ix-widget-group-slot-form>
+  }
+</form>

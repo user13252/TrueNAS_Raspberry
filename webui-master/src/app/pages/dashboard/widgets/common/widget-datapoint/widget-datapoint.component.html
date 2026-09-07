@@ -1,0 +1,23 @@
+<tn-card class="card" [padContent]="false">
+  <div class="card-content">
+    <div class="header">
+      <h3>{{ label() | translate }}</h3>
+    </div>
+
+    <div
+      fittext
+      [class]="['container', size()]"
+      [modelToWatch]="text()"
+      [activateOnResize]="true"
+      [maxFontSize]="maxFontSize"
+      [minFontSize]="12"
+    >
+      <div>{{ text() | translate }}</div>
+
+      @let sub = subText();
+      @if (sub) {
+        <div class="sub-text">{{ sub | translate }}</div>
+      }
+    </div>
+  </div>
+</tn-card>

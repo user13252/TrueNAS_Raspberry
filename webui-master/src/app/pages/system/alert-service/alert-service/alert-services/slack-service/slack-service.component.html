@@ -1,0 +1,9 @@
+<ng-container [formGroup]="form">
+  <tn-form-field
+    [label]="'Webhook URL' | translate"
+    [tooltip]="helptext.slack.urlTooltip | translate"
+    [required]="true"
+  >
+    <tn-input formControlName="url" [testId]="'url'"></tn-input>
+  </tn-form-field>
+</ng-container>

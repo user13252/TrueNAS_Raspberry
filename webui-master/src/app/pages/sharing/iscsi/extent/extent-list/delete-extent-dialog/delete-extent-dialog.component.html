@@ -1,0 +1,26 @@
+<tn-dialog-shell testId="delete-extent" [title]="'Delete iSCSI extent {name}?' | translate: { name: extent.name }">
+<div>
+  <form [formGroup]="form">
+    @if (isFile) {
+      <tn-form-field>
+        <tn-checkbox
+          formControlName="remove"
+          testId="remove"
+          [label]="'Remove file?' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="force"
+        testId="force"
+        [label]="'Force' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </form>
+</div>
+<ix-form-actions tnDialogAction class="form-actions">
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close(false)"></tn-button>
+  <tn-button *ixRequiresRoles="requiredRoles" color="warn" testId="delete" [label]="'Delete' | translate" (onClick)="onDelete()"></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

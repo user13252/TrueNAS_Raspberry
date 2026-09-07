@@ -1,0 +1,90 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnFormFieldComponent, TnInputComponent,
+} from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { helptextSnapshots } from 'app/helptext/storage/snapshots/snapshots';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+
+@Component({
+  selector: 'ix-snapshot-clone-dialog',
+  templateUrl: './snapshot-clone-dialog.component.html',
+  styleUrls: ['./snapshot-clone-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    TranslateModule,
+    ReactiveFormsModule,
+    TnFormFieldComponent,
+    TnInputComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    RequiresRolesDirective,
+  ],
+})
+export class SnapshotCloneDialog implements OnInit {
+  private api = inject(ApiService);
+  private loader = inject(LoaderService);
+  protected dialogRef = inject<DialogRef<unknown, SnapshotCloneDialog>>(DialogRef);
+  private fb = inject(FormBuilder);
+  private errorHandler = inject(FormErrorHandlerService);
+  private cdr = inject(ChangeDetectorRef);
+  private snapshotName = inject<string>(DIALOG_DATA);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.SnapshotWrite];
+
+  wasDatasetCloned = false;
+
+  form = this.fb.nonNullable.group({
+    dataset_dst: ['', Validators.required],
+  });
+
+  readonly tooltips = {
+    dataset_dst: helptextSnapshots.cloneNameTooltip,
+  };
+
+  get datasetName(): string {
+    return this.form.getRawValue().dataset_dst;
+  }
+
+  ngOnInit(): void {
+    this.setDatasetName();
+  }
+
+  onSubmit(): void {
+    this.api.call('pool.snapshot.clone', [{
+      snapshot: this.snapshotName,
+      dataset_dst: this.datasetName,
+    }])
+      .pipe(this.loader.withLoader(), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.wasDatasetCloned = true;
+          this.cdr.markForCheck();
+        },
+        error: (error: unknown) => {
+          this.errorHandler.handleValidationErrors(error, this.form);
+        },
+      });
+  }
+
+  private setDatasetName(): void {
+    let suggestedName: string;
+    if (this.snapshotName.includes('/')) {
+      suggestedName = this.snapshotName.replace('@', '-') + '-clone';
+    } else {
+      suggestedName = this.snapshotName.replace('@', '/') + '-clone';
+    }
+
+    this.form.setValue({ dataset_dst: suggestedName });
+  }
+}

@@ -1,0 +1,52 @@
+<div class="content-container" [formGroup]="form">
+  <h3>{{ 'Automated Disk Selection' | translate }}</h3>
+  <div class="columns">
+    <div class="column">
+      <ix-disk-size-dropdowns
+        [inventory]="inventory()"
+        [layout]="layout()"
+        [type]="type()"
+        [isStepActive]="isStepActive()"
+        (disksSelected)="onDisksSelected($event)"
+      ></ix-disk-size-dropdowns>
+
+      <tn-form-field class="select" [label]="'Data Devices' | translate" [required]="true">
+        <tn-select
+          formControlName="dataDevicesPerGroup"
+          [testId]="['data-devices-per-group', type()]"
+          [options]="(dataDevicesPerGroupOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-form-field class="select" [label]="'Distributed Hot Spares' | translate" [required]="true">
+        <tn-select
+          formControlName="spares"
+          [testId]="['spares', type()]"
+          [options]="(sparesOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    </div>
+
+    <div class="column">
+      <tn-form-field [label]="'Children' | translate" [required]="true">
+        <tn-select
+          formControlName="children"
+          [testId]="['children', type()]"
+          [options]="(widthOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+
+      <div class="explanation">
+        {{ helptext.dRaidChildrenExplanation | translate }}
+      </div>
+
+      <tn-form-field [label]="'Number of VDEVs' | translate" [required]="true">
+        <tn-select
+          formControlName="vdevsNumber"
+          [testId]="['vdevs-number', type()]"
+          [options]="(vdevsNumberOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    </div>
+  </div>
+</div>

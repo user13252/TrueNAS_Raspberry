@@ -1,0 +1,293 @@
+<form [formGroup]="form">
+  <tn-form-field
+    [label]="helptext.existReplicationLabel | translate"
+    [tooltip]="helptext.existReplicationTooltip | translate"
+  >
+    <tn-select
+      testId="exist-replication"
+      formControlName="exist_replication"
+      [options]="(existReplicationOptions$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+
+  <div class="replication">
+    <tn-form-section class="source">
+      <tn-form-field
+        [label]="helptext.sourceDatasetsFromLabel | translate"
+        [tooltip]="helptext.sourceDatasetsFromTooltip | translate"
+        [required]="true"
+      >
+        <tn-select
+          testId="source-datasets-from"
+          formControlName="source_datasets_from"
+          [options]="(datasetFromOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+      @if (form.controls.ssh_credentials_source.enabled) {
+        <ix-ssh-credentials-select
+          formControlName="ssh_credentials_source"
+          [label]="helptext.sshCredentialsSourceLabel | translate"
+          [tooltip]="helptext.sshCredentialsSourceTooltip | translate"
+          [required]="true"
+        ></ix-ssh-credentials-select>
+      }
+      @if (form.controls.source_datasets.enabled) {
+        <ix-explorer
+          formControlName="source_datasets"
+          [label]="helptext.sourceDatasetsLabel | translate"
+          [tooltip]="helptext.sourceDatasetsTooltip | translate"
+          [multiple]="true"
+          [required]="true"
+          [rootNodes]="sourceDatasetsRootNodes"
+          [nodeProvider]="sourceNodeProvider"
+        >
+          @if (isSourceLocal) {
+            <ix-explorer-create-dataset></ix-explorer-create-dataset>
+          }
+        </ix-explorer>
+      }
+
+      @if (form.controls.recursive.enabled) {
+        <tn-form-field [tooltip]="helptext.recursiveTooltip | translate">
+          <tn-checkbox
+            testId="recursive"
+            formControlName="recursive"
+            [label]="helptext.recursiveLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      }
+      @if (snapshotsText) {
+        <span class="snapshots-text" [class.warning]="isSnapshotsWarning">{{ snapshotsText }}</span>
+      }
+      @if (form.controls.custom_snapshots.enabled) {
+        <tn-form-field [tooltip]="helptext.customSnapshotsTooltip | translate">
+          <tn-checkbox
+            testId="custom-snapshots"
+            formControlName="custom_snapshots"
+            [label]="helptext.customSnapshotsLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      }
+      @if (form.controls.schema_or_regex.enabled) {
+        <tn-form-field [label]="schemaOrRegexLabel | translate" [required]="true">
+          <tn-radio-group formControlName="schema_or_regex" [required]="true">
+            @for (option of (schemaOrRegexOptions$ | async) ?? []; track option.value) {
+              <!-- `radio-button` in the base is absorbed by composeTestId's idempotent guard, keeping the
+                   legacy `radio-button-*` option ids that `<ix-radio-group>` produced. -->
+              <tn-radio
+                [value]="option.value"
+                [label]="option.label"
+                [testId]="['radio-button', 'schema-or-regex', option.label]"
+              ></tn-radio>
+            }
+          </tn-radio-group>
+        </tn-form-field>
+      }
+      @if (form.controls.naming_schema.enabled) {
+        <tn-form-field
+          [label]="helptext.namingSchemaLabel | translate"
+          [tooltip]="helptext.namingSchemaTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="naming_schema"
+            testId="naming-schema"
+            formControlName="naming_schema"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+      }
+      @if (form.controls.name_regex.enabled) {
+        <tn-form-field
+          [label]="helptext.nameRegexLabel | translate"
+          [tooltip]="helptext.nameRegexTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="name_regex"
+            testId="name-regex"
+            formControlName="name_regex"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+      }
+    </tn-form-section>
+    <tn-form-section class="target">
+      <tn-form-field
+        [label]="helptext.targetDatasetFromLabel | translate"
+        [tooltip]="helptext.targetDatasetFromTooltip | translate"
+        [required]="true"
+      >
+        <tn-select
+          testId="target-dataset-from"
+          formControlName="target_dataset_from"
+          [options]="(datasetFromOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+      @if (form.controls.ssh_credentials_target.enabled) {
+        <ix-ssh-credentials-select
+          formControlName="ssh_credentials_target"
+          [label]="helptext.sshCredentialsTargetLabel | translate"
+          [tooltip]="helptext.sshCredentialsTargetTooltip | translate"
+          [required]="true"
+        ></ix-ssh-credentials-select>
+      }
+      @if (form.controls.target_dataset.enabled) {
+        <ix-explorer
+          formControlName="target_dataset"
+          [label]="helptext.targetDatasetLabel | translate"
+          [tooltip]="helptext.targetDatasetTooltip | translate"
+          [required]="true"
+          [rootNodes]="targetDatasetsRootNodes"
+          [nodeProvider]="targetNodeProvider"
+        >
+          @if (isTargetLocal) {
+            <ix-explorer-create-dataset></ix-explorer-create-dataset>
+          }
+        </ix-explorer>
+      }
+      @if (form.controls.encryption.enabled) {
+        <tn-form-field [tooltip]="helptext.encryptionTooltip | translate">
+          <tn-checkbox
+            testId="encryption"
+            formControlName="encryption"
+            [label]="helptext.encryptionLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      }
+      @if (form.controls.encryption.enabled && form.controls.encryption.value) {
+        <tn-form-field [tooltip]="helptext.encryptionInheritTooltip | translate">
+          <tn-checkbox
+            testId="encryption-inherit"
+            formControlName="encryption_inherit"
+            [label]="helptext.encryptionInheritLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      }
+      @if (form.controls.encryption_key_format.enabled) {
+        <tn-form-field
+          [label]="helptext.encryptionKeyFormatLabel | translate"
+          [tooltip]="helptext.encryptionKeyFormatTooltip | translate"
+          [required]="true"
+        >
+          <tn-select
+            testId="encryption-key-format"
+            formControlName="encryption_key_format"
+            [options]="(encryptionKeyFormatOptions$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+      }
+      @if (form.controls.encryption_key_generate.enabled) {
+        <tn-form-field [tooltip]="helptext.encryptionKeyGenerateTooltip | translate">
+          <tn-checkbox
+            testId="encryption-key-generate"
+            formControlName="encryption_key_generate"
+            [label]="helptext.encryptionKeyGenerateLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      }
+      @if (form.controls.encryption_key_hex.enabled) {
+        <tn-form-field
+          [label]="helptext.encryptionKeyHexLabel | translate"
+          [tooltip]="helptext.encryptionKeyHexTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="encryption_key_hex"
+            testId="encryption-key-hex"
+            formControlName="encryption_key_hex"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+      }
+      @if (form.controls.encryption_key_passphrase.enabled) {
+        <tn-form-field
+          [label]="helptext.encryptionKeyPassphraseLabel | translate"
+          [tooltip]="helptext.encryptionKeyPassphraseTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="encryption_key_passphrase"
+            testId="encryption-key-passphrase"
+            formControlName="encryption_key_passphrase"
+            [inputType]="InputType.Password"
+            [showPasswordToggle]="true"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+      }
+      @if (form.controls.encryption_key_location_truenasdb.enabled) {
+        <tn-form-field [tooltip]="helptext.encryptionKeyLocationTruenasdbTooltip | translate">
+          <tn-checkbox
+            testId="encryption-key-location-truenasdb"
+            formControlName="encryption_key_location_truenasdb"
+            [label]="helptext.encryptionKeyLocationTruenasdbLabel | translate"
+          ></tn-checkbox>
+        </tn-form-field>
+      }
+      @if (form.controls.encryption_key_location.enabled) {
+        <tn-form-field
+          [label]="helptext.encryptionKeyLocationLabel | translate"
+          [tooltip]="helptext.encryptionKeyLocationTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            name="encryption_key_location"
+            testId="encryption-key-location"
+            formControlName="encryption_key_location"
+            [required]="true"
+          ></tn-input>
+        </tn-form-field>
+      }
+    </tn-form-section>
+  </div>
+
+  @if (form.controls.transport.enabled) {
+    <tn-form-field
+      [label]="helptext.transportLabel | translate"
+      [tooltip]="helptext.transportTooltip | translate"
+      [required]="true"
+    >
+      <tn-radio-group formControlName="transport" [required]="true">
+        @for (option of (transportOptions$ | async) ?? []; track option.value) {
+          <tn-radio
+            [value]="option.value"
+            [label]="option.label"
+            [testId]="['radio-button', 'transport', option.label]"
+          ></tn-radio>
+        }
+      </tn-radio-group>
+    </tn-form-field>
+  }
+  @if (form.controls.sudo.enabled) {
+    <tn-form-field [tooltip]="helptext.sudoTooltip | translate">
+      <tn-checkbox
+        testId="sudo"
+        formControlName="sudo"
+        [label]="'Use Sudo For ZFS Commands' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  }
+  <tn-form-field [label]="helptext.nameLabel | translate" [required]="true">
+    <tn-input
+      name="name"
+      testId="name"
+      formControlName="name"
+      [required]="true"
+    ></tn-input>
+  </tn-form-field>
+  <ix-form-actions>
+    <tn-button
+      tnStepperNext
+      color="primary"
+      [testId]="'next'"
+      [label]="'Next' | translate"
+      [disabled]="form.invalid"
+    ></tn-button>
+    <tn-button
+      [testId]="'advanced'"
+      [label]="'Advanced Replication Creation' | translate"
+      (onClick)="openAdvanced()"
+    ></tn-button>
+  </ix-form-actions>
+</form>

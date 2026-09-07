@@ -1,0 +1,201 @@
+import { AsyncPipe } from '@angular/common';
+import {
+  ChangeDetectionStrategy, Component, inject, OnInit, signal,
+} from '@angular/core';
+import {
+  FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators,
+} from '@angular/forms';
+import { Store } from '@ngrx/store';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  InputType,
+  TnCheckboxComponent, TnCheckboxGroupComponent, TnFormFieldComponent, TnFormListComponent,
+  TnFormListItemComponent, TnFormSectionComponent, TnInputComponent,
+} from '@truenas/ui-components';
+import {
+  combineLatest,
+  filter,
+  forkJoin,
+  take,
+} from 'rxjs';
+import { Role } from 'app/enums/role.enum';
+import { singleArrayToOptions } from 'app/helpers/operators/options.operators';
+import { helptextApps } from 'app/helptext/apps/apps';
+import { IxFormHostForm } from 'app/modules/forms/ix-forms/components/ix-form/ix-form-host-form.directive';
+import {
+  FormSubmitEvent, IxFormComponent, SubmitResult,
+} from 'app/modules/forms/ix-forms/components/ix-form/ix-form.component';
+import { IxIpInputWithNetmaskComponent } from 'app/modules/forms/ix-forms/components/ix-ip-input-with-netmask/ix-ip-input-with-netmask.component';
+import { ipv4or6cidrValidator } from 'app/modules/forms/ix-forms/validators/ip-validation';
+import { UrlValidationService } from 'app/modules/forms/ix-forms/validators/url-validation.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { DockerStore } from 'app/pages/apps/store/docker.store';
+import { AppState } from 'app/store';
+import { advancedConfigUpdated } from 'app/store/system-config/system-config.actions';
+
+// Built here rather than inline in the component, and left with an inferred return type — see
+// the `V` type parameter on IxFormHostForm for why.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function createAppsSettingsForm(formBuilder: FormBuilder) {
+  return formBuilder.nonNullable.group({
+    preferred_trains: [[] as string[], Validators.required],
+    nvidia: [false],
+    enable_image_updates: [true],
+    address_pools: new FormArray<FormGroup<{
+      base: FormControl<string>;
+      size: FormControl<number | null>;
+    }>>([]),
+    registry_mirrors: new FormArray<FormGroup<{
+      url: FormControl<string>;
+      insecure: FormControl<boolean>;
+    }>>([]),
+  });
+}
+
+type AppsSettingsFormValue = ReturnType<ReturnType<typeof createAppsSettingsForm>['getRawValue']>;
+
+@Component({
+  selector: 'ix-apps-settings',
+  templateUrl: './apps-settings.component.html',
+  styleUrls: ['./apps-settings.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    IxFormComponent,
+    ReactiveFormsModule,
+    TnFormSectionComponent,
+    IxIpInputWithNetmaskComponent,
+    TnCheckboxComponent,
+    TnCheckboxGroupComponent,
+    TnFormFieldComponent,
+    TnFormListComponent,
+    TnFormListItemComponent,
+    TnInputComponent,
+    TranslateModule,
+  ],
+  providers: [
+    DockerStore,
+  ],
+})
+export class AppsSettingsComponent extends IxFormHostForm<boolean, AppsSettingsFormValue> implements OnInit {
+  private dockerStore = inject(DockerStore);
+  private api = inject(ApiService);
+  private store$ = inject<Store<AppState>>(Store);
+  private fb = inject(FormBuilder);
+  private translate = inject(TranslateService);
+  private urlValidationService = inject(UrlValidationService);
+
+  protected readonly InputType = InputType;
+  protected showNvidiaCheckbox = signal(false);
+  readonly requiredRoles = [Role.AppsWrite, Role.CatalogWrite];
+
+  protected readonly form = createAppsSettingsForm(this.fb);
+
+  protected allTrains$ = this.api.call('catalog.trains').pipe(
+    singleArrayToOptions(),
+  );
+
+  readonly tooltips = {
+    preferred_trains: helptextApps.settingsForm.preferredTrains.tooltip,
+    install_nvidia_driver: helptextApps.settingsForm.installNvidiaDriver.tooltip,
+    registry_mirrors: helptextApps.settingsForm.registryMirrors.generalTooltip,
+  };
+
+  constructor() {
+    super();
+    this.dockerStore.initialize();
+  }
+
+  ngOnInit(): void {
+    this.loadConfig();
+  }
+
+  private loadConfig(): void {
+    this.loadFormConfig(
+      combineLatest([
+        this.api.call('catalog.config'),
+        this.dockerStore.dockerConfig$.pipe(filter(Boolean), take(1)),
+        this.api.call('system.advanced.nvidia_present'),
+        this.api.call('system.advanced.config'),
+      ]),
+      ([catalogConfig, dockerConfig, hasNvidiaCard, advancedConfig]) => {
+        this.showNvidiaCheckbox.set(hasNvidiaCard || advancedConfig.nvidia);
+
+        // `patch` replays on retry, so rebuild the rows instead of appending to the ones a
+        // previous attempt already pushed.
+        this.form.controls.address_pools.clear();
+        this.form.controls.registry_mirrors.clear();
+
+        dockerConfig.address_pools.forEach(() => {
+          this.addAddressPool();
+        });
+
+        // Populate registry_mirrors from the new format if available
+        if (dockerConfig.registry_mirrors) {
+          dockerConfig.registry_mirrors.forEach(() => {
+            this.addRegistryMirror();
+          });
+        }
+
+        this.form.patchValue({
+          preferred_trains: catalogConfig.preferred_trains,
+          nvidia: advancedConfig.nvidia,
+          enable_image_updates: dockerConfig.enable_image_updates,
+          address_pools: dockerConfig.address_pools,
+          registry_mirrors: dockerConfig.registry_mirrors || [],
+        });
+      },
+    );
+  }
+
+  protected addAddressPool(): void {
+    const control = this.fb.nonNullable.group({
+      base: ['', [Validators.required, ipv4or6cidrValidator()]],
+      size: [null as number | null, [Validators.required]],
+    });
+
+    this.form.controls.address_pools.push(control);
+  }
+
+  protected removeAddressPool(index: number): void {
+    this.form.controls.address_pools.removeAt(index);
+  }
+
+  protected addRegistryMirror(): void {
+    const control = this.fb.nonNullable.group({
+      url: ['', [
+        Validators.required,
+        Validators.pattern(this.urlValidationService.urlRegex),
+      ]],
+      insecure: [false],
+    });
+
+    this.form.controls.registry_mirrors.push(control);
+  }
+
+  protected removeRegistryMirror(index: number): void {
+    this.form.controls.registry_mirrors.removeAt(index);
+  }
+
+  protected handleSubmit = ({ allValues }: FormSubmitEvent<AppsSettingsFormValue>): SubmitResult => ({
+    request$: forkJoin([
+      this.api.call('catalog.update', [{ preferred_trains: allValues.preferred_trains }]),
+      this.api.job('docker.update', [{
+        enable_image_updates: allValues.enable_image_updates,
+        address_pools: allValues.address_pools,
+        registry_mirrors: allValues.registry_mirrors,
+      }]),
+      ...(this.showNvidiaCheckbox()
+        ? [this.api.call('system.advanced.update', [{ nvidia: allValues.nvidia }])]
+        : []),
+    ]),
+    successMessage: this.translate.instant('Settings saved'),
+    onSuccess: () => {
+      if (this.showNvidiaCheckbox()) {
+        this.store$.dispatch(advancedConfigUpdated());
+      }
+    },
+  });
+
+  protected readonly helptext = helptextApps;
+}

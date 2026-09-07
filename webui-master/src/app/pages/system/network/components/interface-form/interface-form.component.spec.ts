@@ -1,0 +1,712 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, Spectator, mockProvider } from '@ngneat/spectator/jest';
+import { Store, StoreModule } from '@ngrx/store';
+import {
+  TnCheckboxHarness, TnDialog, TnFormListHarness, TnInputHarness, TnRadioHarness, TnSelectHarness,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { MockApiService } from 'app/core/testing/classes/mock-api.service';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import {
+  LacpduRate,
+  LinkAggregationProtocol, NetworkInterfaceAliasType,
+  NetworkInterfaceType,
+  XmitHashPolicy,
+} from 'app/enums/network-interface.enum';
+import { ProductType } from 'app/enums/product-type.enum';
+import { FailoverConfig } from 'app/interfaces/failover.interface';
+import { NetworkInterface } from 'app/interfaces/network-interface.interface';
+import { NetworkSummary } from 'app/interfaces/network-summary.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import {
+  IxIpInputWithNetmaskComponent,
+} from 'app/modules/forms/ix-forms/components/ix-ip-input-with-netmask/ix-ip-input-with-netmask.component';
+import {
+  IxIpInputWithNetmaskHarness,
+} from 'app/modules/forms/ix-forms/components/ix-ip-input-with-netmask/ix-ip-input-with-netmask.harness';
+import { ixFormTestingProviders } from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  DefaultGatewayDialog,
+} from 'app/pages/system/network/components/default-gateway-dialog/default-gateway-dialog.component';
+import { InterfaceFormComponent } from 'app/pages/system/network/components/interface-form/interface-form.component';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { NetworkService } from 'app/services/network.service';
+import { SystemGeneralService } from 'app/services/system-general.service';
+import { haInfoReducer } from 'app/store/ha-info/ha-info.reducer';
+import { haInfoStateKey } from 'app/store/ha-info/ha-info.selectors';
+import { networkInterfacesChanged } from 'app/store/network-interfaces/network-interfaces.actions';
+import { productTypeLoaded } from 'app/store/system-info/system-info.actions';
+import { systemInfoReducer } from 'app/store/system-info/system-info.reducer';
+import { systemInfoStateKey } from 'app/store/system-info/system-info.selectors';
+
+describe('InterfaceFormComponent', () => {
+  let spectator: Spectator<InterfaceFormComponent>;
+  let loader: HarnessLoader;
+  let api: ApiService;
+  let aliasesList: TnFormListHarness | null;
+  const productType = ProductType.CommunityEdition;
+
+  async function setSelectValue(fcName: string, ...labels: string[]): Promise<void> {
+    const select = await loader.getHarness(TnSelectHarness.with({ selector: `[formControlName="${fcName}"]` }));
+    for (const label of labels) {
+      await select.selectOption(label);
+    }
+  }
+
+  async function setInputValue(name: string, value: string | number): Promise<void> {
+    const input = await loader.getHarness(TnInputHarness.with({ name }));
+    await input.setValue(String(value));
+  }
+
+  async function getInputValue(name: string): Promise<string> {
+    const input = await loader.getHarness(TnInputHarness.with({ name }));
+    return input.getValue();
+  }
+
+  async function setCheckbox(label: string, value: boolean): Promise<void> {
+    const checkbox = await loader.getHarness(TnCheckboxHarness.with({ label }));
+    if (value) {
+      await checkbox.check();
+    } else {
+      await checkbox.uncheck();
+    }
+  }
+
+  async function setRadioValue(label: string): Promise<void> {
+    const radio = await loader.getHarness(TnRadioHarness.with({ label }));
+    await radio.check();
+  }
+
+  const existingInterface = {
+    id: 'enp0s6',
+    name: 'enp0s6',
+    type: NetworkInterfaceType.Physical,
+    aliases: [{
+      type: NetworkInterfaceAliasType.Inet,
+      address: '10.2.3.4',
+      netmask: 24,
+    }],
+    description: 'Main NIC',
+    ipv4_dhcp: false,
+    ipv6_auto: false,
+    mtu: 1500,
+  } as NetworkInterface;
+
+  const createComponent = createComponentFactory({
+    component: InterfaceFormComponent,
+    imports: [
+      ReactiveFormsModule,
+      IxIpInputWithNetmaskComponent,
+      DefaultGatewayDialog,
+      StoreModule.forRoot({
+        [haInfoStateKey]: haInfoReducer,
+        [systemInfoStateKey]: systemInfoReducer,
+      }, {
+        initialState: {
+          [haInfoStateKey]: {
+            haStatus: {
+              hasHa: true,
+              reasons: [],
+            },
+            isHaLicensed: true,
+          },
+          [systemInfoStateKey]: {
+            systemInfo: null,
+            get productType() {
+              return productType;
+            },
+            isIxHardware: false,
+            buildYear: 2024,
+          },
+        },
+      }),
+    ],
+    providers: [
+      ...ixFormTestingProviders(),
+      mockApi([
+        mockCall('interface.xmit_hash_policy_choices', {
+          [XmitHashPolicy.Layer2]: XmitHashPolicy.Layer2,
+          [XmitHashPolicy.Layer2Plus3]: XmitHashPolicy.Layer2Plus3,
+        }),
+        mockCall('interface.lacpdu_rate_choices', {
+          [LacpduRate.Slow]: LacpduRate.Slow,
+          [LacpduRate.Fast]: LacpduRate.Fast,
+        }),
+        mockCall('interface.create'),
+        mockCall('interface.update'),
+        mockCall('interface.save_default_route'),
+        mockCall('network.configuration.update'),
+        mockCall('network.general.summary', {
+          default_routes: ['1.1.1.1'],
+          nameservers: ['8.8.8.8', '8.8.4.4'],
+        } as NetworkSummary),
+        mockCall('interface.network_config_to_be_removed', { ipv4gateway: '192.168.1.1', nameserver1: '8.8.8.8', nameserver2: '8.8.4.4' }),
+        mockCall('interface.available_fec_modes', []),
+        mockCall('failover.licensed', false),
+        mockCall('failover.node', 'A'),
+        mockCall('failover.config', {
+          disabled: true,
+        } as FailoverConfig),
+      ]),
+      mockProvider(NetworkService, {
+        getBridgeMembersChoices: jest.fn(() => of({
+          enp0s3: 'enp0s3',
+          enp0s4: 'enp0s4',
+        })),
+        getLaggProtocolChoices: () => of([
+          LinkAggregationProtocol.Lacp,
+          LinkAggregationProtocol.Failover,
+          LinkAggregationProtocol.LoadBalance,
+        ]),
+        getLaggPortsChoices: jest.fn(() => of({
+          enp0s3: 'enp0s3',
+          enp0s4: 'enp0s4',
+        })),
+        getVlanParentInterfaceChoices: () => of({
+          enp0s3: 'enp0s3',
+          enp0s4: 'enp0s4',
+        }),
+        getV4Netmasks: () => [
+          { label: '24', value: '24' },
+        ],
+        getIsHaEnabled: jest.fn(() => of(false)),
+      }),
+      mockProvider(DialogService),
+      mockProvider(SystemGeneralService),
+      mockAuth(),
+      mockProvider(LoaderService, {
+        withLoader: () => (source$: unknown) => source$,
+      }),
+      mockProvider(ErrorHandlerService, {
+        withErrorHandler: () => (source$: unknown) => source$,
+      }),
+      mockProvider(SnackbarService),
+    ],
+  });
+
+  describe('creation', () => {
+    let closedSpy: jest.Mock;
+
+    beforeEach(async () => {
+      spectator = createComponent({
+        props: {
+          interfacesList: [{
+            ...existingInterface,
+            name: 'vlan1',
+            type: NetworkInterfaceType.Vlan,
+          } as NetworkInterface],
+        },
+      });
+      closedSpy = jest.fn();
+      spectator.component.closed.subscribe(closedSpy);
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      aliasesList = await loader.getHarness(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      api = spectator.inject(ApiService);
+    });
+
+    it('auto-generates name when type is changed', async () => {
+      await setSelectValue('type', 'Bridge');
+      expect(await getInputValue('name')).toMatch('br1');
+
+      await setSelectValue('type', 'Link Aggregation');
+      expect(await getInputValue('name')).toMatch('bond1');
+
+      await setSelectValue('type', 'VLAN');
+      expect(await getInputValue('name')).toMatch('vlan2');
+    });
+
+    it('saves a new bridge interface when form is submitted for bridge interface', async () => {
+      jest.spyOn(spectator.inject(TnDialog), 'open');
+
+      const store$ = spectator.inject(Store);
+      const dispatchSpy = jest.spyOn(store$, 'dispatch');
+
+      await setSelectValue('type', 'Bridge');
+      await aliasesList!.add();
+
+      await setInputValue('name', 'br0');
+      await setInputValue('description', 'Bridge interface');
+      await setSelectValue('bridge_members', 'enp0s3', 'enp0s4');
+      const ipAddress = await loader.getHarness(IxIpInputWithNetmaskHarness.with({ label: 'IP Address' }));
+      await ipAddress.setValue('10.0.1.2/24');
+      await setCheckbox('Enable Learning', true);
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('interface.create', [{
+        type: NetworkInterfaceType.Bridge,
+        name: 'br0',
+        description: 'Bridge interface',
+        bridge_members: ['enp0s3', 'enp0s4'],
+        ipv4_dhcp: false,
+        ipv6_auto: false,
+        enable_learning: true,
+        aliases: [{
+          address: '10.0.1.2',
+          netmask: 24,
+          type: NetworkInterfaceAliasType.Inet,
+        }],
+        mtu: 1500,
+      }]);
+      expect(closedSpy).toHaveBeenCalledWith(true);
+
+      expect(dispatchSpy).toHaveBeenCalledWith(networkInterfacesChanged({ commit: false, checkIn: false }));
+
+      expect(api.call).toHaveBeenCalledWith('interface.network_config_to_be_removed');
+
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(
+        DefaultGatewayDialog,
+        {
+          width: '600px',
+          data: { ipv4gateway: '192.168.1.1', nameserver1: '8.8.8.8', nameserver2: '8.8.4.4' },
+        },
+      );
+    });
+
+    it('saves a new link aggregation interface when form is submitted for LAG', async () => {
+      jest.spyOn(spectator.inject(TnDialog), 'open');
+      const store$ = spectator.inject(Store);
+      const dispatchSpy = jest.spyOn(store$, 'dispatch');
+
+      await setSelectValue('type', 'Link Aggregation');
+      await setInputValue('name', 'bond0');
+      await setInputValue('description', 'LAG');
+      await setRadioValue('Get IP Address Automatically from DHCP');
+      await setSelectValue('lag_protocol', 'LACP');
+      await setInputValue('mtu', 1024);
+      await setSelectValue('xmit_hash_policy', 'LAYER2+3');
+      await setSelectValue('lacpdu_rate', 'SLOW');
+      await setSelectValue('lag_ports', 'enp0s3');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('interface.create', [{
+        type: NetworkInterfaceType.LinkAggregation,
+        name: 'bond0',
+        description: 'LAG',
+        aliases: [],
+        ipv4_dhcp: true,
+        ipv6_auto: false,
+        lacpdu_rate: LacpduRate.Slow,
+        lag_ports: ['enp0s3'],
+        lag_protocol: LinkAggregationProtocol.Lacp,
+        mtu: 1024,
+        xmit_hash_policy: XmitHashPolicy.Layer2Plus3,
+      }]);
+
+      expect(dispatchSpy).toHaveBeenCalledWith(networkInterfacesChanged({ commit: false, checkIn: false }));
+
+      expect(closedSpy).toHaveBeenCalledWith(true);
+      expect(api.call).toHaveBeenCalledWith('interface.network_config_to_be_removed');
+
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(
+        DefaultGatewayDialog,
+        {
+          width: '600px',
+          data: { ipv4gateway: '192.168.1.1', nameserver1: '8.8.8.8', nameserver2: '8.8.4.4' },
+        },
+      );
+    });
+
+    it('keeps the Save button disabled for a LAG until the required Interfaces field is filled', async () => {
+      await setSelectValue('type', 'Link Aggregation');
+      await setInputValue('name', 'bond0');
+      await setSelectValue('lag_protocol', 'LACP');
+      await setSelectValue('xmit_hash_policy', 'LAYER2+3');
+      await setSelectValue('lacpdu_rate', 'SLOW');
+
+      await spectator.fixture.whenStable();
+      expect(spectator.component.canSubmit()).toBe(false);
+
+      await setSelectValue('lag_ports', 'enp0s3');
+      await spectator.fixture.whenStable();
+      expect(spectator.component.canSubmit()).toBe(true);
+    });
+
+    it('saves a new VLAN interface when form is submitted for a VLAN', async () => {
+      jest.spyOn(spectator.inject(TnDialog), 'open');
+
+      await setSelectValue('type', 'VLAN');
+      await setInputValue('name', 'vlan1');
+      await setInputValue('description', 'New VLAN');
+      await setCheckbox('Autoconfigure IPv6', true);
+      await setSelectValue('vlan_parent_interface', 'enp0s3');
+      await setInputValue('vlan_tag', 2);
+      await setSelectValue('vlan_pcp', 'Excellent effort');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('interface.create', [{
+        type: NetworkInterfaceType.Vlan,
+        name: 'vlan1',
+        description: 'New VLAN',
+        ipv4_dhcp: false,
+        ipv6_auto: true,
+        vlan_parent_interface: 'enp0s3',
+        vlan_pcp: 2,
+        vlan_tag: 2,
+        mtu: 1500,
+        aliases: [],
+      }]);
+      expect(api.call).toHaveBeenCalledWith('interface.network_config_to_be_removed');
+
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(
+        DefaultGatewayDialog,
+        {
+          width: '600px',
+          data: { ipv4gateway: '192.168.1.1', nameserver1: '8.8.8.8', nameserver2: '8.8.4.4' },
+        },
+      );
+    });
+
+    it('hides Aliases when either DHCP or Autoconfigure IPv6 is enabled', async () => {
+      aliasesList = await loader.getHarnessOrNull(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      expect(aliasesList).toBeTruthy();
+
+      await setRadioValue('Get IP Address Automatically from DHCP');
+
+      aliasesList = await loader.getHarnessOrNull(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      expect(aliasesList).toBeNull();
+
+      await setRadioValue('Define Static IP Addresses');
+      await setCheckbox('Autoconfigure IPv6', true);
+
+      aliasesList = await loader.getHarnessOrNull(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      expect(aliasesList).toBeTruthy();
+    });
+
+    it('disables save button when HA is enabled', async () => {
+      // Fill form with valid data first
+      await setSelectValue('type', 'Bridge');
+      await setInputValue('name', 'br0');
+      await setInputValue('description', 'Test Bridge');
+
+      const networkService = spectator.inject(NetworkService);
+      jest.spyOn(networkService, 'getIsHaEnabled').mockReturnValue(of(true));
+
+      spectator.component.ngOnInit();
+      spectator.detectChanges();
+      await spectator.fixture.whenStable();
+
+      expect(spectator.component.canSubmit()).toBe(false);
+
+      // Reset to HA disabled
+      jest.spyOn(networkService, 'getIsHaEnabled').mockReturnValue(of(false));
+      spectator.component.ngOnInit();
+      spectator.detectChanges();
+      await spectator.fixture.whenStable();
+
+      expect(spectator.component.canSubmit()).toBe(true);
+    });
+  });
+
+  describe('edit network interface', () => {
+    beforeEach(async () => {
+      spectator = createComponent({
+        props: {
+          editInterface: existingInterface,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      aliasesList = await loader.getHarness(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      api = spectator.inject(ApiService);
+    });
+
+    it('shows values for a network interface when it is opened for edit', async () => {
+      expect(await getInputValue('name')).toBe('enp0s6');
+      expect(await getInputValue('description')).toBe('Main NIC');
+      expect(await getInputValue('mtu')).toBe('1500');
+
+      const dhcpRadio = await loader.getHarness(TnRadioHarness.with({ label: 'Define Static IP Addresses' }));
+      expect(await dhcpRadio.isChecked()).toBe(true);
+
+      const ipv6Auto = await loader.getHarness(TnCheckboxHarness.with({ label: 'Autoconfigure IPv6' }));
+      expect(await ipv6Auto.isChecked()).toBe(false);
+
+      const ipAddress = await loader.getHarness(IxIpInputWithNetmaskHarness.with({ label: 'IP Address' }));
+      expect(await ipAddress.getValue()).toBe('10.2.3.4/24');
+    });
+  });
+
+  describe('edit vlan', () => {
+    beforeEach(async () => {
+      spectator = createComponent({
+        props: {
+          editInterface: {
+            ...existingInterface,
+            id: 'vlan1',
+            type: NetworkInterfaceType.Vlan,
+          } as NetworkInterface,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      aliasesList = await loader.getHarness(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      api = spectator.inject(ApiService);
+    });
+
+    it('disables parent interface fields when VLAN is opened for edit', async () => {
+      const parentInterfaceField = await loader.getHarness(
+        TnSelectHarness.with({ selector: '[formControlName="vlan_parent_interface"]' }),
+      );
+      expect(await parentInterfaceField.isDisabled()).toBe(true);
+    });
+  });
+
+  describe('edit bridge', () => {
+    beforeEach(async () => {
+      spectator = createComponent({
+        props: {
+          editInterface: {
+            ...existingInterface,
+            id: 'br7',
+            enable_learning: false,
+            type: NetworkInterfaceType.Bridge,
+          },
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      aliasesList = await loader.getHarness(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      api = spectator.inject(ApiService);
+    });
+
+    it('reloads bridge member choices when bridge interface is opened for edit', () => {
+      expect(spectator.inject(NetworkService).getBridgeMembersChoices).toHaveBeenLastCalledWith('br7');
+    });
+
+    it('renders Enable Learning for edit', async () => {
+      const checkbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Enable Learning' }));
+      expect(await checkbox.isChecked()).toBe(false);
+    });
+  });
+
+  describe('edit link aggregation', () => {
+    beforeEach(async () => {
+      spectator = createComponent({
+        props: {
+          editInterface: {
+            ...existingInterface,
+            id: 'bond9',
+            type: NetworkInterfaceType.LinkAggregation,
+          },
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      aliasesList = await loader.getHarness(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      api = spectator.inject(ApiService);
+    });
+
+    it('reloads lag ports when link aggregation is opened for edit', () => {
+      expect(spectator.inject(NetworkService).getLaggPortsChoices).toHaveBeenLastCalledWith('bond9');
+    });
+  });
+
+  describe('failover fields', () => {
+    beforeEach(async () => {
+      spectator = createComponent({
+        detectChanges: false,
+      });
+
+      // Dispatch action to set Enterprise product type
+      const store$ = spectator.inject(Store);
+      store$.dispatch(productTypeLoaded({ productType: ProductType.Enterprise }));
+
+      const websocketMock = spectator.inject(MockApiService);
+      websocketMock.mockCall('failover.licensed', true);
+
+      // Trigger ngOnInit which will call loadFailoverStatus
+      spectator.component.ngOnInit();
+      spectator.detectChanges();
+
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      aliasesList = await loader.getHarness(TnFormListHarness.with({ label: 'Static IP Addresses' }));
+      api = spectator.inject(ApiService);
+    });
+
+    it('checks whether failover is licensed for', () => {
+      expect(api.call).toHaveBeenCalledWith('failover.node');
+    });
+
+    it('disables Autoconfigure IPv6 when failover is licensed', async () => {
+      const ipv6AutoCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Autoconfigure IPv6' }));
+      expect(await ipv6AutoCheckbox.isDisabled()).toBe(true);
+      expect(await ipv6AutoCheckbox.isChecked()).toBe(false);
+    });
+
+    it('shows and saves additional fields in Aliases when failover is licensed', async () => {
+      jest.spyOn(spectator.inject(TnDialog), 'open');
+
+      await setSelectValue('type', 'Bridge');
+      await setInputValue('name', 'br0');
+      await setCheckbox('Critical', true);
+      await setSelectValue('failover_group', '1');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('interface.create', [
+        expect.objectContaining({
+          failover_critical: true,
+          failover_group: 1,
+          ipv6_auto: false,
+          ipv4_dhcp: false,
+        }),
+      ]);
+      expect(api.call).toHaveBeenCalledWith('interface.network_config_to_be_removed');
+
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(
+        DefaultGatewayDialog,
+        {
+          width: '600px',
+          data: { ipv4gateway: '192.168.1.1', nameserver1: '8.8.8.8', nameserver2: '8.8.4.4' },
+        },
+      );
+    });
+
+    it('shows Failover Critical and Failover Group when failover is enabled', async () => {
+      jest.spyOn(spectator.inject(TnDialog), 'open');
+
+      await aliasesList!.add();
+      await setSelectValue('type', 'Bridge');
+      await setInputValue('name', 'br0');
+
+      const ipAddress = await loader.getHarness(
+        IxIpInputWithNetmaskHarness.with({ label: 'IP Address (This Controller)' }),
+      );
+      await ipAddress.setValue('10.2.3.4/24');
+      await setInputValue('failover_address', '192.168.1.2');
+      await setInputValue('failover_virtual_address', '192.168.1.3');
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('interface.create', [
+        expect.objectContaining({
+          aliases: [{
+            address: '10.2.3.4',
+            netmask: 24,
+            type: NetworkInterfaceAliasType.Inet,
+          }],
+          failover_aliases: [{ address: '192.168.1.2' }],
+          failover_virtual_aliases: [{ address: '192.168.1.3' }],
+        }),
+      ]);
+      expect(api.call).toHaveBeenCalledWith('interface.network_config_to_be_removed');
+
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(
+        DefaultGatewayDialog,
+        {
+          width: '600px',
+          data: { ipv4gateway: '192.168.1.1', nameserver1: '8.8.8.8', nameserver2: '8.8.4.4' },
+        },
+      );
+    });
+  });
+
+  describe('fec mode on enterprise', () => {
+    beforeEach(async () => {
+      spectator = createComponent({
+        detectChanges: false,
+        props: {
+          editInterface: {
+            ...existingInterface,
+            fec_mode: 'auto',
+          } as NetworkInterface,
+        },
+      });
+
+      const store$ = spectator.inject(Store);
+      store$.dispatch(productTypeLoaded({ productType: ProductType.Enterprise }));
+
+      const websocketMock = spectator.inject(MockApiService);
+      websocketMock.mockCall('interface.available_fec_modes', ['auto', 'rs', 'baser', 'off']);
+
+      spectator.detectChanges();
+      await spectator.fixture.whenStable();
+
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+    });
+
+    it('loads available FEC modes for the interface', () => {
+      expect(api.call).toHaveBeenCalledWith('interface.available_fec_modes', ['enp0s6']);
+    });
+
+    it('shows FEC Mode dropdown when interface supports FEC on enterprise', async () => {
+      const fecModeSelect = await loader.getHarnessOrNull(
+        TnSelectHarness.with({ selector: '[formControlName="fec_mode"]' }),
+      );
+      expect(fecModeSelect).toBeTruthy();
+    });
+
+    it('sends fec_mode when saving on enterprise with FEC support', async () => {
+      jest.spyOn(spectator.inject(TnDialog), 'open');
+
+      await setSelectValue('fec_mode', 'rs');
+
+      spectator.detectChanges();
+      await spectator.fixture.whenStable();
+
+      expect(spectator.component.canSubmit()).toBe(true);
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('interface.update', [
+        'enp0s6',
+        expect.objectContaining({
+          fec_mode: 'rs',
+        }),
+      ]);
+    });
+  });
+
+  describe('fec mode hidden on non-enterprise', () => {
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          editInterface: existingInterface,
+        },
+      });
+
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('does not show FEC Mode dropdown on non-enterprise systems', async () => {
+      const fecModeSelect = await loader.getHarnessOrNull(
+        TnSelectHarness.with({ selector: '[formControlName="fec_mode"]' }),
+      );
+      expect(fecModeSelect).toBeNull();
+    });
+  });
+
+  describe('fec mode hidden when interface does not support FEC', () => {
+    beforeEach(async () => {
+      spectator = createComponent({
+        detectChanges: false,
+        props: {
+          editInterface: existingInterface,
+        },
+      });
+
+      const store$ = spectator.inject(Store);
+      store$.dispatch(productTypeLoaded({ productType: ProductType.Enterprise }));
+
+      const websocketMock = spectator.inject(MockApiService);
+      websocketMock.mockCall('interface.available_fec_modes', []);
+
+      spectator.detectChanges();
+      await spectator.fixture.whenStable();
+
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('does not show FEC Mode when available_fec_modes returns empty array', async () => {
+      const fecModeSelect = await loader.getHarnessOrNull(
+        TnSelectHarness.with({ selector: '[formControlName="fec_mode"]' }),
+      );
+      expect(fecModeSelect).toBeNull();
+    });
+  });
+});

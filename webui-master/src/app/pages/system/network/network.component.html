@@ -1,0 +1,105 @@
+<div
+  class="dashboard"
+  [ixUiSearch]="searchableElements.elements.network"
+>
+  <div class="content">
+    <div class="left-column">
+      @if (hasPendingChanges()) {
+        <tn-card class="pending-changes-card" padding="small">
+          @if (!checkinWaiting()) {
+            <div>
+              <p>{{ helptext.pendingChangesText | translate }}</p>
+
+              <p class="checkin-text">
+                {{ helptext.checkinText | translate }}
+                <tn-input
+                  class="timeout-field"
+                  [inputType]="InputType.Number"
+                  [allowDecimals]="false"
+                  [required]="true"
+                  [ariaLabel]="'Check-in timeout in seconds' | translate"
+                  [testId]="'checkin-timeout'"
+                  [ngModel]="checkinTimeout()"
+                  (ngModelChange)="checkinTimeout.set($event)"
+                ></tn-input>
+                {{ helptext.checkinText2 | translate }}
+              </p>
+
+              @if (isCheckinTimeoutFieldInvalid()) {
+                <p class="checkin-error">
+                  {{ 'Invalid value. Must be greater than or equal to {min}.' | translate: { min: checkinTimeoutMinValue } }}
+                </p>
+              }
+            </div>
+          } @else {
+            <div>
+              <p>
+                {{ helptext.pendingCheckinText | translate: { x: checkinRemaining() } }}
+              </p>
+            </div>
+          }
+
+          <div class="interface-pending-actions">
+            @if (!checkinWaiting()) {
+              <tn-button
+                variant="outline"
+                [label]="helptext.commitButton | translate"
+                [testId]="'test-changes'"
+                [disabled]="isHaEnabled() || isCheckinTimeoutFieldInvalid()"
+                (onClick)="commitPendingChanges()"
+              ></tn-button>
+            }
+
+            @if (checkinWaiting()) {
+              <tn-button
+                variant="outline"
+                [label]="helptext.keepButton | translate"
+                [testId]="'save-changes'"
+                [disabled]="isHaEnabled()"
+                (onClick)="checkInNow()"
+              ></tn-button>
+            }
+
+            <tn-button
+              variant="outline"
+              [label]="helptext.revertChangesButton | translate"
+              [testId]="'revert-changes'"
+              [disabled]="isHaEnabled()"
+              (onClick)="rollbackPendingChanges()"
+            ></tn-button>
+          </div>
+
+          @if (isHaEnabled()) {
+            <div class="disabled-notice">
+              {{ helptext.haEnabledText | translate }}
+              (
+              <span
+                class="pseudolink"
+                role="button"
+                tabindex="0"
+                [attr.aria-label]="helptext.goToHa | translate"
+                (click)="goToHa()"
+                (keydown.enter)="goToHa()"
+                (keydown.space)="goToHa(); $event.preventDefault()"
+              >
+                {{ helptext.goToHa | translate }}
+              </span>
+              ).
+            </div>
+          }
+        </tn-card>
+      }
+      <ix-interfaces-card
+        (interfacesUpdated)="loadCheckinStatusAfterChange()"
+      ></ix-interfaces-card>
+      <ix-network-configuration-card
+        class="dashboard-card"
+      ></ix-network-configuration-card>
+    </div>
+
+    <div class="right-column">
+      <ix-static-routes></ix-static-routes>
+      <ix-ipmi-card></ix-ipmi-card>
+    </div>
+  </div>
+</div>

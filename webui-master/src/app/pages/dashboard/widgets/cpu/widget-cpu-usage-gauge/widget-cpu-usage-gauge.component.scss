@@ -1,0 +1,23 @@
+.card {
+  display: block;
+  height: 100%;
+}
+
+.wrapper {
+  color: var(--fg2);
+  height: 100%;
+  padding: 0 15px;
+  width: 100%;
+
+  ix-cpu-chart-gauge {
+    display: flex;
+    justify-content: center;
+    position: relative;
+    top: 8px;
+  }
+
+  h3 {
+    padding: 15px 0 0;
+    width: 100%;
+  }
+}

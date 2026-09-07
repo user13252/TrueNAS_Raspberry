@@ -1,0 +1,186 @@
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, input, OnChanges, inject, computed,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCardComponent, TnDialog, TnIconButtonComponent,
+  TnMenuComponent, TnMenuItemComponent, TnMenuTriggerDirective,
+} from '@truenas/ui-components';
+import { NgxSkeletonLoaderModule } from 'ngx-skeleton-loader';
+import { filter, switchMap, tap } from 'rxjs/operators';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { UiSearchDirective } from 'app/directives/ui-search.directive';
+import { JobState } from 'app/enums/job-state.enum';
+import { PoolStatus } from 'app/enums/pool-status.enum';
+import { Role } from 'app/enums/role.enum';
+import { helptextVolumes } from 'app/helptext/storage/volumes/volume-list';
+import { Dataset } from 'app/interfaces/dataset.interface';
+import { StorageDashboardDisk } from 'app/interfaces/disk.interface';
+import { Pool } from 'app/interfaces/pool.interface';
+import { IxSimpleChanges } from 'app/interfaces/simple-changes.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { searchDelayConst } from 'app/modules/global-search/constants/delay.const';
+import { UiSearchDirectivesService } from 'app/modules/global-search/services/ui-search-directives.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { TranslatedString } from 'app/modules/translate/translate.helper';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { dashboardPoolElements } from 'app/pages/storage/components/dashboard-pool/dashboard-pool.elements';
+import { DiskHealthCardComponent } from 'app/pages/storage/components/dashboard-pool/disk-health-card/disk-health-card.component';
+import {
+  ExportDisconnectModalComponent,
+} from 'app/pages/storage/components/dashboard-pool/export-disconnect-modal/export-disconnect-modal.component';
+import { PoolUsageCardComponent } from 'app/pages/storage/components/dashboard-pool/pool-usage-card/pool-usage-card.component';
+import { SedLockedWarningComponent } from 'app/pages/storage/components/dashboard-pool/sed-locked-warning/sed-locked-warning.component';
+import {
+  AutotrimDialog,
+} from 'app/pages/storage/components/dashboard-pool/storage-health-card/autotrim-dialog/autotrim-dialog.component';
+import { StorageHealthCardComponent } from 'app/pages/storage/components/dashboard-pool/storage-health-card/storage-health-card.component';
+import { VDevsCardComponent } from 'app/pages/storage/components/dashboard-pool/vdevs-card/vdevs-card.component';
+import { PoolsDashboardStore } from 'app/pages/storage/stores/pools-dashboard-store.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-dashboard-pool',
+  templateUrl: './dashboard-pool.component.html',
+  styleUrls: ['./dashboard-pool.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    RequiresRolesDirective,
+    TnButtonComponent,
+    TnIconButtonComponent,
+    TnMenuComponent,
+    TnMenuItemComponent,
+    TnMenuTriggerDirective,
+    UiSearchDirective,
+    VDevsCardComponent,
+    PoolUsageCardComponent,
+    StorageHealthCardComponent,
+    DiskHealthCardComponent,
+    NgxSkeletonLoaderModule,
+    TnCardComponent,
+    TranslateModule,
+    SedLockedWarningComponent,
+  ],
+})
+export class DashboardPoolComponent implements OnChanges {
+  private tnDialog = inject(TnDialog);
+  private dialogService = inject(DialogService);
+  private errorHandler = inject(ErrorHandlerService);
+  private translate = inject(TranslateService);
+  private loader = inject(LoaderService);
+  private api = inject(ApiService);
+  private snackbar = inject(SnackbarService);
+  private store = inject(PoolsDashboardStore);
+  private searchDirectives = inject(UiSearchDirectivesService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly pool = input<Pool>();
+  readonly rootDataset = input<Dataset>();
+  readonly isLoading = input<boolean>();
+  readonly disks = input<StorageDashboardDisk[]>([]);
+
+  protected readonly requiredRoles = [Role.PoolWrite];
+  protected readonly searchableElements = dashboardPoolElements;
+
+  protected isOnline = computed(() => {
+    return this.pool().status === PoolStatus.Online;
+  });
+
+  protected isSedLocked = computed(() => {
+    const pool = this.pool();
+    return pool?.status === PoolStatus.Offline
+      && pool?.all_sed === true
+      && pool?.status_code === 'SED_LOCKED_DISKS';
+  });
+
+  ngOnChanges(changes: IxSimpleChanges<this>): void {
+    if (changes.isLoading || !this.isLoading()) {
+      setTimeout(() => this.handlePendingGlobalSearchElement(), searchDelayConst * 2);
+    }
+  }
+
+  protected onDisconnect(): void {
+    this.tnDialog
+      .open(ExportDisconnectModalComponent, {
+        data: this.pool(),
+      })
+      .closed
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((needRefresh: boolean) => {
+        if (!needRefresh) {
+          return;
+        }
+
+        this.store.loadDashboard();
+      });
+  }
+
+  protected onExpand(): void {
+    this.dialogService.confirm({
+      title: this.translate.instant(helptextVolumes.expandPoolDialog.title),
+      message: this.translate.instant(helptextVolumes.expandPoolDialog.message),
+    })
+      .pipe(
+        filter(Boolean),
+        switchMap(() => {
+          return this.api.job('pool.expand', [this.pool().id]).pipe(this.loader.withLoader());
+        }),
+        filter((job) => job.state === JobState.Success),
+        tap(() => {
+          this.snackbar.success(
+            this.translate.instant('Successfully expanded pool {name}.', { name: this.pool().name }),
+          );
+          this.store.loadDashboard();
+        }),
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+  }
+
+  protected onUpgrade(): void {
+    this.dialogService.confirm({
+      title: this.translate.instant('Upgrade Pool'),
+      message: this.translate.instant(helptextVolumes.upgradePoolDialogWarning) + this.pool().name as TranslatedString,
+    }).pipe(
+      filter(Boolean),
+      switchMap(() => {
+        return this.api.call('pool.upgrade', [this.pool().id]).pipe(this.loader.withLoader());
+      }),
+      tap(() => {
+        this.snackbar.success(
+          this.translate.instant('Pool {name} successfully upgraded.', { name: this.pool().name }),
+        );
+        this.store.loadDashboard();
+      }),
+      this.errorHandler.withErrorHandler(),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe();
+  }
+
+  protected onEditAutotrim(): void {
+    this.tnDialog
+      .open(AutotrimDialog, { data: this.pool() })
+      .closed
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.store.loadDashboard());
+  }
+
+  protected onImportSuccess(): void {
+    this.store.loadDashboard();
+  }
+
+  protected counter(i: number): number[] {
+    return new Array<number>(i).fill(0).map((_, index) => index);
+  }
+
+  private handlePendingGlobalSearchElement(): void {
+    const pendingHighlightElement = this.searchDirectives.pendingUiHighlightElement;
+
+    if (pendingHighlightElement) {
+      this.searchDirectives.get(pendingHighlightElement)?.highlight(pendingHighlightElement);
+    }
+  }
+}

@@ -1,0 +1,91 @@
+@import 'scss-imports/cssvars';
+
+.card {
+  box-sizing: border-box;
+  display: block;
+  height: 100%;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  .header {
+    padding-bottom: 0;
+    padding-right: 12px;
+  }
+
+  .container {
+    padding-left: 12px;
+    padding-right: 0;
+    padding-top: 0;
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+
+  h3 {
+    font-size: 24px;
+  }
+}
+
+.container {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+  
+  .content {
+    width: 100%;
+
+    .cpu-model {
+      opacity: 0.5;
+      padding-bottom: 24px;
+      text-align: center;
+    }
+
+    .cpu-load-wrapper {
+      display: flex;
+    }
+
+    .chart-gauge {
+      align-items: center;
+      display: flex;
+      flex: 0 0 45%;
+      justify-content: center;
+    }
+
+    .cpu-data {
+      flex: 0 0 55%;
+
+      tn-list-item {
+        height: 36px;
+        min-height: 36px;
+      }
+
+      .skeleton {
+        display: block;
+        width: 100px;
+      }
+    }
+  }
+
+  .bar-wrapper {
+    display: flex;
+
+    .bar {
+      height: 100px;
+      margin-top: 30px;
+      padding-left: 24px;
+      padding-right: 24px;
+      width: 100%;
+    }
+  }
+}
+
+// Replicates the legacy global "mat-card-content > div" padding from _material-reduction.scss.
+.card-content > div {
+  padding: 16px;
+}

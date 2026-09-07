@@ -1,0 +1,63 @@
+<ix-page-header>
+  <ix-basic-search
+    [query]="searchQuery()"
+    (queryChange)="onListFiltered($event)"
+  ></ix-basic-search>
+</ix-page-header>
+
+<tn-card [padContent]="false" [fillHeight]="false" [ixUiSearch]="searchableElements.elements.services">
+  <tn-table
+    class="table"
+    [dataSource]="(dataProvider.currentPage$ | async) ?? []"
+    [displayedColumns]="displayedColumns"
+    [trackBy]="trackByServiceId"
+    [loading]="loading"
+    [emptyMessage]="emptyService.titleForType(emptyConfig)"
+    [emptyDescription]="emptyService.descriptionForType(emptyConfig)"
+    [emptyIcon]="emptyService.iconForType(emptyConfig)"
+    (sortChange)="onSortChange($event)"
+  >
+    <ng-container [tnColumnDef]="'name'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Name' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span
+          tnTestIdType="text"
+          [tnTestId]="[('Name' | translate), uniqueRowTag(row), 'row-text']"
+          [tnTooltip]="row.name ? (row.name | translate) : ''"
+        >{{ row.name }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'state'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Status' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <ix-service-status-cell [service]="row"></ix-service-status-cell>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'enable'">
+      <ng-template tnHeaderCellDef>{{ 'Start Automatically' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <tn-slide-toggle
+          *ixRequiresRoles="rolesToManage(row)"
+          color="primary"
+          [testId]="[('Start Automatically' | translate), uniqueRowTag(row), 'row-toggle']"
+          [checked]="row.enable"
+          [ariaLabel]="(row.enable ? ('Disable' | translate) : ('Enable' | translate)) + ' ' + row.name"
+          (change)="enableToggle(row)"
+          (click)="$event.stopPropagation()"
+        ></tn-slide-toggle>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'actions'" [width]="'40%'">
+      <ng-template tnHeaderCellDef></ng-template>
+      <ng-template let-row tnCellDef>
+        <ix-service-actions-cell
+          [service]="row"
+          (configure)="openConfig($event)"
+        ></ix-service-actions-cell>
+      </ng-template>
+    </ng-container>
+  </tn-table>
+</tn-card>

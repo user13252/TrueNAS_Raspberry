@@ -1,0 +1,145 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, output, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl, FormBuilder, ReactiveFormsModule, Validators,
+} from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  InputType, TnCheckboxComponent, TnFormFieldComponent, TnFormSectionComponent, TnInputComponent,
+} from '@truenas/ui-components';
+import { pickBy } from 'lodash-es';
+import { startWith } from 'rxjs';
+import { GiB } from 'app/constants/bytes.constant';
+import { helptextDatasetForm } from 'app/helptext/storage/volumes/datasets/dataset-form';
+import { DatasetCreate } from 'app/interfaces/dataset.interface';
+import { IxValidatorsService } from 'app/modules/forms/ix-forms/services/ix-validators.service';
+
+const warning = 80;
+const critical = 95;
+
+@Component({
+  selector: 'ix-quotas-section',
+  styleUrls: ['./quotas-section.component.scss'],
+  templateUrl: './quotas-section.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+    TranslateModule,
+    TnCheckboxComponent,
+    ReactiveFormsModule,
+  ],
+})
+export class QuotasSectionComponent implements OnInit {
+  private formBuilder = inject(FormBuilder);
+  private validators = inject(IxValidatorsService);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly formValidityChange = output<boolean>();
+
+  protected readonly InputType = InputType;
+
+  readonly form = this.formBuilder.nonNullable.group({
+    refquota: [null as number | null, this.validators.withMessage(
+      Validators.min(GiB),
+      this.translate.instant(helptextDatasetForm.quotaTooSmall),
+    )],
+    refquota_warning: [warning, [Validators.min(0), Validators.max(100)]],
+    refquota_warning_inherit: [true],
+    refquota_critical: [critical, [Validators.min(0), Validators.max(100)]],
+    refquota_critical_inherit: [true],
+    refreservation: [null as number | null],
+    quota: [null as number | null, this.validators.withMessage(
+      Validators.min(GiB),
+      this.translate.instant(helptextDatasetForm.quotaTooSmall),
+    )],
+    quota_warning: [warning, [Validators.min(0), Validators.max(100)]],
+    quota_warning_inherit: [true],
+    quota_critical: [critical, [Validators.min(0), Validators.max(100)]],
+    quota_critical_inherit: [true],
+    reservation: [null as number | null],
+  });
+
+  readonly helptext = helptextDatasetForm;
+
+  ngOnInit(): void {
+    this.setFormRelations();
+
+    // `startWith` makes the contract "always reports its current validity" rather than "reports
+    // changes": this section mounts and unmounts with the Advanced toggle, so a host that only
+    // hears about changes would be left guessing at a fresh instance's state.
+    this.form.statusChanges.pipe(
+      startWith(this.form.status),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((status) => {
+      this.formValidityChange.emit(status === 'VALID');
+    });
+  }
+
+  getPayload(): Partial<DatasetCreate> {
+    const values = this.form.value;
+    const payload: Partial<DatasetCreate> = pickBy(values, (value, key) => {
+      return [
+        'refquota',
+        'refreservation',
+        'quota',
+        'reservation',
+      ].includes(key) && value !== null;
+    });
+
+    if (!values.refquota_warning_inherit) {
+      payload.refquota_warning = values.refquota_warning;
+    }
+    if (!values.refquota_critical_inherit) {
+      payload.refquota_critical = values.refquota_critical;
+    }
+    if (!values.quota_warning_inherit) {
+      payload.quota_warning = values.quota_warning;
+    }
+    if (!values.quota_critical_inherit) {
+      payload.quota_critical = values.quota_critical;
+    }
+    return payload;
+  }
+
+  private setFormRelations(): void {
+    this.form.controls.refquota_warning_inherit.valueChanges.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((isInherit) => {
+      this.setDisabledForControl(this.form.controls.refquota_warning, isInherit);
+    });
+
+    this.form.controls.refquota_critical_inherit.valueChanges.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((isInherit) => {
+      this.setDisabledForControl(this.form.controls.refquota_critical, isInherit);
+    });
+
+    this.form.controls.quota_warning_inherit.valueChanges.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((isInherit) => {
+      this.setDisabledForControl(this.form.controls.quota_warning, isInherit);
+    });
+
+    this.form.controls.quota_critical_inherit.valueChanges.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((isInherit) => {
+      this.setDisabledForControl(this.form.controls.quota_critical, isInherit);
+    });
+
+    this.form.controls.refquota_warning_inherit.updateValueAndValidity();
+    this.form.controls.refquota_critical_inherit.updateValueAndValidity();
+    this.form.controls.quota_warning_inherit.updateValueAndValidity();
+    this.form.controls.quota_critical_inherit.updateValueAndValidity();
+  }
+
+  private setDisabledForControl(control: AbstractControl, isDisabled: boolean): void {
+    if (isDisabled) {
+      control.disable();
+    } else {
+      control.enable();
+    }
+  }
+}

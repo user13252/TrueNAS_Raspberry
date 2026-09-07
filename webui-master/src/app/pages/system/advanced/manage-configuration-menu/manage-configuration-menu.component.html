@@ -1,0 +1,35 @@
+<tn-button
+  *ixRequiresRoles="[Role.FullAdmin]"
+  iconPosition="right"
+  [icon]="menuDownIcon"
+  [testId]="'manage-configuration-menu'"
+  [label]="'Manage Configuration' | translate"
+  [ixUiSearch]="searchableElements.elements.manageConfiguration"
+  [tnMenuTriggerFor]="menu"
+></tn-button>
+
+<tn-menu #menu>
+  <tn-menu-item
+    *ixRequiresRoles="[Role.FullAdmin]"
+    [testId]="'download-configuration'"
+    [label]="'Download File' | translate"
+    [ixUiSearch]="searchableElements.elements.downloadFile"
+    (itemClick)="onDownloadConfig()"
+  ></tn-menu-item>
+  <tn-menu-item
+    *ixRequiresRoles="[Role.FullAdmin]"
+    [testId]="'upload-configuration'"
+    [label]="'Upload File' | translate"
+    [ixUiSearch]="searchableElements.elements.uploadFile"
+    (itemClick)="onUploadConfig()"
+  ></tn-menu-item>
+  @if (isSysAdmin$ | async) {
+    <tn-menu-item
+      *ixRequiresRoles="[Role.FullAdmin]"
+      [testId]="'reset-configuration'"
+      [label]="'Reset to Defaults' | translate"
+      [ixUiSearch]="searchableElements.elements.resetToDefaults"
+      (itemClick)="onResetToDefaults()"
+    ></tn-menu-item>
+  }
+</tn-menu>

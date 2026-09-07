@@ -1,0 +1,17 @@
+<div *ixRequiresRoles="requiredRoles">
+  <div class="button-wrapper">
+    <tn-icon-button
+      name="dots-vertical"
+      library="mdi"
+      [testId]="['actions-for', deviceDescription()]"
+      [tnMenuTriggerFor]="menu"
+      [disabled]="!canManage()"
+      [class.disabled]="!canManage()"
+      [attr.tabindex]="!canManage() ? -1 : 0"
+      [ariaLabel]="'Actions for {device}' | translate: { device: deviceDescription() }"
+      [tooltip]="manageRestrictedExplanation() ?? undefined"
+    ></tn-icon-button>
+  </div>
+</div>
+
+<tn-menu #menu [items]="menuItems()"></tn-menu>

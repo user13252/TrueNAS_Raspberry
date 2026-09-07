@@ -1,0 +1,112 @@
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+
+export const helptextApps = {
+  choosePool: {
+    unsetPool: {
+      confirm: {
+        title: T('Unset Pool'),
+        message: T('Confirm to unset pool?'),
+        button: T('Unset'),
+      },
+    },
+  },
+
+  message: {
+    loading: T('Loading...'),
+    notRunning: T('Applications are not running'),
+    noSearchResults: T('No Search Results.'),
+  },
+
+  dockerRegistries: {
+    tooltip: T('Signing in to a registry, such as Docker Hub, is not required for Apps to function, but may help if you experience rate limiting issues.'),
+  },
+
+  installing: T('Installing'),
+  updating: T('Updating'),
+  refreshing: T('Refreshing'),
+  starting: T('Starting'),
+  stopping: T('Stopping'),
+  settings: T('Settings'),
+  choose: T('Choose Pool'),
+  advanced: T('Advanced Settings'),
+
+  dockerSettings: {
+    addressPoolsBase: T('Base network the pool allocates subnets from. Host bits are ignored; the value is saved as its canonical network address (for example, 172.17.0.0/12 becomes 172.16.0.0/12).'),
+    addressPoolsSize: T('Network size of each docker network which will be cut off from base subnet.'),
+  },
+
+  bulkActions: {
+    title: T('Bulk actions'),
+    finished: T('Requested action performed for selected Applications'),
+  },
+
+  noPool: {
+    title: T('No Pools Found'),
+    message: T('At least one pool must be available to use apps'),
+    action: T('Create Pool'),
+  },
+
+  apps: {
+    deleting: T('Deleting...'),
+    upgrading: T('Updating...'),
+
+    rollbackDialog: {
+      version: {
+        tooltip: T('Enter the version to roll back to.'),
+      },
+
+      job: T('Rolling back...'),
+    },
+  },
+
+  appForm: {
+    parseError: {
+      title: T('Error'),
+      message: T('Error detected reading App'),
+    },
+    releaseName: {
+      name: T('Name'),
+      placeholder: T('Application Name'),
+      tooltip: T('Application name must have the following:\
+ 1) Lowercase alphanumeric characters can be specified\
+ 2) Name must start with an alphabetic character and can end with alphanumeric character\
+ 3) Hyphen \'-\' is allowed but not as the first or last character e.g abc123, abc, abcd-1232'),
+    },
+  },
+
+  appWizard: {
+    nameGroup: {
+      version: T('Version'),
+      nameValidationRules: T('Name must start and end with a lowercase alphanumeric character.\
+ Hyphen is allowed in the middle e.g abc123, abc, abcd-1232'),
+    },
+  },
+
+  settingsForm: {
+    preferredTrains: {
+      tooltip: T('Please specify trains from which UI should retrieve available applications for the catalog.'),
+    },
+    installNvidiaDriver: {
+      tooltip: T('Enable or disable NVIDIA GPU support.'),
+    },
+
+    registryMirrors: {
+      generalTooltip: T('A registry mirror is an alternative server used to cache and serve container images, helping speed up downloads and potentially reduce network load. It can be public or private. Mark as insecure for HTTP or HTTPS with a self-signed certificate.'),
+    },
+  },
+
+  pullImageForm: {
+    imageName: {
+      tooltip: T('Please specify the name of the image to pull. Format for the name is "registry/repo/image"'),
+    },
+  },
+  dockerHubRateLimit: {
+    message: T('User limit to Docker Hub has almost been reached or has already been reached. The installation\
+ process may stall as images cannot be pulled. The current limit will be renewed in {seconds}. The application\
+ can still be staged for installation.'),
+  },
+
+  ports: T('Host ports are listed on the left and associated container ports are on the right.\
+\
+ 0.0.0.0 on the host side represents binding to any IP address on the host.'),
+};

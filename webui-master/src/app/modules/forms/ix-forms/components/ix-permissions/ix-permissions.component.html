@@ -1,0 +1,137 @@
+@if (label() || tooltip()) {
+  <ix-label
+    [label]="label()"
+    [tooltip]="tooltip()"
+    [required]="required()"
+    [ixTestOverride]="controlDirective.name || ''"
+  ></ix-label>
+}
+
+<div class="permissions-container">
+  <table ixTest="permissions-table" [class.disabled]="isDisabled">
+    <tr [ixTest]="[controlDirective.name, 'permissions-header']">
+      <td></td>
+      <td>
+        <span class="header-label">{{ 'Read' | translate }}</span>
+      </td>
+      <td>
+        <span class="header-label">{{ 'Write' | translate }}</span>
+      </td>
+      <td>
+        <span class="header-label">{{ 'Execute' | translate }}</span>
+      </td>
+    </tr>
+    <tr [ixTest]="[controlDirective.name, 'user-permissions']">
+      <td>
+        <span class="header-label">{{ 'User' | translate }}</span>
+      </td>
+      <td>
+        <tn-checkbox
+          testId="user-read"
+          [hideLabel]="true"
+          [label]="'User Read' | translate"
+          [disabled]="isDisabled"
+          [checked]="ownerRead"
+          (change)="toggleOwnerRead()"
+        ></tn-checkbox>
+      </td>
+      <td>
+        <tn-checkbox
+          testId="user-write"
+          [hideLabel]="true"
+          [label]="'User Write' | translate"
+          [disabled]="isDisabled"
+          [checked]="ownerWrite"
+          (change)="toggleOwnerWrite()"
+        ></tn-checkbox>
+      </td>
+      <td>
+        <tn-checkbox
+          testId="user-execute"
+          [hideLabel]="true"
+          [label]="'User Execute' | translate"
+          [disabled]="isDisabled"
+          [checked]="ownerExec"
+          (change)="toggleOwnerExec()"
+        ></tn-checkbox>
+      </td>
+    </tr>
+    <tr [ixTest]="[controlDirective.name, 'group-permissions']">
+      <td>
+        <span class="header-label">{{ 'Group' | translate }}</span>
+      </td>
+      <td>
+        <tn-checkbox
+          testId="group-read"
+          [hideLabel]="true"
+          [label]="'Group Read' | translate"
+          [disabled]="isDisabled"
+          [checked]="groupRead"
+          (change)="toggleGroupRead()"
+        ></tn-checkbox>
+      </td>
+      <td>
+        <tn-checkbox
+          testId="group-write"
+          [hideLabel]="true"
+          [label]="'Group Write' | translate"
+          [disabled]="isDisabled"
+          [checked]="groupWrite"
+          (change)="toggleGroupWrite()"
+        ></tn-checkbox>
+      </td>
+      <td>
+        <tn-checkbox
+          testId="group-execute"
+          [hideLabel]="true"
+          [label]="'Group Execute' | translate"
+          [disabled]="isDisabled"
+          [checked]="groupExec"
+          (change)="toggleGroupExec()"
+        ></tn-checkbox>
+      </td>
+    </tr>
+    @if (!hideOthersPermissions()) {
+      <tr [ixTest]="[controlDirective.name, 'other-permissions']">
+        <td>
+          <span class="header-label">{{ 'Other' | translate }}</span>
+        </td>
+        <td>
+          <tn-checkbox
+            testId="other-read"
+            [hideLabel]="true"
+            [label]="'Other Read' | translate"
+            [disabled]="isDisabled"
+            [checked]="otherRead"
+            (change)="toggleOtherRead()"
+          ></tn-checkbox>
+        </td>
+        <td>
+          <tn-checkbox
+            testId="other-write"
+            [hideLabel]="true"
+            [label]="'Other Write' | translate"
+            [disabled]="isDisabled"
+            [checked]="otherWrite"
+            (change)="toggleOtherWrite()"
+          ></tn-checkbox>
+        </td>
+        <td>
+          <tn-checkbox
+            testId="other-execute"
+            [hideLabel]="true"
+            [label]="'Other Execute' | translate"
+            [disabled]="isDisabled"
+            [checked]="otherExec"
+            (change)="toggleOtherExec()"
+          ></tn-checkbox>
+        </td>
+      </tr>
+    }
+  </table>
+</div>
+
+@let control = controlDirective.control;
+@if (control) {
+  <ix-errors [control]="control" [label]="label()"></ix-errors>
+}

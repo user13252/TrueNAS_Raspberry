@@ -1,0 +1,43 @@
+<div class="filter-container">
+  <form [formGroup]="filterForm">
+    <!--
+      Label-less by design — the magnifier icon and placeholder carry the meaning visually.
+      A placeholder is not an accessible name, so the name comes from [ariaLabel].
+    -->
+    <tn-form-field>
+      <tn-input
+        formControlName="search"
+        [prefixIcon]="tnIconMarker('magnify', 'mdi')"
+        [placeholder]="'Search' | translate"
+        [ariaLabel]="'Search' | translate"
+      ></tn-input>
+    </tn-form-field>
+    <div class="select-container">
+      <tn-form-field [label]="'Filter by Disk Type' | translate">
+        <tn-select
+          formControlName="diskType"
+          [allowEmpty]="true"
+          [options]="(typeOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+      <tn-form-field [label]="'Filter by Disk Size' | translate">
+        <tn-select
+          formControlName="diskSize"
+          [allowEmpty]="true"
+          [options]="(sizeOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    </div>
+    <!--
+      Label-less by design: the checkbox carries its own label. The wrapper is not decoration —
+      it keeps this control on the same 12px field rhythm as its siblings (see the SCSS) and
+      keeps it addressable by label through TnFormControlHarness, which hosts on tn-form-field.
+    -->
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="sedCapable"
+        [label]="'SED Capable' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </form>
+</div>

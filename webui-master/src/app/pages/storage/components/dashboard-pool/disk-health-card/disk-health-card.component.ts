@@ -1,0 +1,139 @@
+import { DecimalPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, input, OnChanges, OnInit, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCardComponent, TnCardFooterActionsDirective, TnCardHeaderDirective,
+  TnTestIdDirective,
+} from '@truenas/ui-components';
+import { UiSearchDirective } from 'app/directives/ui-search.directive';
+import { PoolCardIconType } from 'app/enums/pool-card-icon-type.enum';
+import { TemperatureUnit } from 'app/enums/temperature.enum';
+import { StorageDashboardDisk } from 'app/interfaces/disk.interface';
+import { Pool } from 'app/interfaces/pool.interface';
+import { diskHealthCardElements } from 'app/pages/storage/components/dashboard-pool/disk-health-card/disk-health-card.elements';
+import { PoolCardIconComponent } from 'app/pages/storage/components/dashboard-pool/pool-card-icon/pool-card-icon.component';
+import { getPoolDisks } from 'app/pages/storage/modules/disks/utils/get-pool-disks.utils';
+
+interface DiskState {
+  highestTemperature: number | null;
+  lowestTemperature: number | null;
+  averageTemperature: number | null;
+  alerts: number;
+  unit: TemperatureUnit;
+}
+
+@Component({
+  selector: 'ix-disk-health-card',
+  templateUrl: './disk-health-card.component.html',
+  styleUrls: ['./disk-health-card.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnCardComponent,
+    TnCardHeaderDirective,
+    TnCardFooterActionsDirective,
+    UiSearchDirective,
+    PoolCardIconComponent,
+    TnButtonComponent,
+    TnTestIdDirective,
+    RouterLink,
+    TranslateModule,
+    DecimalPipe,
+  ],
+})
+export class DiskHealthCardComponent implements OnInit, OnChanges {
+  private translate = inject(TranslateService);
+
+  readonly poolState = input.required<Pool>();
+  readonly disks = input<StorageDashboardDisk[]>([]);
+
+  protected readonly searchableElements = diskHealthCardElements;
+
+  get disksNames(): string[] {
+    return getPoolDisks(this.poolState());
+  }
+
+  get isTemperatureDataAvailable(): boolean {
+    return this.isHighestTempReady || this.isLowestTempReady || this.isAverageTempReady;
+  }
+
+  diskState: DiskState = {
+    highestTemperature: null,
+    lowestTemperature: null,
+    averageTemperature: null,
+    alerts: 0,
+    unit: TemperatureUnit.Celsius,
+  };
+
+  ngOnChanges(): void {
+    this.ngOnInit();
+  }
+
+  ngOnInit(): void {
+    if (this.disks()) {
+      this.diskState.alerts = this.disks().reduce((total, current) => total + current.alerts.length, 0);
+      this.loadTemperatures();
+    }
+  }
+
+  get isAverageTempReady(): boolean {
+    return this.diskState.averageTemperature !== null && !Number.isNaN(this.diskState.averageTemperature);
+  }
+
+  get isHighestTempReady(): boolean {
+    return this.diskState.highestTemperature !== null && !Number.isNaN(this.diskState.highestTemperature);
+  }
+
+  get isLowestTempReady(): boolean {
+    return this.diskState.lowestTemperature !== null && !Number.isNaN(this.diskState.lowestTemperature);
+  }
+
+  get iconType(): PoolCardIconType {
+    if (this.diskState.alerts) {
+      return PoolCardIconType.Warn;
+    }
+    return PoolCardIconType.Safe;
+  }
+
+  get iconTooltip(): string {
+    if (this.diskState.alerts) {
+      return this.translate.instant('Pool Disks have {alerts} alerts.', {
+        alerts: this.diskState.alerts,
+      });
+    }
+    return this.translate.instant('Everything is fine');
+  }
+
+  private loadTemperatures(): void {
+    this.diskState.highestTemperature = null;
+    this.diskState.lowestTemperature = null;
+    let avgSum = 0;
+    let avgCounter = 0;
+    this.disks().forEach((disk) => {
+      if (!disk.tempAggregates) {
+        return;
+      }
+
+      const { min, max, avg } = disk.tempAggregates;
+
+      if (max != null) {
+        this.diskState.highestTemperature = this.diskState.highestTemperature === null
+          ? max
+          : Math.max(this.diskState.highestTemperature, max);
+      }
+
+      if (min != null) {
+        this.diskState.lowestTemperature = this.diskState.lowestTemperature === null
+          ? min
+          : Math.min(this.diskState.lowestTemperature, min);
+      }
+
+      if (avg != null) {
+        avgSum += avg;
+        avgCounter++;
+      }
+    });
+
+    this.diskState.averageTemperature = avgCounter ? avgSum / avgCounter : null;
+  }
+}

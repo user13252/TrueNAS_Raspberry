@@ -1,0 +1,8 @@
+@import 'mixins/a11y';
+
+// Standard clip-pattern screen-reader-only text: labels the NFS version
+// button-toggle-group (via aria-labelledby) without rendering visibly in the
+// page header.
+.visually-hidden-label {
+  @include visually-hidden;
+}

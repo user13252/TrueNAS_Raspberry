@@ -1,0 +1,78 @@
+<div class="item-search">
+  <ix-fake-progress-bar
+    class="loader-bar"
+    [loading]="!!(dataProvider().isLoading$ | async)"
+  ></ix-fake-progress-bar>
+
+  <div class="actions-bar">
+    <div class="top-row">
+      <div
+        class="service-select"
+        role="group"
+        [attr.aria-labelledby]="serviceLabelId"
+      >
+        <span class="service-label" [id]="serviceLabelId">{{ 'Service' | translate }}</span>
+        <tn-select
+          testId="audit-service"
+          [formControl]="serviceControl"
+          [options]="serviceOptions"
+        ></tn-select>
+      </div>
+      @if (dataProvider().totalRows) {
+        <div class="export-container">
+          <tn-icon-button
+            testId="export-format-selector"
+            name="menu-down"
+            library="mdi"
+            [ariaLabel]="'Select Export Format' | translate"
+            [tnMenuTriggerFor]="formatMenu"
+          ></tn-icon-button>
+          <tn-menu #formatMenu>
+            @for (format of exportFormats; track format) {
+              <tn-menu-item
+                [label]="format"
+                [testId]="['format', format]"
+                [selected]="exportFormat() === format"
+                (itemClick)="onFormatChange(format)"
+              ></tn-menu-item>
+            }
+          </tn-menu>
+          <ix-export-button
+            jobMethod="audit.export"
+            downloadMethod="audit.download_report"
+            [addReportNameArgument]="true"
+            [searchQuery]="searchQuery()"
+            [sorting]="dataProvider().sorting"
+            [defaultFilters]="basicQueryFilters()"
+            [controllerType]="dataProvider().selectedControllerType"
+            [filename]="exportFilename()"
+            [fileType]="exportFileType"
+            [fileMimeType]="exportMimeType"
+            [exportFormat]="exportFormat()"
+            [displayFormat]="exportFormatDisplayLabel()"
+            [ariaLabel]="'Export audit logs as {format}' | translate:{ format: exportFormatDisplayLabel() }"
+            [customExportParams]="{ services: [serviceControl.value] }"
+          ></ix-export-button>
+        </div>
+      }
+    </div>
+    <div class="search-row">
+      <ix-search-input
+        #searchInput
+        class="search-input"
+        [properties]="searchProperties()"
+        [advancedSearchPlaceholder]="advancedSearchPlaceholder()"
+        [basicSearchPlaceholder]="basicSearchPlaceholder()"
+        [query]="searchQuery()"
+        (runSearch)="runSearchFromInput(searchInput)"
+      ></ix-search-input>
+      <tn-button
+        testId="search"
+        color="primary"
+        [label]="'Search' | translate"
+        (onClick)="runSearchFromInput(searchInput)"
+      ></tn-button>
+    </div>
+  </div>
+</div>
+

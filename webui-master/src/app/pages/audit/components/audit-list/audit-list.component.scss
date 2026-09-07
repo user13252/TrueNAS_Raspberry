@@ -1,0 +1,39 @@
+@import 'scss-imports/variables';
+@import 'mixins/layout';
+@import 'mixins/text';
+
+.cell-clamp {
+  @include line-clamp(2);
+}
+
+.user-avatar,
+.event-data {
+  align-items: center;
+  display: flex;
+
+  // The line-clamp mixin wraps text in -webkit-inline-box, whose bottom edge
+  // sits ~3px below the text baseline. With `align-items: center` the clamped
+  // span ends up nudged down relative to the leading icon/avatar; the negative
+  // bottom margin re-centers it. Switching to baseline alignment offsets the
+  // icon instead, so this targeted offset is the lowest-blast-radius fix.
+  .cell-clamp {
+    margin: 0 0 -3px;
+  }
+}
+
+.event-data {
+  gap: 8px;
+
+  .status-icon {
+    height: 15px;
+    min-height: 15px;
+    min-width: 15px;
+    position: relative;
+    top: 2px;
+    width: 15px;
+
+    &.error-color {
+      color: var(--tn-red);
+    }
+  }
+}

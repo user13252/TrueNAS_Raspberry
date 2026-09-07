@@ -1,0 +1,24 @@
+@import 'scss-imports/variables';
+
+.two-columns {
+  display: flex;
+  gap: 24px;
+
+  @media (max-width: $breakpoint-tablet) {
+    display: block;
+  }
+
+  > * {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+
+    @media (max-width: $breakpoint-tablet) {
+      width: 100%;
+    }
+  }
+}
+
+.one-column {
+  border-top: 1px solid var(--lines);
+}

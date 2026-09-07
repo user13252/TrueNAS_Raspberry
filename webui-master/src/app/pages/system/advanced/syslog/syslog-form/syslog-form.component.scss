@@ -1,0 +1,29 @@
+.server-group {
+  border: 1px solid var(--lines);
+  border-radius: 4px;
+  margin-bottom: 24px;
+  padding: 16px;
+
+  h4 {
+    margin-bottom: 16px;
+    margin-top: 0;
+  }
+
+  tn-button {
+    margin-top: 16px;
+  }
+}
+
+.add-server-button {
+  display: inline-block;
+  margin-bottom: 24px;
+  margin-top: 16px;
+}
+
+.server-limit-message {
+  color: var(--fg2);
+  font-size: 0.875rem;
+  margin-bottom: 16px;
+  margin-top: 8px;
+  text-align: center;
+}

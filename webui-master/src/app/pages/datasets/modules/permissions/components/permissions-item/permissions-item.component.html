@@ -1,0 +1,15 @@
+<div class="icon">
+  @switch (item().type) {
+    @case (PermissionsItem.Group) {
+      <tn-icon name="account-multiple" library="mdi"></tn-icon>
+    }
+    @case (PermissionsItem.Other) {
+      <tn-icon name="account-group" library="mdi"></tn-icon>
+    }
+    @default {
+      <tn-icon name="account" library="mdi"></tn-icon>
+    }
+  }
+</div>
+<div class="name">{{ item().name }}</div>
+<div class="permissions">{{ item().description }}</div>

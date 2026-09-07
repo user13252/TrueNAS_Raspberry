@@ -1,0 +1,112 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
+import { Store } from '@ngrx/store';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnCheckboxComponent, TnFormFieldComponent, TnDialogShellComponent } from '@truenas/ui-components';
+import { format } from 'date-fns';
+import { switchMap } from 'rxjs/operators';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { helptextSystemGeneral as helptext } from 'app/helptext/system/general';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { DownloadService } from 'app/services/download.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { AppState } from 'app/store';
+import { waitForSystemInfo } from 'app/store/system-info/system-info.selectors';
+
+export interface SaveConfigDialogMessages {
+  title: string;
+  message: string;
+  warning: string;
+  saveButton: string;
+  cancelButton: string;
+}
+
+@Component({
+  selector: 'ix-save-config-dialog',
+  templateUrl: './save-config-dialog.component.html',
+  styleUrls: ['./save-config-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    ReactiveFormsModule,
+    FormsModule,
+    TnCheckboxComponent, TnFormFieldComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    RequiresRolesDirective,
+    TranslateModule,
+  ],
+})
+export class SaveConfigDialog {
+  private store$ = inject<Store<AppState>>(Store);
+  private download = inject(DownloadService);
+  private loader = inject(LoaderService);
+  protected dialogRef = inject<DialogRef<unknown, SaveConfigDialog>>(DialogRef);
+  private errorHandler = inject(ErrorHandlerService);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.FullAdmin];
+
+  exportSeedCheckbox = new FormControl(true);
+
+  helptext: SaveConfigDialogMessages;
+
+  readonly defaultMessages: SaveConfigDialogMessages = {
+    message: helptext.saveConfigForm.message,
+    title: this.translate.instant('Save Configuration'),
+    warning: helptext.saveConfigForm.warning,
+    saveButton: this.translate.instant('Save'),
+    cancelButton: this.translate.instant('Cancel'),
+  };
+
+  constructor() {
+    const messageOverrides = inject<Partial<SaveConfigDialogMessages>>(DIALOG_DATA, { optional: true }) ?? {};
+
+    this.helptext = {
+      ...this.defaultMessages,
+      ...messageOverrides,
+    };
+  }
+
+  onSubmit(): void {
+    this.store$.pipe(
+      waitForSystemInfo,
+      this.loader.withLoader(),
+      switchMap((systemInfo) => {
+        const hostname = systemInfo.hostname.split('.')[0];
+        const date = format(new Date(), 'yyyyMMddHHmmss');
+        let fileName = hostname + '-' + systemInfo.version + '-' + date;
+        let mimeType: string;
+
+        if (this.exportSeedCheckbox.value) {
+          mimeType = 'application/x-tar';
+          fileName += '.tar';
+        } else {
+          mimeType = 'application/x-sqlite3';
+          fileName += '.db';
+        }
+
+        return this.download.coreDownload({
+          fileName,
+          mimeType,
+          method: 'config.save',
+          arguments: [{ secretseed: this.exportSeedCheckbox.value }],
+        });
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: () => {
+        this.dialogRef.close(true);
+      },
+      error: (error: unknown) => {
+        this.errorHandler.showErrorModal(error);
+        this.dialogRef.close();
+      },
+    });
+  }
+}

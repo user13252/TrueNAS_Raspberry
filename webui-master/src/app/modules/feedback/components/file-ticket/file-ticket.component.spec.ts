@@ -1,0 +1,150 @@
+import { DialogRef } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { NgTemplateOutlet } from '@angular/common';
+import { ReactiveFormsModule, ValidationErrors } from '@angular/forms';
+import { By } from '@angular/platform-browser';
+import {
+  createHostFactory, createSpyObject, mockProvider, SpectatorHost,
+} from '@ngneat/spectator/jest';
+import { TnCheckboxHarness } from '@truenas/ui-components';
+import { MockComponent } from 'ng-mocks';
+import { of, Subject } from 'rxjs';
+import { fakeFile } from 'app/core/testing/utils/fake-file.uitls';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { OauthButtonType } from 'app/modules/buttons/oauth-button/interfaces/oauth-button.interface';
+import { OauthButtonComponent } from 'app/modules/buttons/oauth-button/oauth-button.component';
+import { FileTicketComponent } from 'app/modules/feedback/components/file-ticket/file-ticket.component';
+import { SimilarIssuesComponent } from 'app/modules/feedback/components/similar-issues/similar-issues.component';
+import { FeedbackType } from 'app/modules/feedback/interfaces/feedback.interface';
+import { FeedbackService } from 'app/modules/feedback/services/feedback.service';
+import { IxFileInputHarness } from 'app/modules/forms/ix-forms/components/ix-file-input/ix-file-input.harness';
+import { IxFormHarness } from 'app/modules/forms/ix-forms/testing/ix-form.harness';
+import { ImageValidatorService } from 'app/modules/forms/ix-forms/validators/image-validator/image-validator.service';
+import { NewTicketResponse } from '../../interfaces/file-ticket.interface';
+
+describe('FileTicketComponent', () => {
+  let spectator: SpectatorHost<FileTicketComponent>;
+  let loader: HarnessLoader;
+  let form: IxFormHarness;
+  let loginToJiraButton: OauthButtonComponent;
+  let feedbackService: FeedbackService;
+  const dialogRef = createSpyObject(DialogRef);
+
+  const createHost = createHostFactory({
+    component: FileTicketComponent,
+    imports: [
+      ReactiveFormsModule,
+      NgTemplateOutlet,
+    ],
+    declarations: [
+      MockComponent(OauthButtonComponent),
+      MockComponent(SimilarIssuesComponent),
+    ],
+    providers: [
+      mockProvider(FeedbackService, {
+        createTicket: jest.fn(() => of({
+          ticket: 24,
+          url: 'https://jira-redirect.ixsystems.com/ticket',
+        })),
+      }),
+      mockProvider(ImageValidatorService, {
+        getImagesValidator: () => () => of(null as ValidationErrors | null),
+      }),
+      mockApi([
+        mockCall('support.attach_ticket_max_size', 5),
+      ]),
+    ],
+  });
+
+  beforeEach(async () => {
+    // The dialog projects the form's actions into the shell footer; render that template here.
+    spectator = createHost(
+      `<ix-file-ticket #ticket [type]="type" [dialogRef]="dialogRef" [isLoading]="isLoading"></ix-file-ticket>
+       <ng-container [ngTemplateOutlet]="ticket.dialogActions() ?? null"></ng-container>`,
+      {
+        hostProps: {
+          dialogRef,
+          isLoading: false,
+          type: FeedbackType.Bug,
+        },
+      },
+    );
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    form = await loader.getHarness(IxFormHarness);
+    // The login button is projected into the dialog footer (host level), so query from the fixture root.
+    loginToJiraButton = spectator.fixture.debugElement.query(By.directive(OauthButtonComponent))
+      ?.componentInstance as OauthButtonComponent;
+    feedbackService = spectator.inject(FeedbackService);
+  });
+
+  it('renders login to Jira button', () => {
+    expect(loginToJiraButton).toBeTruthy();
+    expect(loginToJiraButton.oauthType).toBe(OauthButtonType.Jira);
+    expect(loginToJiraButton.oauthUrl).toBe('https://support-proxy.ixsystems.com/oauth/initiate?origin=');
+  });
+
+  it('renders similar issues and passes in title as it is entered', async () => {
+    const similarIssues = spectator.query(SimilarIssuesComponent)!;
+    expect(similarIssues).toBeTruthy();
+
+    await form.fillForm({
+      Subject: 'Cannot shutdown',
+    });
+
+    expect(similarIssues.query).toBe('Cannot shutdown');
+  });
+
+  it('submits a ticket using form values and type input once user fill form and logs in to Jira', async () => {
+    const fakeAttachments = [fakeFile('attachment1.png'), fakeFile('attachment2.png')];
+
+    await (await loader.getHarness(TnCheckboxHarness.with({ label: 'Attach debug' }))).check();
+    await (await loader.getHarness(
+      TnCheckboxHarness.with({ label: 'Take screenshot of the current page' }),
+    )).check();
+    await (await loader.getHarness(TnCheckboxHarness.with({ label: 'Attach additional images' }))).check();
+
+    await form.fillForm(
+      {
+        Subject: 'Cannot shutdown',
+        Message: 'Help me',
+        'Attach images (optional)': fakeAttachments,
+      },
+    );
+
+    loginToJiraButton.loggedIn.emit('jira-token');
+
+    expect(feedbackService.createTicket).toHaveBeenCalledWith('jira-token', FeedbackType.Bug, {
+      attach_debug: true,
+      attach_images: true,
+      images: fakeAttachments,
+      message: 'Help me',
+      take_screenshot: true,
+      title: 'Cannot shutdown',
+    });
+    expect(dialogRef.close).toHaveBeenCalled();
+    expect(feedbackService.showTicketSuccessMessage).toHaveBeenCalledWith('https://jira-redirect.ixsystems.com/ticket', undefined);
+  });
+
+  it('disables file input during ticket submission', async () => {
+    const ticketSubmission$ = new Subject<NewTicketResponse>();
+    jest.spyOn(feedbackService, 'createTicket').mockReturnValue(ticketSubmission$.asObservable());
+
+    await (await loader.getHarness(TnCheckboxHarness.with({ label: 'Attach additional images' }))).check();
+
+    const fileInput = await loader.getHarness(IxFileInputHarness);
+
+    loginToJiraButton.loggedIn.emit('jira-token');
+
+    expect(await fileInput.isDisabled()).toBe(true);
+
+    ticketSubmission$.next({
+      ticket: 24, url: 'https://jira-redirect.ixsystems.com/ticket', has_debug: false, debug_attach_error: null,
+    });
+    ticketSubmission$.complete();
+
+    expect(await fileInput.isDisabled()).toBe(false);
+  });
+
+  // TODO: Test case for not failing if images were not uploaded.
+});

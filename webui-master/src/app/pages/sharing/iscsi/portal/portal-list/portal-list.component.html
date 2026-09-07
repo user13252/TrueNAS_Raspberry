@@ -1,0 +1,84 @@
+<tn-card
+  [padContent]="false"
+  [title]="'Portals' | translate"
+  [ixUiSearch]="searchableElements.elements.list"
+>
+  <ng-template tnCardHeaderActions>
+    <div class="actions">
+      <ix-basic-search [query]="searchQuery()" (queryChange)="onListFiltered($event)"></ix-basic-search>
+
+      <ix-table-column-picker
+        [columns]="columns()"
+        [columnPreferencesKey]="'portalList'"
+        (columnsChange)="onColumnsChange($event)"
+      ></ix-table-column-picker>
+
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        color="primary"
+        [testId]="'add-portal'"
+        [ixUiSearch]="searchableElements.elements.add"
+        [label]="'Add' | translate"
+        (onClick)="doAdd()"
+      ></tn-button>
+    </div>
+  </ng-template>
+
+  <tn-table
+    class="table"
+    [testId]="'table-table'"
+    [dataSource]="rows()"
+    [displayedColumns]="displayedColumns()"
+    [trackBy]="trackByPortalId"
+    [loading]="isLoading()"
+    [emptyMessage]="emptyService.titleForType(emptyType())"
+    [emptyDescription]="emptyService.descriptionForType(emptyType())"
+    [emptyIcon]="emptyService.iconForType(emptyType())"
+    (sortChange)="onSortChange($event)"
+  >
+    <ng-container [tnColumnDef]="'id'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Portal Group ID' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span
+          tnTestIdType="text"
+          [tnTestId]="[('Portal Group ID' | translate), uniqueRowTag(row), 'row-text']"
+        >{{ row.id }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'listen'">
+      <ng-template tnHeaderCellDef>{{ 'Listen' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span
+          tnTestIdType="text"
+          [tnTestId]="[('Listen' | translate), uniqueRowTag(row), 'row-text']"
+        >{{ formatListen(row) }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'comment'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Description' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span
+          tnTestIdType="text"
+          [tnTestId]="[('Description' | translate), uniqueRowTag(row), 'row-text']"
+          [tnTooltip]="row.comment || ''"
+        >{{ row.comment }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'actions'" [width]="'80px'">
+      <ng-template tnHeaderCellDef></ng-template>
+      <ng-template let-row tnCellDef>
+        <ix-table-actions-cell
+          [actions]="actions"
+          [row]="row"
+          [uniqueRowTag]="uniqueRowTag(row)"
+          [ariaLabel]="ariaLabel(row)"
+        ></ix-table-actions-cell>
+      </ng-template>
+    </ng-container>
+  </tn-table>
+
+  <tn-table-pager [dataProvider]="dataProvider"></tn-table-pager>
+</tn-card>

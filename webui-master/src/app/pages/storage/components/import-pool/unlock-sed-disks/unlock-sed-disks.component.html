@@ -1,0 +1,91 @@
+<div class="unlock-sed-disks">
+  <form class="form-container" [formGroup]="form" (ngSubmit)="onSubmit()">
+    <tn-form-field
+      [label]="'Global SED Password' | translate"
+      [hint]="'This password will be used to unlock all selected disks.' | translate"
+      [required]="true"
+    >
+      <tn-input
+        formControlName="globalPassword"
+        [inputType]="InputType.Password"
+      ></tn-input>
+    </tn-form-field>
+
+    <!-- See `updateGlobalSettingsAriaLabel` for why `label` repeats the projected hint. -->
+    <tn-checkbox
+      formControlName="updateGlobalSettings"
+      [label]="updateGlobalSettingsAriaLabel()"
+    >
+      <div tnCheckboxLabel>
+        <span class="checkbox-label">{{ updateGlobalSettingsLabel | translate }}</span>
+        <span class="checkbox-hint">{{ updateGlobalSettingsHint | translate }}</span>
+      </div>
+    </tn-checkbox>
+
+    <div class="exceptions-section">
+      <h3 class="section-title">{{ 'Individual Disk Passwords (Optional)' | translate }}</h3>
+      <p class="section-hint">{{ 'Override the global password for specific disks that use a different password.' | translate }}</p>
+
+      <div class="exceptions-list" formArrayName="exceptions" role="list" [attr.aria-label]="'Disk password exceptions' | translate">
+        <!-- The row's controls are reached through `formGroupName`, so the loop only needs `$index`. -->
+        @for (_ of form.controls.exceptions.controls; track $index) {
+          <div class="exception-item" role="listitem" [formGroupName]="$index">
+            <!--
+              Ids and labels carry the 1-based row position: without it the repeated rows resolve
+              to the same data-test (a Playwright strict-mode violation) and to identically-named
+              remove buttons.
+            -->
+            <tn-icon-button
+              class="remove-button"
+              name="close"
+              library="mdi"
+              [testId]="['remove-exception', $index + 1]"
+              [ariaLabel]="'Remove disk exception {position}' | translate: { position: $index + 1 }"
+              (onClick)="removeException($index)"
+            ></tn-icon-button>
+            <tn-form-field [label]="'Disk' | translate" [required]="true">
+              <tn-select
+                formControlName="diskName"
+                [testId]="['disk-name', $index + 1]"
+                [options]="exceptionOptions()[$index] ?? []"
+                [optionTestIdKey]="diskOptionTestIdKey"
+              ></tn-select>
+            </tn-form-field>
+            <tn-form-field [label]="'Password' | translate" [required]="true">
+              <tn-input
+                formControlName="password"
+                [testId]="['password', $index + 1]"
+                [inputType]="InputType.Password"
+              ></tn-input>
+            </tn-form-field>
+          </div>
+        }
+      </div>
+
+      <tn-button
+        class="add-exception-button"
+        icon="mdi-plus"
+        [testId]="'add-exception'"
+        [disabled]="availableDiskCountForException() <= 0"
+        [label]="'Add Disk Exception' | translate"
+        (onClick)="addException()"
+      ></tn-button>
+    </div>
+
+    <ix-form-actions>
+      <tn-button
+        [testId]="'skip'"
+        [label]="'Skip' | translate"
+        (onClick)="onSkip()"
+      ></tn-button>
+      <tn-button
+        *ixRequiresRoles="[Role.DiskWrite]"
+        type="submit"
+        color="primary"
+        [testId]="'unlock-disks'"
+        [disabled]="form.invalid || isUnlocking()"
+        [label]="'Unlock Disks' | translate"
+      ></tn-button>
+    </ix-form-actions>
+  </form>
+</div>

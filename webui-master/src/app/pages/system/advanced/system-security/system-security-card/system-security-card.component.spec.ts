@@ -1,0 +1,77 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import { TnButtonHarness } from '@truenas/ui-components';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { PasswordComplexityRuleset } from 'app/enums/password-complexity-ruleset.enum';
+import { SystemSecurityConfig } from 'app/interfaces/system-security-config.interface';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import { SystemSecurityCardComponent } from 'app/pages/system/advanced/system-security/system-security-card/system-security-card.component';
+import { SystemSecurityFormComponent } from 'app/pages/system/advanced/system-security/system-security-form/system-security-form.component';
+import { selectIsHaLicensed } from 'app/store/ha-info/ha-info.selectors';
+
+const fakeSystemSecurityConfig: SystemSecurityConfig = {
+  enable_fips: false,
+  enable_gpos_stig: false,
+  min_password_age: 5,
+  max_password_age: 30,
+  password_complexity_ruleset: {
+    $set: [PasswordComplexityRuleset.Upper, PasswordComplexityRuleset.Number],
+  },
+  min_password_length: 10,
+  password_history_length: 5,
+};
+
+describe('SystemSecurityCardComponent', () => {
+  let spectator: Spectator<SystemSecurityCardComponent>;
+  let loader: HarnessLoader;
+  let formPanel: FormSidePanelService;
+
+  const createComponent = createComponentFactory({
+    component: SystemSecurityCardComponent,
+    providers: [
+      provideMockStore({
+        selectors: [
+          { selector: selectIsHaLicensed, value: true },
+        ],
+      }),
+      mockAuth(),
+      mockApi([
+        mockCall('system.security.config', fakeSystemSecurityConfig),
+      ]),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.cancel()),
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    formPanel = spectator.inject(FormSidePanelService);
+  });
+
+  it('shows all System Security settings in card', () => {
+    const items = spectator.queryAll('.details-item').map((item) => item.textContent?.replace(/\s+/g, ' ').trim());
+
+    expect(items).toEqual([
+      'Enable FIPS: No',
+      'Enable General Purpose OS STIG compatibility mode: No',
+      'Min Password Age: 5 days',
+      'Max Password Age: 30 days',
+      'Password Complexity Ruleset: Upper, Number',
+      'Min Password Length: 10 characters',
+      'Password History Length: 5 entries',
+    ]);
+  });
+
+  it('opens System Security form when Configure button is clicked', async () => {
+    const button = await loader.getHarness(TnButtonHarness.with({ label: 'Configure' }));
+    await button.click();
+
+    expect(formPanel.open).toHaveBeenCalledWith(SystemSecurityFormComponent, { title: 'System Security' });
+  });
+});

@@ -1,0 +1,75 @@
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, input, signal, inject } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { finalize, take } from 'rxjs';
+import { IscsiTargetMode } from 'app/enums/iscsi.enum';
+import { FibreChannelPort } from 'app/interfaces/fibre-channel.interface';
+import { IscsiTarget } from 'app/interfaces/iscsi.interface';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { AssociatedExtentsCardComponent } from 'app/pages/sharing/iscsi/target/all-targets/target-details/associated-extents-card/associated-extents-card.component';
+import {
+  AuthorizedNetworksCardComponent,
+} from 'app/pages/sharing/iscsi/target/all-targets/target-details/authorized-networks-card/authorized-networks-card.component';
+import { FibreChannelConnectionsCardComponent } from 'app/pages/sharing/iscsi/target/all-targets/target-details/fibre-channel-connections-card/fibre-channel-connections-card.component';
+import { FibreChannelPortCardComponent } from 'app/pages/sharing/iscsi/target/all-targets/target-details/fibre-channel-port-card/fibre-channel-port-card.component';
+import { IscsiConnectionsCardComponent } from 'app/pages/sharing/iscsi/target/all-targets/target-details/iscsi-connections-card/iscsi-connections-card.component';
+import { IscsiGroupsCardComponent } from 'app/pages/sharing/iscsi/target/all-targets/target-details/iscsi-groups-card/iscsi-groups-card.component';
+
+@Component({
+  selector: 'ix-target-details',
+  templateUrl: './target-details.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AuthorizedNetworksCardComponent,
+    IscsiGroupsCardComponent,
+    FibreChannelPortCardComponent,
+    FibreChannelConnectionsCardComponent,
+    AssociatedExtentsCardComponent,
+    IscsiConnectionsCardComponent,
+  ],
+})
+export class TargetDetailsComponent {
+  private api = inject(ApiService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly target = input.required<IscsiTarget>();
+
+  targetPorts = signal<FibreChannelPort[]>([]);
+  isLoading = signal<boolean>(false);
+
+  connections = toSignal(this.api.call('fcport.status'), { initialValue: [] });
+
+  protected hasIscsiCards = computed(() => [
+    IscsiTargetMode.Iscsi,
+    IscsiTargetMode.Both,
+  ].includes(this.target().mode));
+
+  protected hasFibreCards = computed(() => [
+    IscsiTargetMode.Fc,
+    IscsiTargetMode.Both,
+  ].includes(this.target().mode));
+
+  constructor() {
+    effect(() => {
+      const targetId = this.target().id;
+      this.targetPorts.set([]);
+
+      if (targetId) {
+        this.getPortsByTargetId(targetId);
+      }
+    });
+  }
+
+  private getPortsByTargetId(id: number): void {
+    this.isLoading.set(true);
+
+    this.api.call('fcport.query', [[['target.id', '=', id]]])
+      .pipe(
+        take(1),
+        finalize(() => this.isLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((ports) => {
+        this.targetPorts.set(ports);
+      });
+  }
+}

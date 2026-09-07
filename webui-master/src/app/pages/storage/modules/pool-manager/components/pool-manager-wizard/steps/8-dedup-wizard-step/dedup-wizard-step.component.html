@@ -1,0 +1,45 @@
+<ix-layout-step
+  [description]="helptext.dedupVdevDescription | translate"
+  [type]="vDevType.Dedup"
+  [inventory]="(inventory$ | async) || []"
+  [canChangeLayout]="true"
+  [limitLayouts]="allowedLayouts"
+  [minMirrorWidth]="minMirrorWidth"
+  [isStepActive]="isStepActive()"
+></ix-layout-step>
+
+@if (stepWarning()) {
+  <p class="error-warning">
+    {{ stepWarning() }}
+  </p>
+}
+
+<ix-form-actions>
+  <tn-button
+    tnStepperPrevious
+    color="secondary"
+    [testId]="'back-dedup'"
+    [label]="'Back' | translate"
+  ></tn-button>
+  <tn-button
+    tnStepperNext
+    color="primary"
+    [testId]="'next-dedup'"
+    [label]="'Next' | translate"
+  ></tn-button>
+
+  <tn-button
+    color="warn"
+    [testId]="'reset-fields-in-dedup-step'"
+    [label]="'Reset Step' | translate"
+    (onClick)="resetStep()"
+  ></tn-button>
+
+  <tn-button
+    color="secondary"
+    [testId]="'save-and-go-to-review-dedup'"
+    [label]="'Go to Review' | translate"
+    (onClick)="goToReviewStep()"
+  ></tn-button>
+</ix-form-actions>
+

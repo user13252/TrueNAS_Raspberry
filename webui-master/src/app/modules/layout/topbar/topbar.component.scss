@@ -1,0 +1,196 @@
+@import 'scss-imports/variables';
+
+:host {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 5;
+
+  .topbar-mobile-footer {
+    align-items: center;
+    display: inline-flex;
+    margin-top: -3px;
+    place-content: flex-end;
+    width: inherit;
+
+    > *:empty {
+      display: none;
+    }
+
+    @media (min-width: $breakpoint-min-mobile) and (max-width: $breakpoint-min-mobile) {
+      display: flex;
+      flex-wrap: wrap;
+      height: auto;
+    }
+
+    @media (max-width: $breakpoint-tablet) {
+      background-color: var(--topbar);
+      bottom: 0;
+      height: $topbar-mobile-height;
+      left: 0;
+      padding: 0 16px;
+      place-content: space-around;
+      position: fixed;
+      width: 100%;
+
+      &.has-console-footer {
+        bottom: $console-footer-height;
+      }
+    }
+
+    .topbar-button-right {
+      margin: 0;
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+
+      @media (min-width: $breakpoint-min-mobile) and (max-width: $breakpoint-tablet) {
+        margin: 4px;
+      }
+    }
+
+  }
+}
+
+// Replaces the former mat-toolbar/mat-toolbar-row pair: one flex row, 48px tall.
+.topbar {
+  align-items: center;
+  background-color: var(--topbar) !important;
+  box-sizing: border-box;
+  color: var(--topbar-txt) !important;
+  display: flex;
+  flex-direction: row;
+  height: 48px;
+  padding: 0 16px;
+  white-space: nowrap;
+  width: 100%;
+
+  // Pin the sidenav toggle's height so it centers correctly in the 48px bar.
+  #sidenavToggle {
+    height: 30px;
+  }
+}
+
+.topbar button:focus-visible {
+  background: var(--focus-bg);
+  box-shadow: 0 0 0 1.5px var(--focus-brd) inset !important;
+  outline-width: 0;
+}
+
+// TEMP: until @truenas/ui-components exposes a focus-ring theme token/hook on
+// tn-icon-button. It renders its own inner <button>, which the scoped rule above
+// can't reach. Override the library's default focus outline with the branded
+// inset shadow (a plain outline gets clipped by the bar).
+:host ::ng-deep .tn-icon-button:focus-visible {
+  background: var(--focus-bg);
+  box-shadow: 0 0 0 1.5px var(--focus-brd) inset;
+  outline: none;
+}
+
+:host ::ng-deep .topbar-button-right {
+  // The status / count badges are projected into the tn-icon-button and anchor
+  // to its inner button. Pin them to the corner so every topbar badge lines up.
+  ix-status-badge {
+    top: 0;
+    right: 0;
+  }
+}
+
+ix-truenas-logo {
+  height: 48px;
+  opacity: 1;
+  visibility: visible;
+
+  @media(min-width: $breakpoint-tablet) {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+// TEMP: until @truenas/ui-components exposes a theme hook for icon-button
+// icon/text color in dark bars; reaches into tn-icon-button's inner <button>.
+:host ::ng-deep nav .topbar {
+  button tn-icon,
+  button span {
+    color: var(--topbar-txt) !important;
+  }
+
+  /*
+   * Alert-severity bell styles.
+   * !important overrides the broad `button tn-icon { color: var(--topbar-txt) !important }` rule above.
+   * Animation plays when severity class is first applied (null→warning, null→critical);
+   * it intentionally does NOT retrigger on count-only changes to avoid distraction
+   * while the user is already aware of active alerts.
+   * Note: the animation DOES retrigger on severity transitions (warning↔critical),
+   * e.g. when the last critical alert is dismissed and only warnings remain.
+   * This is acceptable since a severity change is a meaningful state shift.
+   */
+  tn-icon.alert-critical,
+  tn-icon.alert-warning {
+    transform-origin: top center;
+  }
+
+  tn-icon.alert-critical {
+    --alert-glow: var(--red);
+    animation: ring 2s ease-in-out 3;
+    color: var(--red) !important;
+  }
+
+  tn-icon.alert-warning {
+    --alert-glow: var(--orange);
+    animation: ring 2s ease-in-out 3;
+    color: var(--orange) !important;
+  }
+
+  .topbar-button-right {
+    margin-left: 0.5rem !important;
+    display: flex;
+    align-items: center;
+  }
+}
+
+@keyframes ring {
+  0%,
+  20%,
+  100% {
+    transform: rotate(0deg);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+
+  2.5% {
+    transform: rotate(12deg);
+  }
+
+  5% {
+    transform: rotate(-10deg);
+  }
+
+  7.5% {
+    transform: rotate(8deg);
+  }
+
+  10% {
+    transform: rotate(-6deg);
+    filter: drop-shadow(0 0 6px var(--alert-glow));
+  }
+
+  12.5% {
+    transform: rotate(3deg);
+  }
+
+  15% {
+    transform: rotate(-1deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host ::ng-deep nav .topbar {
+    tn-icon.alert-critical,
+    tn-icon.alert-warning {
+      animation: none;
+      filter: none;
+    }
+  }
+}

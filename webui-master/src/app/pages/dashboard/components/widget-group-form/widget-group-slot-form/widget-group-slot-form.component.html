@@ -1,0 +1,27 @@
+<form [formGroup]="form">
+  <div class="widget-options-container">
+    <tn-form-section
+      [heading]="'Card {slot} Settings' | translate: { slot: slot().slotPosition + 1 }"
+    >
+      <tn-form-field class="half-width" [label]="'Card Category' | translate" [required]="true">
+        <tn-select
+          formControlName="category"
+          [testId]="'category'"
+          [ariaLabel]="'Card Category' | translate"
+          [options]="widgetCategoriesOptions()"
+        ></tn-select>
+      </tn-form-field>
+      @if (shouldShowType()) {
+        <tn-form-field class="half-width" [label]="'Card Type' | translate" [required]="true">
+          <tn-select
+            formControlName="type"
+            [testId]="'type'"
+            [ariaLabel]="'Card Type' | translate"
+            [options]="widgetTypesOptions()"
+          ></tn-select>
+        </tn-form-field>
+      }
+      <ng-container #settingsContainer></ng-container>
+    </tn-form-section>
+  </div>
+</form>

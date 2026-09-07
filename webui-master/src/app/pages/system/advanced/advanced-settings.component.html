@@ -1,0 +1,31 @@
+<ix-page-header>
+  <ix-manage-configuration-menu></ix-manage-configuration-menu>
+</ix-page-header>
+
+<div class="cards" [ixUiSearch]="searchableElements.elements.advanced">
+  <ix-console-card></ix-console-card>
+  <ix-syslog-card></ix-syslog-card>
+  <ix-audit-card></ix-audit-card>
+  <ix-kernel-card></ix-kernel-card>
+  <ix-cron-card></ix-cron-card>
+  <ix-init-shutdown-card></ix-init-shutdown-card>
+  <ix-tunable-card></ix-tunable-card>
+  <ix-ntp-servers-card></ix-ntp-servers-card>
+  <ix-storage-card></ix-storage-card>
+  <ix-replication-settings-card></ix-replication-settings-card>
+  <ix-access-card></ix-access-card>
+  <ix-allowed-addresses-card></ix-allowed-addresses-card>
+  @if (showSedCard()) {
+    <ix-self-encrypting-drive-card></ix-self-encrypting-drive-card>
+  }
+  <ix-isolated-gpus-card></ix-isolated-gpus-card>
+  <ix-nvidia-drivers-card></ix-nvidia-drivers-card>
+  <ix-global-two-factor-card></ix-global-two-factor-card>
+  @if (isSystemLicensed()) {
+    <ix-system-security-card></ix-system-security-card>
+  }
+
+  @if (hasFailover$ | async) {
+    <ix-failover-card></ix-failover-card>
+  }
+</div>

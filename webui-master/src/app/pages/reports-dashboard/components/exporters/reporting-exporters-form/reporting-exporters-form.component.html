@@ -1,0 +1,45 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field
+      [label]="'Name' | translate"
+      [tooltip]="'Give your exporter configuration a name' | translate"
+      [required]="true"
+    >
+      <tn-input
+        name="name"
+        testId="name"
+        formControlName="name"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+    <tn-form-field
+      [label]="'Type' | translate"
+      [required]="true"
+    >
+      <tn-select
+        testId="type"
+        formControlName="type"
+        [options]="exporterTypeOptions()"
+      ></tn-select>
+    </tn-form-field>
+    <tn-form-field class="checkbox-field">
+      <tn-checkbox
+        testId="enabled"
+        formControlName="enabled"
+        [label]="'Enable' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+
+  @if (schemasLoaded()) {
+    <ix-dynamic-form
+      [dynamicSection]="dynamicSection"
+      [dynamicForm]="formGroup"
+    ></ix-dynamic-form>
+  }
+</ix-form>

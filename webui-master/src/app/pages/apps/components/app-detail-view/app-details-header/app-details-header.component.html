@@ -1,0 +1,75 @@
+<div class="app">
+  @if (app()?.installed) {
+    <ix-installed-app-badge [app]="app()"></ix-installed-app-badge>
+  }
+  <div class="app-image-holder">
+    <ix-app-card-logo [url]="app()?.icon_url"></ix-app-card-logo>
+  </div>
+  <ix-install-app-button [app]="app()"></ix-install-app-button>
+</div>
+
+<div class="app-info">
+  <div class="app-list-item">
+    <span class="label" [tnTooltip]="'Upstream Application Version' | translate">{{ 'Version' | translate }}:</span>
+    @if (isLoading()) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      {{ app()?.latest_app_version | orNotAvailable }}
+    }
+  </div>
+  <div class="app-list-item">
+    <span class="label" [tnTooltip]="'TrueNAS Catalog Revision' | translate">{{ 'Revision' | translate }}:</span>
+    @if (isLoading()) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      {{ app()?.latest_version | orNotAvailable }}
+    }
+  </div>
+  <div class="app-list-item">
+    <span class="label">{{ 'Keywords' | translate }}:</span>
+    @if (isLoading()) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      @if (app()?.tags?.length) {
+        {{ app()?.tags.join(', ') }}
+      } @else {
+        {{ 'N/A' | translate }}
+      }
+    }
+  </div>
+  <div class="app-list-item">
+    <span class="label">{{ 'Train' | translate }}:</span>
+    @if (isLoading()) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      {{ app()?.train | orNotAvailable }}
+    }
+  </div>
+  <div class="app-list-item">
+    <span class="label">{{ 'Homepage' | translate }}:</span>
+    @if (isLoading()) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      @if (app()?.home) {
+        <a
+          tnTestId="homepage"
+          tnTestIdType="link"
+          target="_blank"
+          [href]="app().home"
+          [title]="app().home"
+        >{{ app().home | cleanLink }}</a>
+      } @else {
+        {{ 'N/A' | translate }}
+      }
+    }
+  </div>
+</div>
+
+<div class="app-description">
+  @if (isLoading()) {
+    <ngx-skeleton-loader count="2"></ngx-skeleton-loader>
+  } @else if (description()) {
+    <div class="description-wrapper" [innerHtml]="description()"></div>
+  }
+</div>
+

@@ -1,0 +1,28 @@
+import { defaultLanguage } from 'app/constants/languages.constant';
+import { Preferences } from 'app/interfaces/preferences.interface';
+
+export const defaultPreferences: Preferences = {
+  userTheme: 'default',
+  syncThemeWithOS: false,
+  lightTheme: 'ix-blue',
+  darkTheme: 'ix-dark',
+  dateFormat: 'yyyy-MM-DD',
+  timeFormat: 'HH:mm:ss',
+  sidenavStatus: {
+    isCollapsed: false,
+    isOpen: true,
+    mode: 'over',
+  },
+  tableDisplayedColumns: [],
+
+  hideBuiltinGroups: true,
+
+  showSnapshotExtraColumns: false,
+  shownNewFeatureIndicatorKeys: [],
+
+  rebootAfterManualUpdate: false,
+  autoRefreshReports: false,
+  lifetime: 300,
+  language: defaultLanguage,
+  terminalFontSize: 14,
+};

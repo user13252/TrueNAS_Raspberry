@@ -1,0 +1,78 @@
+<ix-page-header>
+  <ix-basic-search [query]="searchQuery()" (queryChange)="onListFiltered($event)"></ix-basic-search>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    testId="pull-image"
+    [label]="'Pull Image' | translate"
+    (onClick)="doAdd()"
+  ></tn-button>
+</ix-page-header>
+
+@if (selectedImages().length) {
+  <div class="batch-actions-toolbar">
+    <div class="title">
+      <strong>{{ 'Batch Operations' | translate }}</strong>
+    </div>
+    <div class="actions">
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        testId="delete"
+        [label]="'Delete' | translate"
+        (onClick)="doDelete(selectedImages())"
+      ></tn-button>
+    </div>
+  </div>
+}
+
+@let emptyType = dataProvider.emptyType$ | async;
+
+<tn-table
+  class="table"
+  [dataSource]="(dataProvider.currentPage$ | async) ?? []"
+  [displayedColumns]="displayedColumns"
+  [selectable]="true"
+  [loading]="!!(dataProvider.isLoading$ | async)"
+  [emptyMessage]="emptyService.titleForType(emptyType)"
+  [emptyDescription]="emptyService.descriptionForType(emptyType)"
+  [emptyIcon]="emptyService.iconForType(emptyType)"
+  (selectionChange)="onSelectionChange($event)"
+  (sortChange)="onSortChange($event)"
+>
+  <ng-container [tnColumnDef]="'id'" [sortable]="true">
+    <ng-template tnHeaderCellDef>{{ 'Image ID' | translate }}</ng-template>
+    <ng-template let-row tnCellDef>{{ row.id }}</ng-template>
+  </ng-container>
+
+  <ng-container [tnColumnDef]="'repo_tags'" [sortable]="true">
+    <ng-template tnHeaderCellDef>{{ 'Tags' | translate }}</ng-template>
+    <ng-template let-row tnCellDef>{{ row.repo_tags.join(', ') }}</ng-template>
+  </ng-container>
+
+  <ng-container [tnColumnDef]="'size'" [sortable]="true">
+    <ng-template tnHeaderCellDef>{{ 'Image Size' | translate }}</ng-template>
+    <ng-template let-row tnCellDef>
+      {{ row.size ? (row.size | ixFileSize) : ('Unknown' | translate) }}
+    </ng-template>
+  </ng-container>
+
+  <ng-container [tnColumnDef]="'actions'" [width]="'80px'">
+    <ng-template tnHeaderCellDef></ng-template>
+    <ng-template let-row tnCellDef>
+      <tn-icon-button
+        *ixRequiresRoles="requiredRoles"
+        name="delete"
+        library="mdi"
+        tooltipPosition="above"
+        [dense]="true"
+        [testId]="[row.id, 'delete']"
+        [ariaLabel]="'Delete' | translate"
+        [tooltip]="'Delete' | translate"
+        (onClick)="doDelete([row])"
+      ></tn-icon-button>
+    </ng-template>
+  </ng-container>
+</tn-table>
+
+<tn-table-pager [dataProvider]="dataProvider"></tn-table-pager>

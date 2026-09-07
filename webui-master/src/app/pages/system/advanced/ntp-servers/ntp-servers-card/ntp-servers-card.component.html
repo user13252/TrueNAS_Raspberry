@@ -1,0 +1,66 @@
+<tn-card padding="small" [title]="'NTP Servers' | translate" [ixUiSearch]="searchableElements.elements.ntp">
+  @if (!(dataProvider.currentPageCount$ | async) && !(dataProvider.isLoading$ | async)) {
+    <tn-empty [title]="emptyService.titleForType(dataProvider.emptyType$ | async)"></tn-empty>
+  } @else {
+    <tn-table
+      class="table"
+      [dataSource]="(dataProvider.currentPage$ | async) ?? []"
+      [displayedColumns]="displayedColumns"
+      [trackBy]="trackByNtpId"
+      [loading]="!!(dataProvider.isLoading$ | async)"
+    >
+      <ng-container [tnColumnDef]="'address'">
+        <ng-template tnHeaderCellDef>{{ 'Address' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.address }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'burst'">
+        <ng-template tnHeaderCellDef>{{ 'Burst' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.burst | yesNo | translate }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'iburst'">
+        <ng-template tnHeaderCellDef>{{ 'IBurst' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.iburst | yesNo | translate }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'prefer'">
+        <ng-template tnHeaderCellDef>{{ 'Prefer' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.prefer | yesNo | translate }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'minpoll'">
+        <ng-template tnHeaderCellDef>{{ 'Min Poll' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.minpoll }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'maxpoll'">
+        <ng-template tnHeaderCellDef>{{ 'Max Poll' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.maxpoll }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'actions'" [width]="'80px'">
+        <ng-template tnHeaderCellDef></ng-template>
+        <ng-template let-row tnCellDef>
+          <ix-table-actions-cell
+            [actions]="actions"
+            [row]="row"
+            [uniqueRowTag]="uniqueRowTag(row)"
+            [ariaLabel]="ariaLabel(row)"
+          ></ix-table-actions-cell>
+        </ng-template>
+      </ng-container>
+    </tn-table>
+  }
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      [testId]="'add-ntp'"
+      [ixUiSearch]="searchableElements.elements.addNtpServer"
+      [label]="'Add' | translate"
+      (onClick)="doAdd()"
+    ></tn-button>
+  </ng-template>
+</tn-card>

@@ -1,0 +1,71 @@
+<div class="tree-node-grid">
+  <div class="cell cell-name">
+    <span class="name">{{ ownName() }}</span>
+  </div>
+  <div class="cell cell-status" [style.background-color]="statusColor()">
+    <span>{{ topologyItem().status | titlecase }}</span>
+    @if (!isDisk() && !isMirror() && poolInstance()?.status_detail) {
+      <tn-icon
+        name="information-outline"
+        library="mdi"
+        [tnTooltip]="poolInstance().status_detail"
+      ></tn-icon>
+    }
+  </div>
+  <div class="cell">
+    <span>{{ topologyItem()?.stats?.read_errors || 0 }}</span>
+  </div>
+  <div class="cell">
+    <span>{{ topologyItem()?.stats?.write_errors || 0 }}</span>
+  </div>
+  <div class="cell">
+    <span>{{ topologyItem()?.stats?.checksum_errors || 0 }}</span>
+  </div>
+  <div class="cell">
+    <span>{{ errors() }}</span>
+  </div>
+  <div class="cell cell-actions">
+    @if (isDisk() || isMirror()) {
+      <tn-icon-button
+        name="dots-vertical"
+        library="mdi"
+        [ariaLabel]="'Actions' | translate"
+        [tooltip]="'Actions' | translate"
+        [testId]="[ownName(), 'actions']"
+        [tnMenuTriggerFor]="actionsMenu"
+      ></tn-icon-button>
+    }
+    <tn-menu #actionsMenu>
+      <tn-menu-item
+        *ixRequiresRoles="requiredRoles"
+        iconLibrary="mdi"
+        [icon]="replaceIcon"
+        [testId]="'replace'"
+        [label]="'Replace' | translate"
+        (itemClick)="replace()"
+      ></tn-menu-item>
+      <ng-container *ixRequiresRoles="requiredRoles">
+        @if (isDisk() && oneDisk()) {
+          <tn-menu-item
+            iconLibrary="mdi"
+            [icon]="attachIcon"
+            [testId]="'attach'"
+            [label]="'Attach' | translate"
+            (itemClick)="attach()"
+          ></tn-menu-item>
+        }
+      </ng-container>
+      <ng-container *ixRequiresRoles="requiredRoles">
+        @if (isMirror()) {
+          <tn-menu-item
+            iconLibrary="mdi"
+            [icon]="detachIcon"
+            [testId]="'detach'"
+            [label]="'Detach' | translate"
+            (itemClick)="detach()"
+          ></tn-menu-item>
+        }
+      </ng-container>
+    </tn-menu>
+  </div>
+</div>

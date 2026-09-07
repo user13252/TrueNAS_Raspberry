@@ -1,0 +1,13 @@
+<div class="cards">
+  <div class="scroll-window">
+    <ix-cloud-backup-schedule [backup]="backup()"></ix-cloud-backup-schedule>
+
+    <ix-cloud-backup-stats [backup]="backup()"></ix-cloud-backup-stats>
+
+    @if (backup().exclude.length) {
+      <ix-cloud-backup-excluded-paths [backup]="backup()"></ix-cloud-backup-excluded-paths>
+    }
+
+    <ix-cloud-backup-snapshots [backup]="backup()"></ix-cloud-backup-snapshots>
+  </div>
+</div>

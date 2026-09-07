@@ -1,0 +1,182 @@
+import {
+  ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnIconComponent, TnTestIdDirective,
+} from '@truenas/ui-components';
+import {
+  EMPTY, catchError, finalize, of, switchMap, Observable,
+} from 'rxjs';
+import { TncStatus, TruenasConnectStatus, TruenasConnectStatusReason } from 'app/enums/truenas-connect-status.enum';
+import { TruenasConnectConfig } from 'app/interfaces/truenas-connect-config.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { TruenasConnectSpinnerComponent } from 'app/modules/truenas-connect/components/truenas-connect-spinner/truenas-connect-spinner.component';
+import { TruenasConnectStatusDisplayComponent } from 'app/modules/truenas-connect/components/truenas-connect-status-display/truenas-connect-status-display.component';
+import { TruenasConnectService } from 'app/modules/truenas-connect/services/truenas-connect.service';
+
+@Component({
+  selector: 'ix-truenas-connect-status-modal',
+  imports: [
+    TnDialogShellComponent,
+    TnButtonComponent,
+    TnIconComponent,
+    TranslateModule,
+    TnTestIdDirective,
+    TruenasConnectSpinnerComponent,
+    TruenasConnectStatusDisplayComponent,
+  ],
+  templateUrl: './truenas-connect-status-modal.component.html',
+  styleUrl: './truenas-connect-status-modal.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class TruenasConnectStatusModalComponent {
+  protected tnc = inject(TruenasConnectService);
+  private dialog = inject(DialogService);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  readonly TruenasConnectStatus = TruenasConnectStatus;
+  readonly TruenasConnectStatusReason = TruenasConnectStatusReason;
+  readonly TncStatus = TncStatus;
+
+  protected isConnecting = signal(false);
+  protected isDisabling = signal(false);
+  protected isRetrying = signal(false);
+
+  // While `tnc.config()` is undefined (e.g. the modal was opened before the
+  // service finished its first `tn_connect.config` round-trip, which happens
+  // when callers outside the topbar — webshare, service-smb, etc. — open the
+  // modal without their own load guard), surface a spinner instead of an
+  // actionable "Get Connected" button derived from a missing status.
+  protected isLoading = computed(() => this.tnc.config() === undefined);
+
+  protected status = computed(() => {
+    const raw = this.tnc.config()?.status;
+    // Config not loaded yet — the template shows the spinner branch instead,
+    // so this fallback is only reached for type narrowing on the switch below.
+    if (raw === undefined) {
+      return TncStatus.Waiting;
+    }
+    switch (raw) {
+      case TruenasConnectStatus.Configured:
+        return TncStatus.Active;
+      case TruenasConnectStatus.ClaimTokenMissing:
+      case TruenasConnectStatus.RegistrationFinalizationWaiting:
+        return TncStatus.Waiting;
+      case TruenasConnectStatus.RegistrationFinalizationSuccess:
+      case TruenasConnectStatus.CertGenerationInProgress:
+      case TruenasConnectStatus.CertGenerationSuccess:
+      case TruenasConnectStatus.CertRenewalInProgress:
+      case TruenasConnectStatus.CertRenewalSuccess:
+        return TncStatus.Connecting;
+      case TruenasConnectStatus.RegistrationFinalizationFailed:
+      case TruenasConnectStatus.RegistrationFinalizationTimeout:
+      case TruenasConnectStatus.CertGenerationFailed:
+      case TruenasConnectStatus.CertConfigurationFailure:
+      case TruenasConnectStatus.CertRenewalFailure:
+        return TncStatus.Failed;
+      case TruenasConnectStatus.Disabled:
+        // Surface the actionable "Get Connected" CTA rather than a dead-end "disabled" message.
+        return TncStatus.Waiting;
+      default:
+        // Exhaustive guard — a new TruenasConnectStatus enum member will fail this
+        // `satisfies never` check at compile time, forcing us to revisit the mapping
+        // above. At runtime we still fall back to the safe "Get Connected" state.
+        raw satisfies never;
+        return TncStatus.Waiting;
+    }
+  });
+
+  protected open(): void {
+    const baseUrl = this.tnc.config()?.tnc_base_url;
+    if (baseUrl) {
+      this.tnc.openTruenasConnectWindow(baseUrl);
+    }
+  }
+
+  protected connect(): void {
+    this.isConnecting.set(true);
+
+    // Enable service first if it's disabled
+    let enableIfNeeded$: Observable<TruenasConnectConfig> = of(this.tnc.config());
+    if (this.tnc.config()?.status === TruenasConnectStatus.Disabled) {
+      enableIfNeeded$ = this.tnc.enableService();
+    }
+
+    enableIfNeeded$
+      .pipe(
+        // NOW check if we need token generation based on updated config
+        switchMap((config) => {
+          if (
+            config?.status === TruenasConnectStatus.ClaimTokenMissing
+            || config?.status === TruenasConnectStatus.RegistrationFinalizationTimeout
+          ) {
+            return this.tnc.generateToken();
+          }
+          return of('');
+        }),
+        switchMap(() => {
+          return this.tnc.connect();
+        }),
+        catchError((_: unknown) => {
+          this.dialog.error({
+            title: this.translate.instant('Connection Error'),
+            message: this.translate.instant('Failed to connect to TrueNAS Connect'),
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isConnecting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+  }
+
+  protected disableService(): void {
+    this.dialog.confirm({
+      title: this.translate.instant('Disable TrueNAS Connect'),
+      message: this.translate.instant('Are you sure you wish to disable TrueNAS Connect? You will be able to re-connect this system later.'),
+      buttonText: this.translate.instant('Disable'),
+    })
+      .pipe(
+        switchMap((confirmed) => {
+          if (!confirmed) {
+            return EMPTY;
+          }
+          this.isDisabling.set(true);
+          return this.tnc.disableService()
+            .pipe(
+              catchError((_: unknown) => {
+                this.dialog.error({
+                  title: this.translate.instant('Disable Error'),
+                  message: this.translate.instant('Failed to disable TrueNAS Connect service'),
+                });
+                return EMPTY;
+              }),
+              finalize(() => this.isDisabling.set(false)),
+            );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+  }
+
+  protected retryConnection(): void {
+    this.isRetrying.set(true);
+    this.tnc.disableService()
+      .pipe(
+        switchMap(() => this.tnc.enableService()),
+        catchError((_: unknown) => {
+          this.dialog.error({
+            title: this.translate.instant('Retry Error'),
+            message: this.translate.instant('Failed to retry TrueNAS Connect connection'),
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isRetrying.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+  }
+}

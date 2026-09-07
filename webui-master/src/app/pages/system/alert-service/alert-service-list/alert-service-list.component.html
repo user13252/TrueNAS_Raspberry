@@ -1,0 +1,69 @@
+<tn-card
+  [ixUiSearch]="searchableElements.elements.alertServiceList"
+  [title]="'Alert Services' | translate"
+>
+  <ng-template tnCardHeaderActions>
+    <ix-basic-search [query]="searchQuery()" (queryChange)="onListFiltered($event)"></ix-basic-search>
+
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      [testId]="['alert-service', 'add']"
+      [label]="'Add' | translate"
+      [ixUiSearch]="searchableElements.elements.add"
+      (onClick)="addAlertService()"
+    ></tn-button>
+  </ng-template>
+
+  @if (!(dataProvider.currentPageCount$ | async) && !(dataProvider.isLoading$ | async)) {
+    @let emptyType = dataProvider.emptyType$ | async;
+    <tn-empty
+      [title]="emptyService.titleForType(emptyType)"
+      [description]="emptyService.descriptionForType(emptyType)"
+    ></tn-empty>
+  } @else {
+    <tn-table
+      class="table"
+      [dataSource]="(dataProvider.currentPage$ | async) ?? []"
+      [displayedColumns]="displayedColumns"
+      [trackBy]="trackByServiceId"
+      [loading]="!!(dataProvider.isLoading$ | async)"
+      (sortChange)="onSortChange($event)"
+    >
+      <ng-container [tnColumnDef]="'name'" [sortable]="true">
+        <ng-template tnHeaderCellDef>{{ 'Service Name' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.name }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'type'" [sortable]="true">
+        <ng-template tnHeaderCellDef>{{ 'Type' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ serviceTypeLabel(row) }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'level'" [sortable]="true">
+        <ng-template tnHeaderCellDef>{{ 'Level' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ serviceLevelLabel(row) }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'enabled'" [sortable]="true">
+        <ng-template tnHeaderCellDef>{{ 'Enabled' | translate }}</ng-template>
+        <ng-template let-row tnCellDef>{{ row.enabled | yesNo | translate }}</ng-template>
+      </ng-container>
+
+      <ng-container [tnColumnDef]="'actions'" [width]="'80px'">
+        <ng-template tnHeaderCellDef></ng-template>
+        <ng-template let-row tnCellDef>
+          <ix-table-actions-cell
+            mode="inline"
+            [actions]="actions"
+            [row]="row"
+            [uniqueRowTag]="uniqueRowTag(row)"
+            [ariaLabel]="ariaLabel(row)"
+          ></ix-table-actions-cell>
+        </ng-template>
+      </ng-container>
+    </tn-table>
+  }
+
+  <tn-table-pager [dataProvider]="dataProvider"></tn-table-pager>
+</tn-card>

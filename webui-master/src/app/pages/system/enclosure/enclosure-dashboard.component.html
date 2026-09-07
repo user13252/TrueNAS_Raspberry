@@ -1,0 +1,36 @@
+<ix-page-header>
+  @if (isJbofLicensed()) {
+    <!-- Host-pinned to keep the legacy `link-manage-expansion` id — see the playbook's upstream-defects table. -->
+    <tn-button
+      tnTestIdType="link"
+      [tnTestId]="'manage-expansion'"
+      [routerLink]="['/', 'system', 'viewenclosure', 'jbof']"
+      [label]="'NVMe-oF Expansion Shelves' | translate"
+    ></tn-button>
+  }
+  @if (selectedEnclosure(); as enclosure) {
+    <ix-view-elements-menu
+      [enclosure]="enclosure"
+    ></ix-view-elements-menu>
+  }
+</ix-page-header>
+
+@if (selectedEnclosure()) {
+  <router-outlet></router-outlet>
+} @else if (isLoading()) {
+  <!--
+    `tn-empty` has no loading variant, so the spinner `ix-empty` rendered for
+    `EmptyType.Loading` is spelled out here instead.
+  -->
+  <div class="loading">
+    <tn-spinner [diameter]="40"></tn-spinner>
+  </div>
+} @else {
+  <tn-empty
+    icon="format-list-text"
+    iconLibrary="mdi"
+    iconSize="90px"
+    [title]="'Enclosure Unavailable' | translate"
+    [description]="'We’re unable to access the enclosure at the moment. Please ensure it’s connected properly and reload the page.' | translate"
+  ></tn-empty>
+}

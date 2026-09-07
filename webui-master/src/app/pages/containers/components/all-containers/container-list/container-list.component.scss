@@ -1,0 +1,35 @@
+:host {
+  height: 100%;
+
+  .item-search {
+    background-color: var(--bg2);
+    padding: 16px;
+    position: sticky;
+    top: -17px;
+    z-index: 2;
+  }
+
+  .loader-bar {
+    height: 2px;
+    left: 0;
+    position: absolute;
+    top: 0;
+    z-index: 3;
+  }
+
+  // Only rendered while rows are checked (bulk actions). Padded to line up with the
+  // search field below it, which the shared master-detail layout pads by 16px.
+  .table-header {
+    align-items: flex-end;
+    color: var(--fg1);
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 16px 0;
+  }
+
+  .controls-cell {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+}

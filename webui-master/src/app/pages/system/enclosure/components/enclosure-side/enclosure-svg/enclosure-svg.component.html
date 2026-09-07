@@ -1,0 +1,20 @@
+@if (svg()) {
+  <div
+    #svgContainer
+    class="svg-container fade-in"
+    [class.static]="!enableMouseEvents()"
+    [innerHTML]="svg()"
+  ></div>
+} @else {
+  <ngx-skeleton-loader
+    class="fade-in"
+    [animation]="false"
+    [theme]="{
+      height: enableMouseEvents() ? '66px' : '10px',
+      marginBottom: 0,
+      background: 'var(--alt-bg2)',
+      opacity: 0.25
+    }"
+    [count]="3"
+  ></ngx-skeleton-loader>
+}

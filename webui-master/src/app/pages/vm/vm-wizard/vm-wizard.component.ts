@@ -1,0 +1,462 @@
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, OnInit, output, signal, viewChild, inject,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnStepComponent, TnStepperComponent, TnStepperPreviousDirective,
+} from '@truenas/ui-components';
+import { pick } from 'lodash-es';
+import {
+  forkJoin, Observable, of, switchMap,
+} from 'rxjs';
+import { catchError, defaultIfEmpty } from 'rxjs/operators';
+import { GiB, MiB } from 'app/constants/bytes.constant';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { DatasetType } from 'app/enums/dataset.enum';
+import { Role } from 'app/enums/role.enum';
+import { VmDeviceType, VmDisplayType, VmNicType, VmOs } from 'app/enums/vm.enum';
+import { DatasetCreate } from 'app/interfaces/dataset.interface';
+import { VirtualMachine, VirtualMachineUpdate } from 'app/interfaces/virtual-machine.interface';
+import { VmDevice, VmDeviceUpdate } from 'app/interfaces/vm-device.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { SidePanelHostCloseable } from 'app/modules/slide-ins/side-panel-form.directive';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { SummaryComponent } from 'app/modules/summary/summary.component';
+import { SummarySection } from 'app/modules/summary/summary.interface';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { VmGpuService } from 'app/pages/vm/utils/vm-gpu.service';
+import { OsStepComponent } from 'app/pages/vm/vm-wizard/steps/1-os-step/os-step.component';
+import {
+  CpuAndMemoryStepComponent,
+} from 'app/pages/vm/vm-wizard/steps/2-cpu-and-memory-step/cpu-and-memory-step.component';
+import { DiskStepComponent, NewOrExistingDisk } from 'app/pages/vm/vm-wizard/steps/3-disk-step/disk-step.component';
+import {
+  NetworkInterfaceStepComponent,
+} from 'app/pages/vm/vm-wizard/steps/4-network-interface-step/network-interface-step.component';
+import {
+  InstallationMediaStepComponent,
+} from 'app/pages/vm/vm-wizard/steps/5-installation-media-step/installation-media-step.component';
+import { GpuStepComponent } from 'app/pages/vm/vm-wizard/steps/6-gpu-step/gpu-step.component';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { ErrorParserService } from 'app/services/errors/error-parser.service';
+import { GpuService } from 'app/services/gpu/gpu.service';
+
+@Component({
+  selector: 'ix-vm-wizard',
+  templateUrl: './vm-wizard.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [
+    TnStepperComponent,
+    TnStepComponent,
+    OsStepComponent,
+    CpuAndMemoryStepComponent,
+    DiskStepComponent,
+    NetworkInterfaceStepComponent,
+    InstallationMediaStepComponent,
+    GpuStepComponent,
+    SummaryComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    TnStepperPreviousDirective,
+    RequiresRolesDirective,
+    TranslateModule,
+  ],
+})
+export class VmWizardComponent implements OnInit, SidePanelHostCloseable {
+  private translate = inject(TranslateService);
+  private dialogService = inject(DialogService);
+  private api = inject(ApiService);
+  private errorHandler = inject(ErrorHandlerService);
+  private gpuService = inject(GpuService);
+  private vmGpuService = inject(VmGpuService);
+  private snackbar = inject(SnackbarService);
+  private errorParser = inject(ErrorParserService);
+  private destroyRef = inject(DestroyRef);
+
+  /**
+   * Emitted to the hosting `<tn-side-panel>`. The wizard is opened footerless — its stepper
+   * owns the Back/Save buttons — so the panel has no Save of its own and closes on this.
+   */
+  readonly closed = output<boolean>();
+
+  protected readonly osStep = viewChild.required(OsStepComponent);
+  // TODO: Should be protected, but used in the test.
+  readonly cpuAndMemoryStep = viewChild.required(CpuAndMemoryStepComponent);
+  readonly diskStep = viewChild.required(DiskStepComponent);
+  protected readonly networkInterfaceStep = viewChild.required(NetworkInterfaceStepComponent);
+  protected readonly installationMediaStep = viewChild.required(InstallationMediaStepComponent);
+  protected readonly gpuStep = viewChild.required(GpuStepComponent);
+  protected readonly stepper = viewChild.required(TnStepperComponent);
+
+  protected readonly requiredRoles = [Role.VmWrite];
+
+  get osForm(): OsStepComponent['form']['value'] {
+    return this.osStep().form.value;
+  }
+
+  get cpuAndMemoryForm(): CpuAndMemoryStepComponent['form']['value'] {
+    return this.cpuAndMemoryStep().form.value;
+  }
+
+  get diskForm(): DiskStepComponent['form']['value'] {
+    return this.diskStep().form.value;
+  }
+
+  get nicForm(): NetworkInterfaceStepComponent['form']['value'] {
+    return this.networkInterfaceStep().form.value;
+  }
+
+  get mediaForm(): InstallationMediaStepComponent['form']['value'] {
+    return this.installationMediaStep().form.value;
+  }
+
+  get gpuForm(): GpuStepComponent['form']['value'] {
+    return this.gpuStep().form.value;
+  }
+
+  protected readonly isLoading = signal(false);
+  summary: SummarySection[];
+
+  /**
+   * Host hook (`<tn-side-panel>` closeGuard): any dirty step means there are edits to confirm
+   * discarding. Replaces the SlideIn host's `requireConfirmationWhen`.
+   */
+  hasUnsavedChanges(): boolean {
+    return Boolean(
+      this.osStep()?.form?.dirty
+      || this.cpuAndMemoryStep()?.form?.dirty
+      || this.diskStep()?.form?.dirty
+      || this.networkInterfaceStep()?.form?.dirty
+      || this.installationMediaStep()?.form?.dirty
+      || this.gpuStep()?.form?.dirty,
+    );
+  }
+
+  /** The footerless `<tn-side-panel>` host shows its progress bar while this is true. */
+  isBusy(): boolean {
+    return this.isLoading();
+  }
+
+  ngOnInit(): void {
+    this.setDefaultsFromOs();
+  }
+
+  updateSummary(): void {
+    const steps = [
+      this.osStep(),
+      this.cpuAndMemoryStep(),
+      this.diskStep(),
+      this.networkInterfaceStep(),
+      this.installationMediaStep(),
+      this.gpuStep(),
+    ];
+
+    this.summary = steps.map((step) => step.getSummary());
+  }
+
+  onSubmit(): void {
+    this.isLoading.set(true);
+
+    // Track the zvol path if we create one for import
+    let importedZvolPath: string | null = null;
+
+    // Start with image import if needed
+    const startFlow$ = this.diskForm.import_image && this.diskForm.image_source
+      ? this.handleImageImportBeforeVmCreation().pipe(
+          switchMap((zvolPath) => {
+            importedZvolPath = zvolPath;
+            return this.createVm();
+          }),
+        )
+      : this.createVm();
+
+    startFlow$.pipe(
+      switchMap((vm) => this.createDevices(vm, importedZvolPath)),
+      takeUntilDestroyed(this.destroyRef),
+    )
+      .subscribe({
+        next: () => {
+          this.isLoading.set(false);
+          this.snackbar.success(this.translate.instant('Virtual machine created'));
+          this.closed.emit(true);
+        },
+        error: (error: unknown) => {
+          this.isLoading.set(false);
+
+          // Check if this is an image conversion error
+          if (this.diskForm.import_image && error instanceof Error && error.message.includes('Image conversion failed')) {
+            // Set error on the image_source field
+            this.diskStep().form.controls.image_source.setErrors({
+              conversionFailed: { message: error.message },
+            });
+            // Navigate back to step 3 (disk step)
+            this.stepper().selectedIndex.set(2);
+          } else {
+            // For other errors, show the error modal
+            this.errorHandler.showErrorModal(error);
+          }
+        },
+      });
+  }
+
+  private setDefaultsFromOs(): void {
+    this.osStep().form.controls.os.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((os) => {
+        if (os === VmOs.Windows) {
+          this.cpuAndMemoryStep().form.patchValue({
+            vcpus: 2,
+            cores: 1,
+            threads: 1,
+            memory: 4 * GiB,
+          });
+          this.diskStep().form.patchValue({
+            volsize: 40 * GiB,
+          });
+        } else {
+          this.cpuAndMemoryStep().form.patchValue({
+            vcpus: 1,
+            cores: 1,
+            threads: 1,
+            memory: 512 * MiB,
+          });
+          this.diskStep().form.patchValue({
+            volsize: 10 * GiB,
+          });
+        }
+      });
+  }
+
+  private createVm(): Observable<VirtualMachine> {
+    const vmPayload = {
+      ...pick(this.osForm, [
+        'name', 'description', 'time', 'hyperv_enlightenments',
+        'bootloader', 'shutdown_timeout', 'autostart', 'enable_secure_boot', 'trusted_platform_module',
+      ]),
+      ...pick(this.cpuAndMemoryForm, [
+        'cpu_mode', 'vcpus', 'cores', 'threads', 'cpuset', 'nodeset', 'pin_vcpus',
+      ]),
+      cpu_model: this.cpuAndMemoryForm.cpu_model || null,
+      // Middleware expects values in MiBs
+      memory: Math.round(this.cpuAndMemoryForm.memory / MiB),
+      min_memory: this.cpuAndMemoryForm.min_memory ? Math.round(this.cpuAndMemoryForm.min_memory / MiB) : null,
+      ...pick(this.gpuForm, [
+        'ensure_display_device', 'hide_from_msr',
+      ]),
+    } as VirtualMachineUpdate;
+
+    return this.api.call('vm.create', [vmPayload]);
+  }
+
+  private createDevices(vm: VirtualMachine, importedZvolPath: string | null = null): Observable<unknown[]> {
+    const requests: Observable<unknown>[] = [
+      this.getNicRequest(vm),
+      this.getDiskRequest(vm, importedZvolPath),
+    ];
+
+    if (this.mediaForm.iso_path) {
+      requests.push(this.getCdromRequest(vm));
+    }
+
+    if (this.osForm.enable_vnc) {
+      requests.push(this.getVncDisplayRequest(vm));
+    }
+
+    if (this.gpuForm.gpus.length) {
+      requests.push(this.getGpuRequests(vm));
+    }
+
+    return forkJoin(requests);
+  }
+
+  private getNicRequest(vm: VirtualMachine): Observable<VmDevice | null> {
+    return this.makeDeviceRequest(vm.id, {
+      attributes: {
+        dtype: VmDeviceType.Nic,
+        type: this.nicForm.nic_type,
+        mac: this.nicForm.nic_mac,
+        nic_attach: this.nicForm.nic_attach,
+        trust_guest_rx_filters: this.nicForm.nic_type === VmNicType.Virtio
+          ? this.nicForm.trust_guest_rx_filters
+          : false,
+      },
+    });
+  }
+
+  private getDiskRequest(vm: VirtualMachine, importedZvolPath: string | null = null): Observable<VmDevice | null> {
+    // If we already created and imported to a zvol, just attach it
+    if (importedZvolPath) {
+      return this.makeDeviceRequest(vm.id, {
+        attributes: {
+          dtype: VmDeviceType.Disk,
+          path: importedZvolPath,
+          type: this.diskForm.hdd_type,
+          physical_sectorsize: null,
+          logical_sectorsize: null,
+        },
+      });
+    }
+
+    // Normal flow: create new zvol or use existing
+    if (this.diskForm.newOrExisting === NewOrExistingDisk.New) {
+      const hdd = this.diskForm.datastore + '/' + this.osForm.name.replace(/\s+/g, '-') + '-' + Math.random().toString(36).substring(7);
+      return this.makeDeviceRequest(vm.id, {
+        attributes: {
+          dtype: VmDeviceType.Disk,
+          create_zvol: true,
+          type: this.diskForm.hdd_type,
+          physical_sectorsize: null,
+          logical_sectorsize: null,
+          zvol_name: hdd,
+          zvol_volsize: this.diskForm.volsize,
+        },
+      });
+    }
+
+    return this.makeDeviceRequest(vm.id, {
+      attributes: {
+        dtype: VmDeviceType.Disk,
+        path: this.diskForm.hdd_path,
+        type: this.diskForm.hdd_type,
+        physical_sectorsize: null,
+        logical_sectorsize: null,
+      },
+    });
+  }
+
+  private getCdromRequest(vm: VirtualMachine): Observable<VmDevice | null> {
+    return this.makeDeviceRequest(vm.id, {
+      attributes: {
+        dtype: VmDeviceType.Cdrom,
+        path: this.mediaForm.iso_path,
+      },
+    });
+  }
+
+  private getGpuRequests(vm: VirtualMachine): Observable<unknown> {
+    const gpusIds = this.gpuForm.gpus as unknown as string[];
+
+    return this.gpuService.addIsolatedGpuPciIds(gpusIds).pipe(
+      defaultIfEmpty([]),
+      switchMap(() => this.vmGpuService.updateVmGpus(vm, gpusIds)),
+    );
+  }
+
+  private getVncDisplayRequest(vm: VirtualMachine): Observable<VmDevice | null> {
+    return this.api.call('vm.port_wizard').pipe(
+      switchMap((port) => {
+        return this.makeDeviceRequest(vm.id, {
+          attributes: {
+            dtype: VmDeviceType.Display,
+            port: port.port,
+            bind: this.osForm.vnc_bind,
+            password: this.osForm.vnc_password,
+            resolution: '1920x1080',
+            web: false,
+            type: VmDisplayType.Vnc,
+          },
+        });
+      }),
+    );
+  }
+
+  private makeDeviceRequest(vmId: number, payload: VmDeviceUpdate): Observable<VmDevice | null> {
+    return this.api.call('vm.device.create', [{
+      vm: vmId,
+      ...payload,
+    }])
+      .pipe(
+        catchError((error: unknown) => {
+          const parsedErrors = this.errorParser.parseError(error);
+          const firstReport = Array.isArray(parsedErrors) ? parsedErrors[0] : parsedErrors;
+          this.dialogService.error({
+            title: this.translate.instant('Error creating device'),
+            message: firstReport.message,
+          });
+          return of(null);
+        }),
+      );
+  }
+
+  private handleImageImportBeforeVmCreation(): Observable<string | null> {
+    if (this.diskForm.newOrExisting === NewOrExistingDisk.New) {
+      // Create zvol first, then convert image to it
+      const zvolName = this.diskForm.datastore + '/' + this.osForm.name.replace(/\s+/g, '-') + '-' + Math.random().toString(36).substring(7);
+      const zvolPath = `/dev/zvol/${zvolName}`;
+
+      return this.api.call('pool.dataset.create', [{
+        name: zvolName,
+        type: DatasetType.Volume,
+        volsize: this.diskForm.volsize || 10 * GiB,
+      } as DatasetCreate]).pipe(
+        switchMap(() => {
+          // Now convert the image to the created zvol
+          const jobDialog = this.dialogService.jobDialog(
+            this.api.job('vm.device.convert', [{
+              source: this.diskForm.image_source,
+              destination: zvolPath,
+            }]),
+            {
+              title: this.translate.instant('Converting disk image'),
+              description: this.translate.instant('Converting {source} to {destination}', {
+                source: this.diskForm.image_source,
+                destination: zvolPath,
+              }),
+            },
+          );
+
+          return jobDialog.afterClosed().pipe(
+            switchMap(() => of(zvolPath)), // Return the path for later use
+            catchError((conversionError: unknown) => {
+              // Conversion failed, clean up the zvol we just created
+              const errorReport = this.errorParser.parseError(conversionError);
+              const errorMessage = Array.isArray(errorReport) ? errorReport[0]?.message : errorReport.message;
+
+              return this.api.call('pool.dataset.delete', [zvolName, { recursive: false }]).pipe(
+                switchMap(() => {
+                  // Re-throw with formatted message
+                  throw new Error(`Image conversion failed: ${errorMessage || 'Unknown error'}`);
+                }),
+                catchError(() => {
+                  // If cleanup fails, still throw the conversion error
+                  throw new Error(`Image conversion failed: ${errorMessage || 'Unknown error'}`);
+                }),
+              );
+            }),
+          );
+        }),
+        catchError((error: unknown) => {
+          // Don't show error here, it will be shown in onSubmit's error handler
+          throw error;
+        }),
+      );
+    }
+    // For existing disk, just convert to it
+    const jobDialog = this.dialogService.jobDialog(
+      this.api.job('vm.device.convert', [{
+        source: this.diskForm.image_source,
+        destination: this.diskForm.hdd_path,
+      }]),
+      {
+        title: this.translate.instant('Converting disk image'),
+        description: this.translate.instant('Converting {source} to {destination}', {
+          source: this.diskForm.image_source,
+          destination: this.diskForm.hdd_path,
+        }),
+      },
+    );
+
+    return jobDialog.afterClosed().pipe(
+      switchMap(() => of(null)), // No new path created, will use existing
+      catchError((error: unknown) => {
+        // Format and re-throw as conversion error
+        const errorReport = this.errorParser.parseError(error);
+        const errorMessage = Array.isArray(errorReport) ? errorReport[0]?.message : errorReport.message;
+        throw new Error(`Image conversion failed: ${errorMessage || 'Unknown error'}`);
+      }),
+    );
+  }
+}

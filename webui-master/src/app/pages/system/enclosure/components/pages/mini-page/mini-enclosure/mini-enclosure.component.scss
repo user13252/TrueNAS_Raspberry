@@ -1,0 +1,144 @@
+@import 'scss-imports/cssvars';
+
+:host {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-evenly;
+}
+
+.slots-and-numbers {
+  padding-top: 20px;
+  position: relative;
+
+  @media (max-width: $breakpoint-xs) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-bottom: 15px;
+    padding-top: 0;
+  }
+
+  .slot-number {
+    background-color: var(--primary);
+    border-radius: 50%;
+    color: var(--fg1);
+    font-size: 11px;
+    margin-right: 3px;
+    padding: 4px 7px;
+    vertical-align: 1px;
+  }
+
+  .slot {
+    white-space: nowrap;
+
+    @media (min-width: $breakpoint-xs) {
+      margin-bottom: 16px;
+    }
+  }
+
+  &.mini-3e {
+    @media (min-width: $breakpoint-xs) {
+      padding-top: 55px;
+    }
+  }
+
+  &.mini-3x {
+    @media (min-width: $breakpoint-xs) {
+      padding-top: 28px;
+
+      .slot:nth-last-child(2) {
+        margin-bottom: 5px;
+      }
+    }
+  }
+
+  &.mini-3xl {
+    @media (min-width: $breakpoint-xs) {
+      padding-top: 50px;
+
+
+      .slot:nth-child(4) {
+        margin-bottom: 44px;
+      }
+
+      .slot:last-child {
+        position: absolute;
+        top: 5px;
+      }
+    }
+
+    @media (max-width: $breakpoint-xs) {
+      order: 0;
+
+      .slot:last-child {
+        order: -1;
+      }
+    }
+  }
+}
+
+.disk-status {
+  padding-top: 20px;
+  position: relative;
+
+  @media (max-width: $breakpoint-xs) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-top: 15px;
+  }
+
+  .slot {
+    @media (min-width: $breakpoint-xs) {
+      margin-bottom: 11.5px;
+    }
+  }
+
+  &.mini-3e {
+    @media (min-width: $breakpoint-xs) {
+      padding-top: 55px;
+    }
+  }
+
+  &.mini-3x {
+    @media (min-width: $breakpoint-xs) {
+      padding-top: 28px;
+
+      .slot:nth-last-child(2) {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  &.mini-3xl {
+    @media (min-width: $breakpoint-xs) {
+      padding-top: 50px;
+
+      .slot:nth-child(4) {
+        margin-bottom: 38px;
+      }
+
+      .slot:last-child {
+        position: absolute;
+        top: 5px;
+      }
+    }
+
+    @media (max-width: $breakpoint-xs) {
+      order: 0;
+
+      .slot:last-child {
+        order: -1;
+      }
+    }
+  }
+}
+
+.enclosure {
+  min-width: 300px;
+
+  @media (max-width: $breakpoint-xs) {
+    min-width: 75vw;
+  }
+}

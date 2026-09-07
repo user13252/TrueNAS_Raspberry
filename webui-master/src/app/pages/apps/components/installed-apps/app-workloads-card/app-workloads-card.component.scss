@@ -1,0 +1,84 @@
+@import 'mixins/cards';
+
+@include tn-detail-card();
+
+.card {
+  margin: 0;
+
+  .details-item .label {
+    align-self: flex-start;
+    margin-right: 10px;
+  }
+
+  .details-item .value {
+    display: inline-flex;
+    flex-direction: column;
+    white-space: normal;
+  }
+}
+
+.with-tooltip {
+  cursor: help;
+}
+
+.ports-tooltip {
+  margin-left: -2px;
+  vertical-align: -3px;
+}
+
+.separator {
+  font-weight: 600;
+  margin: 0 4px;
+}
+
+.containers {
+  margin-top: 16px;
+
+  h4 {
+    margin-bottom: 8px;
+  }
+}
+
+.container-list {
+  background-color: rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  max-height: 200px;
+  min-height: 40px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.containers-count {
+  background-color: var(--alt-bg1);
+  border-radius: 3px;
+  margin-left: 2px;
+  padding: 0 5px;
+}
+
+.container {
+  align-items: center;
+  display: flex;
+  // The card is narrow, so a long service name leaves the state with only a few pixels.
+  // Let the row break onto a second line instead of squeezing its parts.
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .service-name {
+    font-weight: 500;
+  }
+
+  // The details-cards mixin sets `word-break: break-word` on the whole panel, which chopped
+  // the state into "Runnin" / "g". A state label is one word — it moves to the next line
+  // whole or not at all.
+  .container-state {
+    flex: 1;
+    word-break: keep-all;
+  }
+
+  .container-action {
+    align-items: center;
+    display: flex;
+    flex: 1 0 auto;
+    justify-content: flex-end;
+  }
+}

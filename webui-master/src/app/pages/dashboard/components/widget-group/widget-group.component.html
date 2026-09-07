@@ -1,0 +1,9 @@
+@for (slotIndex of slotRange(); track slotIndex) {
+  <div [class]="['slot', 'slot' + slotIndex]">
+    @if (slots()[slotIndex]; as slot) {
+      @if (slot.isVisible$ | async) {
+        <ng-container *ngComponentOutlet="slot.component; inputs: slot.inputs;" />
+      }
+    }
+  </div>
+}

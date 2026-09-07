@@ -1,0 +1,22 @@
+import { Component, ChangeDetectionStrategy, input, computed, inject } from '@angular/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnIconComponent, TnTooltipDirective } from '@truenas/ui-components';
+import { formatRoleNames } from 'app/enums/role.enum';
+import { User } from 'app/interfaces/user.interface';
+
+@Component({
+  selector: 'ix-user-access-cell',
+  templateUrl: './user-access-cell.component.html',
+  styleUrls: ['./user-access-cell.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TnIconComponent, TnTooltipDirective, TranslateModule],
+})
+export class UserAccessCellComponent {
+  private translate = inject(TranslateService);
+
+  readonly user = input.required<User>();
+
+  protected readonly roles = computed<string>(() => {
+    return formatRoleNames(this.user().roles, (key) => this.translate.instant(key));
+  });
+}

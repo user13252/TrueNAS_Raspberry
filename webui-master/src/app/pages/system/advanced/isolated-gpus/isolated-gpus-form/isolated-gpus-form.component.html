@@ -1,0 +1,11 @@
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-section>
+    <tn-form-field [label]="'GPUs' | translate">
+      <tn-select
+        formControlName="isolated_gpu_pci_ids"
+        [multiple]="true"
+        [options]="(options$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+  </tn-form-section>
+</form>

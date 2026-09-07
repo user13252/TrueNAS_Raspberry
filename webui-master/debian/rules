@@ -1,0 +1,40 @@
+#!/usr/bin/make -f
+
+PRODUCT=	TrueNAS
+FILETIME!=	stat -c %y .
+
+clean:
+	rm -rf debian/truenas-webui
+	rm -f src/environments/release.ts
+	rm -rf node_modules/
+	rm -rf dist/
+
+build:
+	@# Do nothing
+
+build-arch: build
+
+build-indep: build
+
+binary: binary-arch
+
+binary-arch: binary-stamp
+
+binary-indep: binary-stamp
+
+binary-stamp:
+	mkdir -p debian/truenas-webui/usr/share/truenas/webui
+	mkdir -p debian/truenas-webui/usr/share/doc/truenas-webui
+	echo "export default { release:'${RELEASE_VERSION}' }" > src/environments/release.ts
+	tar xf node_files.tgz
+	/usr/bin/yarn run build:prod
+	date +%s > dist/assets/buildtime
+	cp -r dist/* debian/truenas-webui/usr/share/truenas/webui
+	rm -rf dist/
+	rm -rf node_modules/
+	cp debian/copyright debian/truenas-webui/usr/share/doc/truenas-webui/copyright
+	cp debian/changelog debian/truenas-webui/usr/share/doc/truenas-webui/changelog
+	gzip -9 debian/truenas-webui/usr/share/doc/truenas-webui/changelog
+	dh_lintian
+	dh_gencontrol
+	dh_builddeb

@@ -1,0 +1,37 @@
+<tn-card [padContent]="false">
+  <h3 tnCardHeader class="tn-card__title">{{ 'Open Files' | translate }}</h3>
+
+  <tn-table
+    class="table"
+    [testId]="'table-table'"
+    [dataSource]="rows()"
+    [displayedColumns]="displayedColumns()"
+    [trackBy]="trackByOpenFile"
+    [loading]="isLoading()"
+    [emptyMessage]="emptyService.titleForType(emptyType())"
+    [emptyDescription]="emptyService.descriptionForType(emptyType())"
+    [emptyIcon]="emptyService.iconForType(emptyType())"
+  >
+    <ng-container [tnColumnDef]="'server_id'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Server' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Server' | translate), uniqueRowTag(row), 'row-text']">{{ formatServer(row) }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'uid'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Username' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Username' | translate), uniqueRowTag(row), 'row-text']">{{ formatUsername(row) }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'opened_at'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Opened at' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Opened at' | translate), uniqueRowTag(row), 'row-text']">{{ row.opened_at }}</span>
+      </ng-template>
+    </ng-container>
+  </tn-table>
+  <tn-table-pager [dataProvider]="dataProvider()"></tn-table-pager>
+</tn-card>

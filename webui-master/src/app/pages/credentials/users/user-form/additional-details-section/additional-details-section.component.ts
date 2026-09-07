@@ -1,0 +1,661 @@
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, effect, input, OnInit, inject, Signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { FormBuilder, FormControl } from '@ngneat/reactive-forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  InputType, TnCheckboxComponent, TnChipInputComponent, TnFormFieldComponent, TnFormSectionComponent, TnInputComponent,
+  TnSelectComponent,
+} from '@truenas/ui-components';
+import {
+  combineLatest,
+  debounceTime, distinctUntilChanged, filter, map,
+  Observable,
+  of,
+  shareReplay,
+  startWith,
+  tap,
+  take,
+  withLatestFrom,
+  catchError,
+  EMPTY,
+} from 'rxjs';
+import { allCommands } from 'app/constants/all-commands.constant';
+import { mntPath } from 'app/enums/mnt-path.enum';
+import { Role, roleNames } from 'app/enums/role.enum';
+import { extractApiErrorDetails } from 'app/helpers/api.helper';
+import { choicesToOptions } from 'app/helpers/operators/options.operators';
+import { isEmptyHomeDirectory } from 'app/helpers/user.helper';
+import { Group } from 'app/interfaces/group.interface';
+import { Option } from 'app/interfaces/option.interface';
+import { User } from 'app/interfaces/user.interface';
+import { DetailsItemComponent } from 'app/modules/details-table/details-item/details-item.component';
+import { DetailsTableComponent } from 'app/modules/details-table/details-table.component';
+import { EditableComponent } from 'app/modules/forms/editable/editable.component';
+import { GroupComboboxProvider } from 'app/modules/forms/ix-forms/classes/group-combobox-provider';
+import { IxComboboxComponent } from 'app/modules/forms/ix-forms/components/ix-combobox/ix-combobox.component';
+import {
+  ExplorerCreateDatasetComponent,
+} from 'app/modules/forms/ix-forms/components/ix-explorer/explorer-create-dataset/explorer-create-dataset.component';
+import { IxExplorerComponent } from 'app/modules/forms/ix-forms/components/ix-explorer/ix-explorer.component';
+import { IxPermissionsComponent } from 'app/modules/forms/ix-forms/components/ix-permissions/ix-permissions.component';
+import { emailValidator } from 'app/modules/forms/ix-forms/validators/email-validation/email-validation';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { defaultHomePath, UserFormStore } from 'app/pages/credentials/users/user-form/user.store';
+import { SudoCommandsValidatorService } from 'app/pages/credentials/users/user-form/validators/sudo-commands-validator.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { FilesystemService } from 'app/services/filesystem.service';
+import { StorageService } from 'app/services/storage.service';
+import { UserService } from 'app/services/user.service';
+
+@Component({
+  selector: 'ix-additional-details-section',
+  templateUrl: './additional-details-section.component.html',
+  styleUrl: './additional-details-section.component.scss',
+  imports: [
+    AsyncPipe,
+    ReactiveFormsModule,
+    TnFormSectionComponent,
+    TnInputComponent,
+    TnCheckboxComponent,
+    TnSelectComponent,
+    TnChipInputComponent,
+    TnFormFieldComponent,
+    TranslateModule,
+    IxComboboxComponent,
+    IxExplorerComponent,
+    IxPermissionsComponent,
+    DetailsTableComponent,
+    DetailsItemComponent,
+    EditableComponent,
+    ExplorerCreateDatasetComponent,
+  ],
+  providers: [
+    SudoCommandsValidatorService,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class AdditionalDetailsSectionComponent implements OnInit {
+  private storageService = inject(StorageService);
+  private filesystemService = inject(FilesystemService);
+  private fb = inject(FormBuilder);
+  private api = inject(ApiService);
+  private userFormStore = inject(UserFormStore);
+  private cdr = inject(ChangeDetectorRef);
+  private errorHandler = inject(ErrorHandlerService);
+  private translate = inject(TranslateService);
+  private sudoCommandsValidator = inject(SudoCommandsValidatorService);
+  private userService = inject(UserService);
+  private snackbar = inject(SnackbarService);
+  private destroyRef = inject(DestroyRef);
+
+  editingUser = input<User>();
+  protected readonly InputType = InputType;
+  protected username = computed(() => this.userFormStore?.userConfig().username ?? '');
+  protected sshAccess = this.userFormStore.sshAccess;
+  protected shellAccess = this.userFormStore.shellAccess;
+  protected selectedRoleName = computed(() => {
+    const role = this.userFormStore.role();
+    return role ? roleNames.get(role) : '';
+  });
+
+  private groupNameCache = new Map<number, string>();
+
+  protected homeDirectoryEmptyValue = computed(() => {
+    if (this.editingUser()) {
+      if (isEmptyHomeDirectory(this.editingUser()?.home)) {
+        return this.translate.instant('None');
+      }
+      return this.editingUser()?.home || '';
+    }
+
+    return this.translate.instant('Not Set');
+  });
+
+  protected homeDirectoryViewValue: Signal<string>;
+
+  readonly groupOptions$ = this.api.call('group.query', [[
+    ['local', '=', true],
+    ['immutable', '=', false],
+  ]]).pipe(
+    map((groups) => groups.map((group) => ({ label: group.group, value: group.id }))),
+    tap((options) => {
+      options.forEach((option) => this.groupNameCache.set(option.value, option.label));
+    }),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+
+  protected groupComboboxProvider: GroupComboboxProvider = new GroupComboboxProvider(
+    this.userService,
+    { valueField: 'id', localOnly: true },
+  );
+
+  protected readonly roleGroupMap = new Map<Role, string>([
+    [Role.FullAdmin, 'builtin_administrators'],
+    [Role.SharingAdmin, 'truenas_sharing_administrators'],
+    [Role.ReadonlyAdmin, 'truenas_readonly_administrators'],
+  ]);
+
+  readonly treeNodeProvider = this.filesystemService.getFilesystemNodeProvider({ directoriesOnly: true });
+
+  protected shouldShowPermissions: Signal<boolean>;
+
+  protected hasRealHomePath: Signal<boolean>;
+
+  protected homeEditable = viewChild<EditableComponent>('homeEditable');
+
+  private readonly homeNotMntRootValidator = (control: FormControl<string>): ValidationErrors | null => {
+    const value = control.value?.trim().replace(/\/+$/, '');
+    if (value === mntPath) {
+      return {
+        homeAtMntRoot: {
+          message: this.translate.instant('Home directory cannot be set to {mntPath}', { mntPath }),
+        },
+      };
+    }
+    return null;
+  };
+
+  protected onHomeEditableOpened(): void {
+    if (this.editingUser()) return;
+
+    // Skip validator sync if opening due to API validation error to preserve the error message
+    if (this.form.controls.home.errors?.manualValidateError) return;
+
+    this.syncHomeValidators(this.form.controls.home_create.value, true);
+  }
+
+  protected onHomeEditableClosed(): void {
+    if (this.editingUser()) return;
+
+    this.syncHomeValidators(this.form.controls.home_create.value, false);
+  }
+
+  /**
+   * Called from three places:
+   * - onHomeEditableOpened: isOpen=true, isCreating from form
+   * - onHomeEditableClosed: isOpen=false, isCreating from form
+   * - home_create.valueChanges: isOpen from homeEditable signal
+   */
+  private syncHomeValidators(isCreating: boolean, isOpen: boolean): void {
+    const homeControl = this.form.controls.home;
+
+    if (isCreating && isOpen) {
+      if (!homeControl.hasValidator(Validators.required)) {
+        homeControl.addValidators(Validators.required);
+      }
+      if (homeControl.value === defaultHomePath) {
+        homeControl.setValue('');
+      }
+    } else {
+      homeControl.removeValidators(Validators.required);
+      if (!homeControl.value) {
+        homeControl.setValue(defaultHomePath);
+      }
+    }
+
+    homeControl.updateValueAndValidity();
+  }
+
+  readonly form = this.fb.group({
+    full_name: ['' as string],
+    group: [null as number],
+    group_create: [true],
+    groups: [[] as number[]],
+    email: [null as string, [emailValidator()]],
+    home: [defaultHomePath, [this.homeNotMntRootValidator]],
+    home_mode: ['700'],
+    home_create: [true],
+    default_permissions: [true],
+    uid: [null as number],
+    shell: [null as string | null],
+
+    sudo_commands: [[] as string[], this.sudoCommandsValidator.validate],
+    sudo_commands_all: [false],
+    sudo_commands_nopasswd: [[] as string[], this.sudoCommandsValidator.validate],
+    sudo_commands_nopasswd_all: [false],
+  });
+
+  shellOptions$: Observable<Option[]>;
+
+  constructor() {
+    const homeValue = toSignal(
+      this.form.controls.home.valueChanges.pipe(startWith(this.form.controls.home.value)),
+    );
+    const homeCreateValue = toSignal(
+      this.form.controls.home_create.valueChanges.pipe(startWith(this.form.controls.home_create.value)),
+    );
+    this.homeDirectoryViewValue = computed(() => {
+      const path = homeValue();
+      if (homeCreateValue()) {
+        if (path && path !== defaultHomePath && !isEmptyHomeDirectory(path)) {
+          return this.translate.instant('New directory under {path}', { path });
+        }
+        return defaultHomePath;
+      }
+      return path || defaultHomePath;
+    });
+
+    this.shouldShowPermissions = computed(() => homeValue() !== defaultHomePath);
+
+    this.hasRealHomePath = computed(() => {
+      const home = homeValue();
+      return !!home && home !== defaultHomePath && !isEmptyHomeDirectory(home);
+    });
+
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (values) => {
+          this.userFormStore.updateUserConfig({
+            group_create: values.group_create,
+            home_create: values.home_create,
+            full_name: values.full_name,
+            groups: values.groups.map((grp) => (+grp)),
+            group: values.group_create ? null : values.group,
+            home: values.home,
+            home_mode: values.home_mode,
+            email: values.email,
+            uid: values.uid,
+            shell: values.shell,
+            sudo_commands: values.sudo_commands_all ? [allCommands] : values.sudo_commands,
+            sudo_commands_nopasswd: values.sudo_commands_nopasswd_all ? [allCommands] : values.sudo_commands_nopasswd,
+          });
+          this.userFormStore.updateSetupDetails({
+            defaultPermissions: values.default_permissions,
+          });
+        },
+      });
+
+    this.userFormStore.state$.pipe(
+      map((state) => state.setupDetails.role),
+      distinctUntilChanged(),
+      withLatestFrom(this.groupOptions$),
+      tap(([selectedRole, groupOptions]) => {
+        if (selectedRole === null) {
+          this.form.patchValue({
+            groups: this.form.controls.groups.value.filter((groupId) => {
+              const groupName = groupOptions.find((group) => group.value === groupId)?.label as string;
+
+              if (Array.from(this.roleGroupMap.values()).includes(groupName)) {
+                return false;
+              }
+
+              return true;
+            }),
+          });
+
+          return;
+        }
+
+        const groupLabel = this.roleGroupMap.get(selectedRole);
+        const groupId = groupOptions.find((group) => group.label === groupLabel)?.value;
+        if (groupId) {
+          this.form.patchValue({ groups: [groupId] });
+        }
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe();
+
+    effect(() => {
+      if (this.editingUser()) {
+        this.setupEditUserForm(this.editingUser());
+      }
+    });
+
+    effect(() => {
+      if (!this.editingUser() && this.shellAccess()) {
+        this.setFirstShellOption();
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    this.setupShellUpdate();
+    if (!this.editingUser() && !this.shellAccess()) {
+      this.setNoLoginShell();
+    }
+    this.detectHomeDirectoryChanges();
+    this.setHomeSharePath();
+    this.listenValueChanges();
+  }
+
+  protected getPrimaryGroupName(): string {
+    if (this.form.controls.group_create.value) {
+      return this.translate.instant('New {username} group', { username: this.username() });
+    }
+
+    const id = this.form.controls.group.value;
+    if (id) {
+      return this.translate.instant('Primary Group: {groupName}', { groupName: this.groupNameCache.get(id) || String(id) });
+    }
+
+    return '';
+  }
+
+  protected getAuxGroupNames(): string[] {
+    const ids = this.form.controls.groups.value || [];
+    return ids.map((id) => this.groupNameCache.get(id) || String(id));
+  }
+
+  protected ensureAllGroupNames(): void {
+    const ids = new Set<number>(this.form.controls.groups.value || []);
+    if (!this.form.controls.group_create.value) {
+      const id = this.form.controls.group.value;
+      if (id) {
+        ids.add(id);
+      }
+    }
+
+    this.resolveGroupNames(Array.from(ids));
+  }
+
+  protected getSudoCommands(): string {
+    if (this.form.controls.sudo_commands_all.value) {
+      return this.translate.instant('All');
+    }
+
+    return this.form.controls.sudo_commands.value?.join(', ') || '';
+  }
+
+  protected getSudoCommandsNoPasswd(): string {
+    if (this.form.controls.sudo_commands_nopasswd_all.value) {
+      return this.translate.instant('All');
+    }
+
+    return this.form.controls.sudo_commands_nopasswd.value?.join(', ') || '';
+  }
+
+  private resolveGroupNames(ids: number[]): void {
+    const missingIds = ids.filter((groupId) => !this.groupNameCache.has(groupId));
+    if (!missingIds.length) {
+      return;
+    }
+
+    missingIds.forEach((missingId) => this.groupNameCache.set(missingId, ''));
+    (this.api.call('group.query', [[['id', 'in', missingIds]]]) as Observable<Group[]>).pipe(
+      take(1),
+      tap((groups) => {
+        groups.forEach((group) => {
+          const name = group.group || group.name;
+          this.groupNameCache.set(group.id, name);
+        });
+        this.cdr.markForCheck();
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe();
+  }
+
+  private setupEditUserForm(user: User): void {
+    const auxGroups = user.groups.filter((id) => id !== user.group?.id);
+    const allSudoCommands = user.sudo_commands.includes(allCommands);
+    const allSudoCommandsNoPasswd = user.sudo_commands_nopasswd.includes(allCommands);
+
+    this.form.patchValue({
+      full_name: user.full_name,
+      email: user.email,
+      groups: auxGroups,
+      home: user.home,
+      uid: user.uid,
+      group: user.group?.id,
+      shell: user.shell,
+      sudo_commands_all: allSudoCommands,
+      sudo_commands: allSudoCommands ? [] : user.sudo_commands,
+      sudo_commands_nopasswd_all: allSudoCommandsNoPasswd,
+      sudo_commands_nopasswd: allSudoCommandsNoPasswd ? [] : user.sudo_commands_nopasswd,
+      home_create: false,
+    });
+
+    this.form.controls.uid.disable();
+    this.form.controls.group_create.patchValue(false);
+    this.form.controls.group_create.disable();
+
+    if (user.immutable) {
+      this.form.controls.group.disable();
+      this.form.controls.home_mode.disable();
+      this.form.controls.home.disable();
+      this.form.controls.home_create.disable();
+    }
+
+    if (user?.home && !isEmptyHomeDirectory(user.home)) {
+      // For users with /var/empty, we can't rely on filesystem permissions
+      // Default to custom permissions mode so user can explicitly choose
+      if (user.home === defaultHomePath) {
+        this.form.patchValue({
+          home_mode: '700',
+          default_permissions: false,
+        });
+        this.userFormStore.updateSetupDetails({ homeModeOldValue: '700' });
+      } else {
+        // For real home directories, check actual filesystem permissions
+        this.storageService.filesystemStat(user.home)
+          .pipe(
+            take(1),
+            catchError((error: unknown) => {
+              const apiError = extractApiErrorDetails(error);
+              if (apiError?.reason?.includes('[ENOENT]')) {
+                return of(null);
+              }
+              this.errorHandler.showErrorModal(error);
+              return EMPTY;
+            }),
+            takeUntilDestroyed(this.destroyRef),
+          )
+          .subscribe((stat) => {
+            if (stat) {
+              const homeMode = stat.mode.toString(8).substring(2, 5);
+              const isDefaultPermissions = homeMode === '700';
+
+              this.form.patchValue({
+                home_mode: homeMode,
+                default_permissions: isDefaultPermissions,
+              });
+              this.userFormStore.updateSetupDetails({ homeModeOldValue: homeMode });
+            } else {
+              this.form.patchValue({
+                home_mode: '700',
+                default_permissions: true,
+              });
+              this.form.controls.home_mode.disable();
+            }
+          });
+      }
+    } else {
+      this.form.patchValue({
+        home_mode: '700',
+        default_permissions: true,
+      });
+      this.form.controls.home_mode.disable();
+    }
+
+    const ids = [...auxGroups];
+    if (user.group?.id) {
+      ids.push(user.group.id);
+    }
+    this.resolveGroupNames(ids);
+  }
+
+  private listenValueChanges(): void {
+    this.form.controls.group.disabledWhile(this.form.controls.group_create.value$);
+    this.form.controls.sudo_commands.disabledWhile(this.form.controls.sudo_commands_all.value$);
+    this.form.controls.sudo_commands_nopasswd.disabledWhile(this.form.controls.sudo_commands_nopasswd_all.value$);
+
+    this.form.controls.group.valueChanges
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe((primaryGroupId) => {
+        if (primaryGroupId == null) return;
+        const auxGroups = this.form.controls.groups.value;
+        const filtered = auxGroups.filter((id) => id !== primaryGroupId);
+        if (filtered.length !== auxGroups.length) {
+          this.form.controls.groups.patchValue(filtered);
+          const groupName = this.groupNameCache.get(primaryGroupId) || String(primaryGroupId);
+          this.snackbar.open({
+            message: this.translate.instant('{groupName} was removed from auxiliary groups.', { groupName }),
+          });
+        }
+      });
+
+    this.form.controls.groups.valueChanges
+      .pipe(
+        distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((auxGroupIds) => {
+        this.groupComboboxProvider = new GroupComboboxProvider(
+          this.userService,
+          { valueField: 'id', localOnly: true },
+        );
+        this.cdr.markForCheck();
+
+        const primaryGroupId = this.form.controls.group.value;
+        if (primaryGroupId != null && auxGroupIds.includes(primaryGroupId)) {
+          const groupName = this.groupNameCache.get(primaryGroupId) || String(primaryGroupId);
+          this.form.controls.group.patchValue(null);
+          this.snackbar.open({
+            message: this.translate.instant('{groupName} was removed as primary group.', { groupName }),
+          });
+        }
+      });
+
+    this.form.controls.groups.valueChanges
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe((groups) => {
+        const currentRole = this.userFormStore.role();
+        const requiredGroup = this.roleGroupMap.get(currentRole);
+        const groupNames = groups.map((id) => this.groupNameCache.get(id));
+
+        if (groupNames.includes('')) {
+          return;
+        }
+
+        if ((requiredGroup && !groupNames.includes(requiredGroup)) || !groups.length) {
+          this.userFormStore.updateSetupDetails({ role: null });
+        }
+      });
+
+    // Sync default_permissions checkbox with home_mode changes
+    this.form.controls.home_mode.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((homeMode) => {
+      const isDefaultPermissions = homeMode === '700';
+      if (this.form.controls.default_permissions.value !== isDefaultPermissions) {
+        this.form.controls.default_permissions.patchValue(isDefaultPermissions);
+      }
+    });
+
+    // When default_permissions is checked, set home_mode to '700'
+    this.form.controls.default_permissions.valueChanges.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((isDefault) => {
+      if (isDefault && this.form.controls.home_mode.value !== '700') {
+        this.form.controls.home_mode.patchValue('700');
+      }
+    });
+  }
+
+  private setupShellUpdate(): void {
+    combineLatest([
+      this.form.controls.group.valueChanges.pipe(startWith(this.form.controls.group.value)),
+      this.form.controls.groups.valueChanges.pipe(startWith(this.form.controls.groups.value)),
+    ]).pipe(
+      debounceTime(300),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(([group, groups]) => {
+      this.updateShellOptions(group, groups);
+    });
+
+    // Handle shell changes when shell access is toggled.
+    // For new users, setFirstShellOption() on enable is handled by the effect
+    // in the constructor to avoid duplicate API calls.
+    this.userFormStore.state$.pipe(
+      map((state) => state.setupDetails.allowedAccess.shellAccess),
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((shellAccess) => {
+      if (shellAccess) {
+        if (this.editingUser() && this.form.value.shell?.includes('nologin')) {
+          this.setFirstShellOption();
+        }
+      } else {
+        this.setNoLoginShell();
+      }
+    });
+  }
+
+  private updateShellOptions(group: number, groups: number[]): void {
+    const ids = new Set<number>(groups);
+    if (group) {
+      ids.add(group);
+    }
+
+    this.api.call('user.shell_choices', [Array.from(ids)])
+      .pipe(choicesToOptions(), takeUntilDestroyed(this.destroyRef))
+      .subscribe((options) => {
+        const filtered = options.filter((option) => !(option.value as string).includes('nologin'));
+        const sorted = filtered.toSorted((a, b) => a.label.localeCompare(b.label));
+        this.shellOptions$ = of(sorted);
+        this.cdr.markForCheck();
+      });
+  }
+
+  private setFirstShellOption(): void {
+    this.api.call('user.shell_choices', [this.form.value.groups]).pipe(
+      choicesToOptions(),
+      filter((shells) => shells.length > 0),
+      take(1),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((shells) => {
+      const defaultShell = (shells.find((shell) => shell.label.includes('zsh'))?.value || shells[0].value) as string;
+
+      if (!this.form.value.shell || this.form.value.shell.includes('nologin')) {
+        this.form.patchValue({ shell: defaultShell });
+      }
+    });
+  }
+
+  private setNoLoginShell(): void {
+    this.form.patchValue({ shell: '/usr/sbin/nologin' });
+  }
+
+  private detectHomeDirectoryChanges(): void {
+    this.form.controls.home.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((home) => {
+      // Normalize empty home directory values to default path when not creating a new home
+      if ((!home || home.trim() === '') && !this.form.controls.home_create.value) {
+        this.form.controls.home.setValue(defaultHomePath, { emitEvent: false });
+      }
+
+      const normalizedHome = this.form.controls.home.value;
+      if (isEmptyHomeDirectory(normalizedHome) || normalizedHome === defaultHomePath || this.editingUser()?.immutable) {
+        this.form.controls.home_mode.disable();
+      } else {
+        this.form.controls.home_mode.enable();
+      }
+    });
+
+    this.form.controls.home_create.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((checked) => {
+      this.syncHomeValidators(checked, this.homeEditable()?.isOpen() ?? false);
+      if (checked) {
+        this.form.patchValue({
+          home_mode: '700',
+          default_permissions: true,
+        });
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  private setHomeSharePath(): void {
+    if (this.editingUser()) return;
+
+    this.api.call('sharing.smb.query', [[
+      ['enabled', '=', true],
+      ['options.home', '=', true],
+    ]]).pipe(
+      filter((shares) => !!shares?.length),
+      map((shares) => shares[0].path),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((homeSharePath) => {
+      this.form.patchValue({ home: homeSharePath });
+    });
+  }
+}

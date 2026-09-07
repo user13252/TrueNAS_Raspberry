@@ -1,0 +1,48 @@
+.status-content {
+  width: 100%;
+}
+
+.status-banner {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.card {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 960px;
+}
+
+.qr-section {
+  margin-top: 16px;
+}
+
+.secret-actions {
+  display: block;
+
+  p {
+    margin: 0;
+  }
+
+  .secret {
+    align-items: center;
+    display: flex;
+
+    ix-copy-button {
+      margin-left: 5px;
+    }
+  }
+}
+
+// The inner `<button>` now lives inside tn-button's own view, so the previous
+// bare `button` selector no longer reaches it — space the group instead.
+.button-group {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.skeleton-loader {
+  width: 100%;
+}

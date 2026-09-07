@@ -1,0 +1,163 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { Location } from '@angular/common';
+import { ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import {
+  Spectator, createRoutingFactory, mockProvider,
+} from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import { TnTableHarness } from '@truenas/ui-components';
+import { MockComponent, MockDeclaration } from 'ng-mocks';
+import { ImgFallbackDirective } from 'ngx-img-fallback';
+import { NgxPopperjsContentComponent, NgxPopperjsDirective, NgxPopperjsLooseDirective } from 'ngx-popperjs';
+import { BehaviorSubject, of } from 'rxjs';
+import { mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { AppState } from 'app/enums/app-state.enum';
+import { JobState } from 'app/enums/job-state.enum';
+import { App } from 'app/interfaces/app.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { LayoutService } from 'app/modules/layout/layout.service';
+import { PageHeaderComponent } from 'app/modules/page-header/page-title-header/page-header.component';
+import { AppDetailsPanelComponent } from 'app/pages/apps/components/installed-apps/app-details-panel/app-details-panel.component';
+import { InstalledAppsComponent } from 'app/pages/apps/components/installed-apps/installed-apps.component';
+import { ApplicationsService } from 'app/pages/apps/services/applications.service';
+import { AppsStatsService } from 'app/pages/apps/store/apps-stats.service';
+import { AppsStore } from 'app/pages/apps/store/apps-store.service';
+import { DockerStore } from 'app/pages/apps/store/docker.store';
+import { InstalledAppsStore } from 'app/pages/apps/store/installed-apps-store.service';
+import { selectAdvancedConfig, selectSystemConfigState } from 'app/store/system-config/system-config.selectors';
+
+describe('InstalledAppsComponent', () => {
+  let spectator: Spectator<InstalledAppsComponent>;
+  let applicationsService: ApplicationsService;
+  let loader: HarnessLoader;
+  let searchQuery$: BehaviorSubject<string>;
+  let sortingInfo$: BehaviorSubject<{ active: string; direction: string }>;
+
+  const app = {
+    id: 'ix-test-app',
+    name: 'test-app',
+    metadata: {
+      name: 'rude-cardinal',
+      train: 'test-catalog-train',
+    },
+    state: AppState.Running,
+  } as App;
+
+  const createComponent = createRoutingFactory({
+    component: InstalledAppsComponent,
+    imports: [
+      ImgFallbackDirective,
+      NgxPopperjsContentComponent,
+      NgxPopperjsDirective,
+      NgxPopperjsLooseDirective,
+      ReactiveFormsModule,
+      MockComponent(PageHeaderComponent),
+    ],
+    declarations: [
+      MockDeclaration(AppDetailsPanelComponent),
+    ],
+    providers: [
+      mockProvider(DockerStore, {
+        isDockerStarted$: of(true),
+        selectedPool$: of('pool'),
+      }),
+      {
+        provide: InstalledAppsStore,
+        useFactory: () => {
+          searchQuery$ = new BehaviorSubject('');
+          sortingInfo$ = new BehaviorSubject({ active: 'application', direction: 'asc' });
+          return {
+            isLoading$: of(false),
+            installedApps$: of([app]),
+            searchQuery$: searchQuery$.asObservable(),
+            sortingInfo$: sortingInfo$.asObservable(),
+            setSearchQuery: jest.fn((query: string) => searchQuery$.next(query)),
+            setSortingInfo: jest.fn((info: { active: string; direction: string }) => sortingInfo$.next(info)),
+          };
+        },
+      },
+      mockProvider(LayoutService, {
+        navigatePreservingScroll: jest.fn(() => of()),
+      }),
+      mockProvider(AppsStore, {
+        isLoading$: of(false),
+        availableApps$: of([]),
+      }),
+      mockProvider(DialogService, {
+        jobDialog: jest.fn(() => ({
+          afterClosed: () => of(null),
+        })),
+      }),
+      provideMockStore({
+        selectors: [
+          {
+            selector: selectSystemConfigState,
+            value: {},
+          },
+          {
+            selector: selectAdvancedConfig,
+            value: {},
+          },
+        ],
+      }),
+      mockProvider(Router, {
+        events: of(),
+      }),
+      mockProvider(ApplicationsService, {
+        restartApplication: jest.fn(() => of()),
+        startApplication: jest.fn(() => of()),
+        stopApplication: jest.fn(() => of()),
+        getInstalledAppsStatusUpdates: jest.fn(() => of({
+          fields: { arguments: ['test-app', { replica_count: 1 }], state: JobState.Success },
+        })),
+      }),
+      mockApi([]),
+      mockAuth(),
+      mockProvider(AppsStatsService, {
+        getStatsForApp: jest.fn(() => of(null)),
+      }),
+    ],
+    params: { appId: 'ix-test-app' },
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    spectator.component.installedAppsList().dataSource.set([app]);
+    spectator.detectChanges();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    applicationsService = spectator.inject(ApplicationsService);
+  });
+
+  it('shows a list of installed apps', async () => {
+    const table = await loader.getHarness(TnTableHarness);
+    expect(await table.getRowCount()).toBe(1);
+  });
+
+  it('shows details', async () => {
+    const installedAppsList = spectator.component.installedAppsList();
+    const locationSpy = jest.spyOn(spectator.inject(Location), 'replaceState');
+    const table = await loader.getHarness(TnTableHarness);
+    await table.clickRow(0);
+
+    expect(locationSpy).toHaveBeenCalledWith('/apps/installed/test-catalog-train/ix-test-app');
+    expect(installedAppsList.selectedApp).toEqual(app);
+  });
+
+  it('starts application', () => {
+    spectator.component.start('test-app');
+    expect(applicationsService.startApplication).toHaveBeenCalledWith('test-app');
+  });
+
+  it('stops application', () => {
+    spectator.component.stop('test-app');
+    expect(applicationsService.stopApplication).toHaveBeenCalledWith('test-app');
+  });
+
+  it('restarts application', () => {
+    spectator.component.installedAppsList().restart('test-app');
+    expect(applicationsService.restartApplication).toHaveBeenCalledWith('test-app');
+  });
+});

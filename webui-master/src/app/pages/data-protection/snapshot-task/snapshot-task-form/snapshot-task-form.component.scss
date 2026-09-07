@@ -1,0 +1,52 @@
+@import 'scss-imports/variables';
+
+.columns {
+  column-gap: 24px;
+  display: flex;
+
+  @media (max-width: $breakpoint-tablet) {
+    display: block;
+  }
+
+  .column {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.input-group {
+  column-gap: 5px;
+  display: flex;
+
+  > * {
+    margin-bottom: 6px;
+    margin-top: 0;
+  }
+
+  tn-form-field:first-child {
+    flex: 1;
+  }
+
+  tn-form-field:last-child {
+    width: 100px;
+  }
+}
+
+.retention-warning {
+  background-color: var(--bg1);
+  border-radius: 4px;
+  margin-top: 16px;
+  padding: 12px 16px;
+
+  .warning-text {
+    color: var(--yellow);
+    font-size: 14px;
+    margin: 0 0 12px;
+  }
+
+  &.error {
+    .warning-text {
+      color: var(--red);
+    }
+  }
+}

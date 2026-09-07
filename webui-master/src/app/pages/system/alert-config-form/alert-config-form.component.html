@@ -1,0 +1,75 @@
+<tn-card class="form-card" [title]="'Category' | translate">
+  <ng-template tnCardHeaderActions>
+    @if (categories.length) {
+      <tn-button
+        icon="mdi-menu-down"
+        iconPosition="right"
+        [testId]="'categories'"
+        [label]="selectedCategory?.title ? (selectedCategory.title | translate) : ''"
+        [tnMenuTriggerFor]="categoriesMenu"
+      ></tn-button>
+      <tn-menu #categoriesMenu>
+        @for (category of categories; track category.id) {
+          <tn-menu-item
+            [testId]="'category-' + category.id"
+            [label]="category.title | translate"
+            (itemClick)="onCategoryChanged(category)"
+          ></tn-menu-item>
+        }
+      </tn-menu>
+    }
+  </ng-template>
+
+  @if (isFormLoading()) {
+    <tn-progress-bar mode="indeterminate"></tn-progress-bar>
+  }
+
+  @if (!isFormLoading() && !categories.length) {
+    <tn-empty icon="alert-circle" iconLibrary="mdi" [title]="'Cannot retrieve response' | translate"></tn-empty>
+  }
+
+  @if (categories.length && selectedCategory) {
+    <form (submit)="onSubmit()">
+      @for (cls of selectedCategory.classes; track cls.id) {
+        <div class="class-row" [formGroup]="form.controls[cls.id]">
+          <span class="class-label">{{ cls.title | translate }}</span>
+          <tn-form-field
+            [label]="'Set Warning Level' | translate"
+            [tooltip]="helptext.levelTooltip | translate"
+            [required]="true"
+          >
+            <tn-select
+              formControlName="level"
+              [testId]="[cls.title, 'level']"
+              [options]="(levelOptions$ | async) ?? []"
+            ></tn-select>
+          </tn-form-field>
+          <tn-form-field
+            [label]="'Set Frequency' | translate"
+            [tooltip]="helptext.policyTooltip | translate"
+            [required]="true"
+          >
+            <tn-select
+              formControlName="policy"
+              [testId]="[cls.title, 'policy']"
+              [options]="(policyOptions$ | async) ?? []"
+            ></tn-select>
+          </tn-form-field>
+        </div>
+      }
+    </form>
+  }
+
+  <ng-template tnCardFooterActions>
+    @if (categories.length && selectedCategory) {
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        color="primary"
+        [testId]="'save'"
+        [label]="'Save' | translate"
+        [disabled]="form.invalid || isFormLoading() || !selectedCategory"
+        (onClick)="onSubmit()"
+      ></tn-button>
+    }
+  </ng-template>
+</tn-card>

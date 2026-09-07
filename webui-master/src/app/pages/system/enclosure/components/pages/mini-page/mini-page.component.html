@@ -1,0 +1,26 @@
+<tn-card
+  class="card"
+  [fillHeight]="false"
+  [title]="'Disks on {enclosure}' | translate:{ enclosure: enclosureLabel() }"
+>
+  @if (isLoading(); as loading) {
+    <ix-fake-progress-bar
+      [loading]="loading"
+    ></ix-fake-progress-bar>
+  }
+  <div class="container">
+    <div class="enclosure-column">
+      <ix-mini-pools></ix-mini-pools>
+      <ix-mini-enclosure></ix-mini-enclosure>
+    </div>
+    <div class="details-column">
+      @if (selectedSlot()) {
+        <ix-mini-drive-details [slot]="selectedSlot()"></ix-mini-drive-details>
+        <ix-mini-drive-stats [slot]="selectedSlot()"></ix-mini-drive-stats>
+      } @else {
+        <ix-mini-disks-overview [slots]="slots()"></ix-mini-disks-overview>
+        <ix-mini-drive-temperatures></ix-mini-drive-temperatures>
+      }
+    </div>
+  </div>
+</tn-card>

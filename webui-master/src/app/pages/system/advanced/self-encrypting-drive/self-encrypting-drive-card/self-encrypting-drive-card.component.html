@@ -1,0 +1,25 @@
+<tn-card
+  padding="small"
+  [title]="'Self-Encrypting Drive' | translate"
+  [ixUiSearch]="searchableElements.elements.selfEncryptingDrive"
+>
+  <div class="details">
+    <div class="details-item" [ixUiSearch]="searchableElements.elements.sedPassword">
+      <span class="label">{{ 'Password' | translate }}:</span>
+      <span *ixWithLoadingState="sedConfig$ as sedConfig" class="value">
+        {{ sedConfig.sedPassword }}
+      </span>
+    </div>
+  </div>
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      [testId]="['self-encrypted-drive', 'configure']"
+      [ixUiSearch]="searchableElements.elements.configure"
+      [label]="'Configure' | translate"
+      (onClick)="onConfigure()"
+    ></tn-button>
+  </ng-template>
+</tn-card>

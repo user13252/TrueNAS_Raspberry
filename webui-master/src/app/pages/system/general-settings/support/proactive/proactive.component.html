@@ -1,0 +1,63 @@
+<ix-form
+  [formGroup]="form"
+  [externalLoading]="dataLoading()"
+  [extraDisabled]="isSupportUnavailable()"
+  [initialFormSnapshot]="initialFormSnapshot()"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  @if (isSupportUnavailable()) {
+    <ix-warning [message]="helptext.proactive.unavailableMessage"></ix-warning>
+  }
+  <div class="two-columns">
+    <tn-form-section
+      [heading]="helptext.proactive.primaryContact | translate"
+      [tooltip]="helptext.proactive.instructions | translate"
+    >
+      <tn-form-field [label]="'Name' | translate" [required]="true">
+        <tn-input testId="name" formControlName="name"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Title' | translate" [required]="true">
+        <tn-input testId="title" formControlName="title"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Email' | translate" [required]="true">
+        <tn-input testId="email" formControlName="email"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Phone Number' | translate" [required]="true">
+        <tn-input testId="phone" formControlName="phone"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field>
+        <tn-checkbox
+          testId="enabled"
+          formControlName="enabled"
+          [label]="'Enable TrueNAS Proactive Support' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </tn-form-section>
+
+    <tn-form-section
+      [heading]="helptext.proactive.secondaryContact | translate"
+      [tooltip]="helptext.proactive.instructions | translate"
+    >
+      <tn-form-field [label]="'Secondary Name' | translate" [required]="true">
+        <tn-input testId="secondary_name" formControlName="secondary_name"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Secondary Title' | translate" [required]="true">
+        <tn-input testId="secondary_title" formControlName="secondary_title"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Secondary Email' | translate" [required]="true">
+        <tn-input testId="secondary_email" formControlName="secondary_email"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Secondary Phone Number' | translate" [required]="true">
+        <tn-input testId="secondary_phone" formControlName="secondary_phone"></tn-input>
+      </tn-form-field>
+    </tn-form-section>
+  </div>
+</ix-form>

@@ -1,0 +1,117 @@
+import { TitleCasePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, input, output, computed, inject } from '@angular/core';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnIconButtonComponent,
+  TnIconComponent,
+  TnMenuComponent,
+  TnMenuItemComponent,
+  TnMenuTriggerDirective,
+  TnTooltipDirective,
+  tnIconMarker,
+} from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { PoolStatus } from 'app/enums/pool-status.enum';
+import { Role } from 'app/enums/role.enum';
+import { TopologyItemType } from 'app/enums/v-dev-type.enum';
+import { TopologyItemStatus } from 'app/enums/vdev-status.enum';
+import { VDevNestedDataNode } from 'app/interfaces/device-nested-data-node.interface';
+import { PoolInstance } from 'app/interfaces/pool.interface';
+import { VDevItem } from 'app/interfaces/storage.interface';
+import { BootPoolActionEvent, BootPoolActionType } from 'app/pages/system/bootenv/bootenv-status/bootenv-status.component';
+
+@Component({
+  selector: 'ix-bootenv-node-item',
+  templateUrl: './bootenv-node-item.component.html',
+  styleUrls: ['./bootenv-node-item.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnIconComponent,
+    TnIconButtonComponent,
+    TnTooltipDirective,
+    TnMenuComponent,
+    TnMenuItemComponent,
+    TnMenuTriggerDirective,
+    RequiresRolesDirective,
+    TranslateModule,
+    TitleCasePipe,
+  ],
+})
+export class BootenvNodeItemComponent {
+  private translate = inject(TranslateService);
+
+  readonly node = input.required<VDevNestedDataNode>();
+  readonly poolInstance = input.required<PoolInstance>();
+  readonly oneDisk = input<boolean>();
+
+  readonly invokeAction = output<BootPoolActionEvent>();
+
+  protected readonly requiredRoles = [Role.BootEnvWrite];
+
+  // Marked so the sprite extraction tool bundles them (it does not scan
+  // tn-menu-item icon attributes).
+  protected readonly replaceIcon = tnIconMarker('file-replace', 'mdi');
+  protected readonly attachIcon = tnIconMarker('attachment-plus', 'mdi');
+  protected readonly detachIcon = tnIconMarker('attachment-minus', 'mdi');
+
+  protected readonly topologyItem = computed(() => this.node() as VDevItem);
+
+  protected readonly ownName = computed(() => {
+    if (!this.topologyItem()) {
+      return '';
+    }
+    if (this.topologyItem().name) {
+      return this.topologyItem().name;
+    }
+    return this.topologyItem().path;
+  });
+
+  protected readonly isMirror = computed(() => {
+    return Boolean(this.topologyItem().type === TopologyItemType.Mirror && this.topologyItem().path);
+  });
+
+  protected readonly isDisk = computed(() => {
+    return Boolean(this.topologyItem().type === TopologyItemType.Disk && this.topologyItem().path);
+  });
+
+  protected readonly statusColor = computed(() => {
+    switch (this.topologyItem().status as (PoolStatus | TopologyItemStatus)) {
+      case PoolStatus.Faulted:
+        return 'var(--red)';
+      case PoolStatus.Offline:
+        return 'var(--alt-bg2)';
+      default:
+        return '';
+    }
+  });
+
+  protected readonly errors = computed(() => {
+    let errors = 0;
+    const stats = this.topologyItem().stats;
+    if (stats) {
+      errors = (stats?.checksum_errors || 0) + (stats?.read_errors || 0) + (stats?.write_errors || 0);
+    }
+    return this.translate.instant('{n, plural, =0 {No Errors} one {# Error} other {# Errors}}', { n: errors });
+  });
+
+  protected detach(): void {
+    this.invokeAction.emit({
+      action: BootPoolActionType.Detach,
+      node: this.topologyItem(),
+    });
+  }
+
+  protected attach(): void {
+    this.invokeAction.emit({
+      action: BootPoolActionType.Attach,
+      node: this.topologyItem(),
+    });
+  }
+
+  protected replace(): void {
+    this.invokeAction.emit({
+      action: BootPoolActionType.Replace,
+      node: this.topologyItem(),
+    });
+  }
+}

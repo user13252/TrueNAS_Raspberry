@@ -1,0 +1,94 @@
+<tn-dialog-shell testId="dialog" [title]="'Map User And Group IDs' | translate">
+<ix-fake-progress-bar
+  [loading]="isLoading()"
+></ix-fake-progress-bar>
+
+<div class="header">
+  <tn-icon
+    name="help_outline"
+    class="help-icon"
+    tabindex="0"
+    role="button"
+    tnTooltipClass="tooltip-wide"
+    [attr.aria-label]="'Help' | translate"
+    [tnTooltip]="idMapHintText"
+    (keydown.enter)="$event.preventDefault()"
+    (keydown.space)="$event.preventDefault()"
+  ></tn-icon>
+</div>
+
+
+  <tn-button-toggle-group
+    class="type-selector"
+    testId="mapping-type"
+    [formControl]="typeControl"
+    [ariaLabel]="'Mapping Type' | translate"
+  >
+    @for (option of typeOptions; track option.value) {
+      <tn-button-toggle
+        [value]="option.value"
+        [testId]="option.value"
+      >{{ option.label }}</tn-button-toggle>
+    }
+  </tn-button-toggle-group>
+
+  @if (isLoading()) {
+    <div class="loading-container">
+      <tn-spinner [diameter]="50"></tn-spinner>
+    </div>
+  } @else {
+    <div class="table-wrapper">
+      @if (mappings().length) {
+      <tn-table testId="table-mapping-table" [dataSource]="mappings()" [displayedColumns]="columns">
+        <ng-container [tnColumnDef]="'name'">
+          <ng-template tnHeaderCellDef>{{ 'Name' | translate }}</ng-template>
+          <ng-template let-mapping tnCellDef>{{ mapping.name }}</ng-template>
+        </ng-container>
+
+        <ng-container [tnColumnDef]="'hostUidOrGid'">
+          <ng-template tnHeaderCellDef>
+            {{ typeControl.value === ViewType.Users ? ('Host UID' | translate) : ('Host GID' | translate) }}
+          </ng-template>
+          <ng-template let-mapping tnCellDef>{{ mapping.hostUidOrGid }}</ng-template>
+        </ng-container>
+
+        <ng-container [tnColumnDef]="'instanceUidOrGid'">
+          <ng-template tnHeaderCellDef>
+            {{ typeControl.value === ViewType.Users ? ('Container UID' | translate) : ('Container GID' | translate) }}
+          </ng-template>
+          <ng-template let-mapping tnCellDef>
+            @if (mapping.instanceUidOrGid === directIdMapping) {
+              {{ 'Same' | translate }}
+            } @else {
+              {{ mapping.instanceUidOrGid }}
+            }
+          </ng-template>
+        </ng-container>
+
+        <ng-container [tnColumnDef]="'actions'">
+          <ng-template tnHeaderCellDef></ng-template>
+          <ng-template let-mapping tnCellDef>
+            <tn-icon-button
+              name="mdi-delete"
+              [ariaLabel]="'Clear mapping' | translate"
+              [tooltip]="'Clear mapping' | translate"
+              [testId]="['clear-mapping', mapping.description]"
+              (onClick)="onClearMapping(mapping)"
+            ></tn-icon-button>
+          </ng-template>
+        </ng-container>
+      </tn-table>
+      } @else {
+        <tn-empty
+          [title]="'No ID Mappings' | translate"
+          [description]="'No entries have been mapped yet.' | translate"
+        ></tn-empty>
+      }
+    </div>
+
+    <ix-new-mapping-form
+      [type]="typeControl.value"
+      (mappingAdded)="loadMappings()"
+    ></ix-new-mapping-form>
+  }
+</tn-dialog-shell>

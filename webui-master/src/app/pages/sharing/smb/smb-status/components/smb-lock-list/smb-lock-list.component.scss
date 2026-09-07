@@ -1,0 +1,11 @@
+@import '../../../../components/tn-table-in-card';
+
+@include tn-table-in-card;
+
+.actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}

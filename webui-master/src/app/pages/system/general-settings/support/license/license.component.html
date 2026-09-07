@@ -1,0 +1,18 @@
+<ix-form
+  [formGroup]="form"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field
+      [label]="license.label | translate"
+      [required]="true"
+    >
+      <tn-input
+        [testId]="license.fcName"
+        [formControlName]="license.fcName"
+        [multiline]="true"
+      ></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

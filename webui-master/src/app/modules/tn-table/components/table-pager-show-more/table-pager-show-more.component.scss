@@ -1,0 +1,18 @@
+button {
+  margin: 5px 0;
+}
+
+:host:not(.collapsible) {
+  display: none;
+}
+
+:host.collapsible {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+:host.clickable {
+  cursor: pointer;
+}

@@ -1,0 +1,45 @@
+::ng-deep {
+  z-index: 99999;
+
+  .cdk-overlay-container {
+    z-index: 99999;
+  }
+
+  .cdk-overlay-pane.full-screen-modal {
+    max-width: none !important;
+  }
+}
+
+.container {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  height: 80%;
+  justify-content: center;
+  margin-bottom: 16px;
+  width: 80%;
+
+  .title {
+    font-size: xx-large;
+  }
+
+  .message {
+    display: block;
+    font-family: var(--font-family-body);
+    max-height: 80%;
+    overflow: auto;
+
+    &.pre {
+      white-space: pre-line;
+    }
+  }
+}
+
+.wrapper {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}

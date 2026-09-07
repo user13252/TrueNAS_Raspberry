@@ -1,0 +1,80 @@
+:host {
+  .icon {
+    &.jail {
+      margin: 0 16px 0 10px;
+      max-width: 28px;
+    }
+
+    &.console-line {
+      font-size: 24px;
+    }
+  }
+
+  .absorbs-focus {
+    height: 0;
+    position: absolute;
+  }
+
+  .nav-section-title {
+    margin-left: -6px;
+    padding-left: 0;
+  }
+
+  .nav-section-divider {
+    margin: 0 -24px;
+  }
+
+  a.sidenav-link:focus-visible {
+    background: var(--hover-bg);
+    box-shadow: 0 0 0 1.5px var(--hover-bg) inset;
+    outline-width: 0;
+  }
+
+  .nav-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .menu-caret {
+    margin-left: auto;
+  }
+
+  // Inline badge dot styling (after menu text)
+  .menu-badge-dot {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    width: 24px;
+    vertical-align: middle;
+
+    tn-icon {
+      margin-left: 0;
+    }
+
+    &.critical tn-icon {
+      color: var(--red) !important;
+    }
+
+    &.warning tn-icon {
+      color: var(--orange) !important;
+    }
+
+    &.info tn-icon {
+      color: var(--primary) !important;
+    }
+  }
+
+  .menu-text {
+    flex: 1;
+  }
+
+  .sidebar-list-item a {
+    align-items: center;
+    // Submenu toggles are href-less anchors (role="button") and don't get the
+    // browser's link cursor on their own.
+    cursor: pointer;
+    display: flex;
+    gap: 12px;
+  }
+}

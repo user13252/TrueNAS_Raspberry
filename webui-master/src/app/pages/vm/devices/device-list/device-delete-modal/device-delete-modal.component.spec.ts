@@ -1,0 +1,330 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import {
+  createComponentFactory, mockProvider, Spectator, SpectatorFactory,
+} from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnCheckboxHarness } from '@truenas/ui-components';
+import { mockApi, mockCall } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { VmDeviceType, VmDisplayType } from 'app/enums/vm.enum';
+import { VmDevice, VmDiskDevice, VmRawFileDevice } from 'app/interfaces/vm-device.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  DeviceDeleteModalComponent,
+} from 'app/pages/vm/devices/device-list/device-delete-modal/device-delete-modal.component';
+
+describe('DeviceDeleteModalComponent', () => {
+  let spectator: Spectator<DeviceDeleteModalComponent>;
+  let loader: HarnessLoader;
+  let api: ApiService;
+
+  function createComponentWithData(device: VmDevice): SpectatorFactory<DeviceDeleteModalComponent> {
+    return createComponentFactory({
+      component: DeviceDeleteModalComponent,
+      imports: [
+        ReactiveFormsModule,
+      ],
+      providers: [
+        mockApi([
+          mockCall('vm.device.delete'),
+        ]),
+        mockProvider(DialogService),
+        mockProvider(DialogRef),
+        mockAuth(),
+      ],
+      componentProviders: [
+        { provide: DIALOG_DATA, useFactory: () => device },
+      ],
+    });
+  }
+
+  describe('for disk', () => {
+    const fakeDisk = {
+      id: 4,
+      attributes: {
+        dtype: VmDeviceType.Disk,
+        path: '/path/to/zvol123',
+      },
+    } as VmDiskDevice;
+
+    const createComponent = createComponentWithData(fakeDisk);
+
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+    });
+
+    afterEach(() => {
+      spectator.fixture.destroy();
+    });
+
+    describe('when opened', () => {
+      it('shows initial state of checkboxes', async () => {
+        const zvolCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Delete zvol device' }));
+        const forceCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Force Delete' }));
+
+        expect(await zvolCheckbox.isChecked()).toBe(false);
+        expect(await forceCheckbox.isChecked()).toBe(false);
+      });
+    });
+
+    [
+      { filledValues: { zvol: false, force: false }, expectedValues: { zvol: false, raw_file: false, force: false } },
+      { filledValues: { zvol: false, force: true }, expectedValues: { zvol: false, raw_file: false, force: true } },
+    ].forEach(({ filledValues, expectedValues }) => {
+      describe(
+        `when zvol = '${String(filledValues.zvol)}' and force = '${String(filledValues.force)}' filled and submitted`,
+        () => {
+          it(`sends ${JSON.stringify(expectedValues)} to websocket`, async () => {
+            const zvolCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Delete zvol device' }));
+            await (filledValues.zvol ? zvolCheckbox.check() : zvolCheckbox.uncheck());
+            const forceCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Force Delete' }));
+            await (filledValues.force ? forceCheckbox.check() : forceCheckbox.uncheck());
+
+            const submitButton = await loader.getHarness(TnButtonHarness.with({ label: 'Delete Device' }));
+            await submitButton.click();
+
+            expect(api.call).toHaveBeenCalledWith('vm.device.delete', [
+              fakeDisk.id,
+              expectedValues,
+            ]);
+          });
+        },
+      );
+    });
+  });
+
+  describe('for raw file', () => {
+    const fakeRawFile = {
+      id: 5,
+      attributes: {
+        dtype: VmDeviceType.Raw,
+      },
+    } as VmRawFileDevice;
+
+    const createComponent = createComponentWithData(fakeRawFile);
+
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+    });
+
+    afterEach(() => {
+      spectator.fixture.destroy();
+    });
+
+    describe('when opened', () => {
+      it('shows initial state of checkboxes', async () => {
+        const rawFileCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Delete raw file' }));
+        const forceCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Force Delete' }));
+
+        expect(await rawFileCheckbox.isChecked()).toBe(false);
+        expect(await forceCheckbox.isChecked()).toBe(false);
+      });
+    });
+
+    [
+      {
+        filledValues: { raw_file: false, force: false },
+        expectedValues: { zvol: false, raw_file: false, force: false },
+      },
+      {
+        filledValues: { raw_file: false, force: true },
+        expectedValues: { zvol: false, raw_file: false, force: true },
+      },
+      {
+        filledValues: { raw_file: true, force: false },
+        expectedValues: { zvol: false, raw_file: true, force: false },
+      },
+      {
+        filledValues: { raw_file: true, force: true },
+        expectedValues: { zvol: false, raw_file: true, force: true },
+      },
+    ].forEach(({ filledValues, expectedValues }) => {
+      describe(
+        // eslint-disable-next-line jest/valid-title
+        `when raw_file = '${String(filledValues.raw_file)}' `
+        + `and force = '${String(filledValues.force)}' filled and submitted`,
+        () => {
+          it(`sends ${JSON.stringify(expectedValues)} to websocket`, async () => {
+            const rawFileCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Delete raw file' }));
+            await (filledValues.raw_file ? rawFileCheckbox.check() : rawFileCheckbox.uncheck());
+            const forceCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Force Delete' }));
+            await (filledValues.force ? forceCheckbox.check() : forceCheckbox.uncheck());
+
+            const submitButton = await loader.getHarness(TnButtonHarness.with({ label: 'Delete Device' }));
+            await submitButton.click();
+
+            expect(api.call).toHaveBeenCalledWith('vm.device.delete', [
+              fakeRawFile.id,
+              expectedValues,
+            ]);
+          });
+        },
+      );
+    });
+  });
+
+  describe('for other device', () => {
+    const fakeOtherDevice = {
+      id: 6,
+      attributes: {
+        dtype: VmDeviceType.Nic,
+      },
+    } as VmDevice;
+
+    const createComponent = createComponentWithData(fakeOtherDevice);
+
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+    });
+
+    afterEach(() => {
+      spectator.fixture.destroy();
+    });
+
+    describe('when opened', () => {
+      it('shows initial state of checkboxes', async () => {
+        const forceCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Force Delete' }));
+
+        expect(await forceCheckbox.isChecked()).toBe(false);
+      });
+    });
+
+    [
+      { filledValues: { force: false }, expectedValues: { zvol: false, raw_file: false, force: false } },
+      { filledValues: { force: true }, expectedValues: { zvol: false, raw_file: false, force: true } },
+    ].forEach(({ filledValues, expectedValues }) => {
+      describe(`when force = '${String(filledValues.force)}' filled and submitted`, () => {
+        it(`sends ${JSON.stringify(expectedValues)} to websocket`, async () => {
+          const forceCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Force Delete' }));
+          await (filledValues.force ? forceCheckbox.check() : forceCheckbox.uncheck());
+
+          const submitButton = await loader.getHarness(TnButtonHarness.with({ label: 'Delete Device' }));
+          await submitButton.click();
+
+          expect(api.call).toHaveBeenCalledWith('vm.device.delete', [
+            fakeOtherDevice.id,
+            expectedValues,
+          ]);
+        });
+      });
+    });
+  });
+
+  describe('display device type labels', () => {
+    const spiceDisplayDevice = {
+      id: 10,
+      attributes: {
+        dtype: VmDeviceType.Display,
+        type: VmDisplayType.Spice,
+      },
+    } as VmDevice;
+
+    const vncDisplayDevice = {
+      id: 11,
+      attributes: {
+        dtype: VmDeviceType.Display,
+        type: VmDisplayType.Vnc,
+      },
+    } as VmDevice;
+
+    const nicDevice = {
+      id: 12,
+      attributes: {
+        dtype: VmDeviceType.Nic,
+      },
+    } as VmDevice;
+
+    const displayDeviceWithoutType = {
+      id: 13,
+      attributes: {
+        dtype: VmDeviceType.Display,
+        type: undefined,
+      },
+    } as VmDevice;
+
+    describe('for SPICE display device', () => {
+      const createComponent = createComponentWithData(spiceDisplayDevice);
+
+      beforeEach(() => {
+        spectator = createComponent();
+      });
+
+      afterEach(() => {
+        spectator.fixture.destroy();
+      });
+
+      it('shows correct label for SPICE display device', () => {
+        const component = spectator.component;
+        const label = component.getDeviceTypeLabel();
+
+        expect(label).toBe('Display (SPICE)');
+      });
+    });
+
+    describe('for VNC display device', () => {
+      const createComponent = createComponentWithData(vncDisplayDevice);
+
+      beforeEach(() => {
+        spectator = createComponent();
+      });
+
+      afterEach(() => {
+        spectator.fixture.destroy();
+      });
+
+      it('shows correct label for VNC display device', () => {
+        const component = spectator.component;
+        const label = component.getDeviceTypeLabel();
+
+        expect(label).toBe('Display (VNC)');
+      });
+    });
+
+    describe('for non-display device', () => {
+      const createComponent = createComponentWithData(nicDevice);
+
+      beforeEach(() => {
+        spectator = createComponent();
+      });
+
+      afterEach(() => {
+        spectator.fixture.destroy();
+      });
+
+      it('shows correct label for non-display device', () => {
+        const component = spectator.component;
+        const label = component.getDeviceTypeLabel();
+
+        expect(label).toBe('NIC');
+      });
+    });
+
+    describe('for display device without type', () => {
+      const createComponent = createComponentWithData(displayDeviceWithoutType);
+
+      beforeEach(() => {
+        spectator = createComponent();
+      });
+
+      afterEach(() => {
+        spectator.fixture.destroy();
+      });
+
+      it('shows fallback label for display device without type', () => {
+        const component = spectator.component;
+        const label = component.getDeviceTypeLabel();
+
+        expect(label).toBe('Display');
+      });
+    });
+  });
+});

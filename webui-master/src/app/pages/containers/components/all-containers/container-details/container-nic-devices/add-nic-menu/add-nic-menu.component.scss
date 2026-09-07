@@ -1,0 +1,11 @@
+:host .loader {
+  display: block;
+  flex: unset;
+  width: 80px;
+
+  ::ng-deep .loader {
+    margin-bottom: -6px;
+  }
+}
+
+@import '../../no-devices-available';

@@ -1,0 +1,787 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { MockStore, provideMockStore } from '@ngrx/store/testing';
+import { TranslateService } from '@ngx-translate/core';
+import { TnFormSectionHarness, TnInputHarness, TnSelectHarness } from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { KiB } from 'app/constants/bytes.constant';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { AclMode } from 'app/enums/acl-type.enum';
+import {
+  DatasetAclType,
+  DatasetCaseSensitivity, DatasetPreset, DatasetRecordSize,
+  DatasetSnapdev,
+  DatasetSnapdir,
+  DatasetSync,
+} from 'app/enums/dataset.enum';
+import { DeduplicationSetting } from 'app/enums/deduplication-setting.enum';
+import { LicenseFeature } from 'app/enums/license-feature.enum';
+import { OnOff } from 'app/enums/on-off.enum';
+import { ProductType } from 'app/enums/product-type.enum';
+import { inherit } from 'app/enums/with-inherit.enum';
+import { ZfsPropertySource } from 'app/enums/zfs-property-source.enum';
+import { helptextDatasetForm } from 'app/helptext/storage/volumes/datasets/dataset-form';
+import { Dataset } from 'app/interfaces/dataset.interface';
+import { SystemInfo } from 'app/interfaces/system-info.interface';
+import { ZfsProperty } from 'app/interfaces/zfs-property.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import {
+  OtherOptionsSectionComponent,
+} from 'app/pages/datasets/components/dataset-form/sections/other-options-section/other-options-section.component';
+import { SharingTierService } from 'app/pages/sharing/components/sharing-tier.service';
+import { SystemGeneralService } from 'app/services/system-general.service';
+import { selectSystemInfo } from 'app/store/system-info/system-info.selectors';
+
+describe('OtherOptionsSectionComponent', () => {
+  let spectator: Spectator<OtherOptionsSectionComponent>;
+  let loader: HarnessLoader;
+
+  const selectPredicate = (name: string): ReturnType<typeof TnSelectHarness.with> => TnSelectHarness.with({
+    selector: `[formControlName="${name}"]`,
+  });
+  const getSelect = (name: string): Promise<TnSelectHarness> => loader.getHarness(selectPredicate(name));
+  const getInput = (name: string): Promise<TnInputHarness> => loader.getHarness(
+    TnInputHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+  const getSelectValue = async (name: string): Promise<string> => (await getSelect(name)).getDisplayText();
+
+  const existingDataset = {
+    user_properties: {
+      comments: {
+        parsed: 'comments',
+        rawvalue: 'comments',
+        value: 'comments',
+        source: ZfsPropertySource.Inherited,
+      },
+    } as Record<string, ZfsProperty<string>>,
+    sync: {
+      parsed: 'standard',
+      source: ZfsPropertySource.Inherited,
+      value: DatasetSync.Standard,
+    },
+    compression: {
+      parsed: 'lzjb',
+      value: 'LZJB',
+      source: ZfsPropertySource.Local,
+    },
+    atime: {
+      parsed: false,
+      value: OnOff.Off,
+      source: ZfsPropertySource.Inherited,
+    },
+    deduplication: {
+      value: DeduplicationSetting.On,
+      source: ZfsPropertySource.Inherited,
+    },
+    checksum: {
+      value: 'SHA256',
+      source: ZfsPropertySource.Local,
+    },
+    readonly: {
+      value: OnOff.Off,
+      source: ZfsPropertySource.Local,
+    },
+    exec: {
+      value: OnOff.On,
+      source: ZfsPropertySource.Inherited,
+    },
+    snapdir: {
+      value: DatasetSnapdir.Disabled,
+      source: ZfsPropertySource.Inherited,
+    },
+    snapdev: {
+      value: DatasetSnapdev.Hidden,
+      source: ZfsPropertySource.Local,
+    },
+    copies: {
+      value: '1',
+      parsed: 1,
+      source: ZfsPropertySource.Inherited,
+    },
+    recordsize: {
+      value: '1K',
+      parsed: KiB,
+      source: ZfsPropertySource.Inherited,
+    },
+    acltype: {
+      value: DatasetAclType.Posix,
+      source: ZfsPropertySource.Local,
+    },
+    aclmode: {
+      value: AclMode.Discard,
+      source: ZfsPropertySource.Local,
+    },
+    casesensitivity: {
+      value: DatasetCaseSensitivity.Sensitive,
+      source: ZfsPropertySource.Inherited,
+    },
+    special_small_block_size: {
+      value: '0',
+      source: ZfsPropertySource.Default,
+    },
+  } as Dataset;
+
+  const parentDataset = {
+    id: 'root/parent',
+    user_properties: {
+      comments: {
+        parsed: 'comments',
+        rawvalue: 'comments',
+        value: 'comments',
+        source: ZfsPropertySource.Local,
+      },
+    } as Record<string, ZfsProperty<string>>,
+    sync: {
+      parsed: 'standard',
+      source: ZfsPropertySource.Default,
+      value: DatasetSync.Standard,
+    },
+    compression: {
+      parsed: 'lzjb',
+      value: 'LZJB',
+      source: ZfsPropertySource.Local,
+    },
+    atime: {
+      parsed: false,
+      value: OnOff.Off,
+      source: ZfsPropertySource.Local,
+    },
+    deduplication: {
+      value: DeduplicationSetting.Off,
+      source: ZfsPropertySource.Default,
+    },
+    checksum: {
+      value: 'ON',
+      source: ZfsPropertySource.Default,
+    },
+    readonly: {
+      value: OnOff.Off,
+      source: ZfsPropertySource.Default,
+    },
+    exec: {
+      value: OnOff.On,
+      source: ZfsPropertySource.Local,
+    },
+    snapdir: {
+      value: DatasetSnapdir.Hidden,
+      source: ZfsPropertySource.Default,
+    },
+    snapdev: {
+      value: DatasetSnapdev.Hidden,
+      source: ZfsPropertySource.Local,
+    },
+    copies: {
+      value: '1',
+      parsed: 1,
+      source: ZfsPropertySource.Default,
+    },
+    recordsize: {
+      value: '128K',
+      parsed: 128 * KiB,
+      source: ZfsPropertySource.Default,
+    },
+    acltype: {
+      value: DatasetAclType.Posix,
+      source: ZfsPropertySource.Inherited,
+    },
+    aclmode: {
+      value: AclMode.Discard,
+      source: ZfsPropertySource.Inherited,
+    },
+    casesensitivity: {
+      value: DatasetCaseSensitivity.Sensitive,
+      source: ZfsPropertySource.None,
+    },
+    special_small_block_size: {
+      value: '0',
+      source: ZfsPropertySource.Default,
+    },
+  } as Dataset;
+
+  const createComponent = createComponentFactory({
+    component: OtherOptionsSectionComponent,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    providers: [
+      mockApi([
+        mockCall('pool.dataset.checksum_choices', {
+          ON: 'ON',
+          SHA256: 'SHA256',
+        }),
+        mockCall('pool.dataset.compression_choices', {
+          LZ4: 'LZ4',
+          LZJB: 'LZJB',
+          OFF: 'OFF',
+        }),
+        mockCall('pool.dataset.recordsize_choices', ['1K', '64K']),
+        mockCall('pool.dataset.recommended_zvol_blocksize', '256K' as DatasetRecordSize),
+      ]),
+      mockProvider(SystemGeneralService),
+      mockProvider(SharingTierService, {
+        getTierConfig: () => of({ enabled: false }),
+      }),
+      mockProvider(DialogService, {
+        confirm: jest.fn(() => of(true)),
+      }),
+      mockProvider(TranslateService, {
+        instant: jest.fn((key: string, params?: Record<string, string>) => {
+          // Handle template strings with interpolation
+          if (key === 'Inherit ({value})' && params?.value) {
+            return `Inherit (${String(params.value)})`;
+          }
+          // Return key as-is (translations are already in title case from the service)
+          return key;
+        }),
+        get: jest.fn((key: string, params?: Record<string, string>) => {
+          if (key === 'Inherit ({value})' && params?.value) {
+            return of(`Inherit (${String(params.value)})`);
+          }
+          return of(key);
+        }),
+        onTranslationChange: { subscribe: jest.fn() },
+        onLangChange: { subscribe: jest.fn() },
+        onDefaultLangChange: { subscribe: jest.fn() },
+      }),
+      provideMockStore({
+        initialState: {
+          systemInfo: {
+            productType: ProductType.CommunityEdition,
+            license: {
+              features: [],
+            },
+          } as unknown as SystemInfo,
+        },
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    spectator.setInput({
+      advancedMode: true,
+    });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  describe('basic options', () => {
+    it('hides section in Basic mode', async () => {
+      spectator.setInput('advancedMode', false);
+      spectator.detectChanges();
+
+      expect(await loader.getAllHarnesses(TnFormSectionHarness)).toHaveLength(0);
+    });
+  });
+
+  describe('editing existing dataset', () => {
+    it('shows form values when editing an existing dataset', async () => {
+      spectator.setInput({
+        existing: existingDataset,
+        parent: parentDataset,
+      });
+
+      expect(await (await getInput('comments')).getValue()).toBe('');
+      expect(await getSelectValue('compression')).toBe('LZJB');
+      expect(await getSelectValue('atime')).toBe('Inherit (Off)');
+      expect(await getSelectValue('sync')).toBe('Inherit (Standard)');
+      expect(await getSelectValue('deduplication')).toBe('Inherit (Off)');
+      expect(await getSelectValue('casesensitivity')).toBe('Sensitive');
+      expect(await getSelectValue('checksum')).toBe('SHA256');
+      expect(await getSelectValue('readonly')).toBe('Off');
+      expect(await getSelectValue('exec')).toBe('Inherit (On)');
+      expect(await getSelectValue('snapdir')).toBe('Inherit (Hidden)');
+      expect(await getSelectValue('snapdev')).toBe('Hidden');
+      expect(await getSelectValue('copies')).toBe('Inherit (1)');
+      expect(await getSelectValue('recordsize')).toBe('Inherit (128K)');
+      expect(await getSelectValue('acltype')).toBe('POSIX');
+      expect(await getSelectValue('aclmode')).toBe('Discard');
+      expect(await getSelectValue('special_small_block_size')).toBe('Inherit (0)');
+    });
+
+    it('returns update payload when getPayload() is called', () => {
+      spectator.setInput({
+        existing: existingDataset,
+        parent: parentDataset,
+      });
+
+      expect(spectator.component.getPayload()).toEqual({
+        comments: '',
+        atime: inherit,
+        compression: 'LZJB',
+        sync: inherit,
+        checksum: 'SHA256',
+        copies: inherit,
+        deduplication: inherit,
+        exec: inherit,
+        readonly: OnOff.Off,
+        recordsize: inherit,
+        snapdev: DatasetSnapdev.Hidden,
+        snapdir: inherit,
+        special_small_block_size: inherit,
+        aclmode: AclMode.Discard,
+        acltype: DatasetAclType.Posix,
+      });
+    });
+
+    it('sends INHERIT for snapdir when form value is INHERIT', () => {
+      spectator.setInput({
+        existing: existingDataset,
+        parent: parentDataset,
+      });
+
+      spectator.component.form.patchValue({
+        snapdir: inherit,
+      });
+
+      const payload = spectator.component.getPayload();
+      expect(payload.snapdir).toBe(inherit);
+    });
+
+    it('sends INHERIT for copies when form value is INHERIT', () => {
+      spectator.setInput({
+        existing: existingDataset,
+        parent: parentDataset,
+      });
+
+      spectator.component.form.patchValue({
+        copies: inherit,
+      });
+
+      const payload = spectator.component.getPayload();
+      expect(payload.copies).toBe(inherit);
+    });
+
+    it('sends specific value for copies when explicitly set', () => {
+      spectator.setInput({
+        existing: existingDataset,
+        parent: parentDataset,
+      });
+
+      spectator.component.form.patchValue({
+        copies: 2,
+      });
+
+      const payload = spectator.component.getPayload();
+      expect(payload.copies).toBe(2);
+    });
+
+    it('sends specific value for snapdir when explicitly set', () => {
+      spectator.setInput({
+        existing: existingDataset,
+        parent: parentDataset,
+      });
+
+      spectator.component.form.patchValue({
+        snapdir: DatasetSnapdir.Visible,
+      });
+
+      const payload = spectator.component.getPayload();
+      expect(payload.snapdir).toBe(DatasetSnapdir.Visible);
+    });
+
+    it('handles copies when parent is undefined', () => {
+      spectator.setInput({
+        existing: existingDataset,
+        parent: undefined,
+      });
+
+      expect(spectator.component.form.value.copies).toBe(1);
+    });
+
+    it('handles copies with LOCAL source when parent exists', () => {
+      const datasetWithLocalCopies = {
+        ...existingDataset,
+        copies: {
+          value: '2',
+          parsed: 2,
+          source: ZfsPropertySource.Local,
+        },
+      } as Dataset;
+
+      spectator.setInput({
+        existing: datasetWithLocalCopies,
+        parent: parentDataset,
+      });
+
+      expect(spectator.component.form.value.copies).toBe(2);
+    });
+  });
+
+  describe('creating a new dataset', () => {
+    it('shows default values when creating a new dataset', async () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      expect(await (await getInput('comments')).getValue()).toBe('');
+      expect(await getSelectValue('sync')).toBe('Inherit (Standard)');
+      expect(await getSelectValue('compression')).toBe('Inherit (LZJB)');
+      expect(await getSelectValue('atime')).toBe('Inherit (Off)');
+      expect(await getSelectValue('deduplication')).toBe('Inherit (Off)');
+      expect(await getSelectValue('casesensitivity')).toBe('Sensitive');
+      expect(await getSelectValue('checksum')).toBe('Inherit (On)');
+      expect(await getSelectValue('aclmode')).toBe('Inherit');
+      expect(await getSelectValue('acltype')).toBe('Inherit');
+      expect(await getSelectValue('copies')).toBe('Inherit (1)');
+      expect(await getSelectValue('exec')).toBe('Inherit (On)');
+      expect(await getSelectValue('special_small_block_size')).toBe('Inherit (0)');
+      expect(await getSelectValue('readonly')).toBe('Inherit (Off)');
+      expect(await getSelectValue('recordsize')).toBe('Inherit (128K)');
+      expect(await getSelectValue('snapdev')).toBe('Inherit (Hidden)');
+      expect(await getSelectValue('snapdir')).toBe('Inherit (Hidden)');
+    });
+
+    it('preserves an explicit Case Sensitivity choice when the dataset preset is changed', async () => {
+      spectator.setInput({ parent: parentDataset });
+      spectator.setInput({ datasetPreset: DatasetPreset.Apps });
+
+      await (await getSelect('casesensitivity')).selectOption('Insensitive');
+
+      // Changing the preset must not silently discard the user's explicit choice.
+      spectator.setInput({ datasetPreset: DatasetPreset.Multiprotocol });
+
+      expect(await getSelectValue('casesensitivity')).toBe('Insensitive');
+      expect(spectator.component.getPayload().casesensitivity).toBe(DatasetCaseSensitivity.Insensitive);
+    });
+
+    it('applies the preset Case Sensitivity default when the user has not changed it', async () => {
+      spectator.setInput({ parent: parentDataset });
+
+      // SMB forces case-insensitive; switching to a non-SMB preset restores the Sensitive default.
+      spectator.setInput({ datasetPreset: DatasetPreset.Smb });
+      expect(await getSelectValue('casesensitivity')).toBe('Insensitive');
+
+      spectator.setInput({ datasetPreset: DatasetPreset.Apps });
+      expect(await getSelectValue('casesensitivity')).toBe('Sensitive');
+    });
+
+    it('preserves an explicit ACL Mode choice when the dataset preset is changed', async () => {
+      spectator.setInput({ parent: parentDataset });
+      spectator.setInput({ datasetPreset: DatasetPreset.Apps });
+
+      await (await getSelect('aclmode')).selectOption('Restricted');
+
+      // Changing the preset must not silently discard the user's explicit choice.
+      spectator.setInput({ datasetPreset: DatasetPreset.Multiprotocol });
+
+      expect(await getSelectValue('aclmode')).toBe('Restricted');
+    });
+
+    it('applies the preset ACL Mode default when the user has not changed it', async () => {
+      spectator.setInput({ parent: parentDataset });
+
+      // SMB forces Restricted; switching to a non-SMB preset restores the Passthrough default.
+      spectator.setInput({ datasetPreset: DatasetPreset.Smb });
+      expect(await getSelectValue('aclmode')).toBe('Restricted');
+
+      spectator.setInput({ datasetPreset: DatasetPreset.Apps });
+      expect(await getSelectValue('aclmode')).toBe('Passthrough');
+    });
+
+    it('shows warning if user selects "Sync" as Disabled', async () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      await (await getSelect('sync')).selectOption('Disabled');
+
+      expect(spectator.inject(DialogService).confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Warning',
+          message: 'TrueNAS recommends that the sync setting always be left to the default of "Standard" or increased to "Always". The "Disabled" setting should not be used in production and only where data roll back by few seconds in case of crash or power loss is not a concern.',
+        }),
+      );
+    });
+  });
+
+  describe('ACL type', () => {
+    it('shows a warning when ACL type is changed', async () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      await (await getSelect('acltype')).selectOption('SMB/NFSv4');
+      expect(spectator.inject(DialogService).warn).toHaveBeenCalledWith(
+        'ACL Types & ACL Modes',
+        helptextDatasetForm.aclTypeChangeWarning,
+      );
+    });
+
+    it('updates ACL mode when ACL type is changed', async () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      const aclType = await getSelect('acltype');
+      const aclMode = await getSelect('aclmode');
+
+      await aclType.selectOption('SMB/NFSv4');
+      expect(await aclMode.getDisplayText()).toBe('Passthrough');
+      expect(await aclMode.isDisabled()).toBe(false);
+
+      await aclType.selectOption('POSIX');
+      expect(await aclMode.getDisplayText()).toBe('Discard');
+      expect(await aclMode.isDisabled()).toBe(true);
+
+      await aclType.selectOption('Inherit');
+      expect(await aclMode.getDisplayText()).toBe('Inherit');
+      expect(await aclMode.isDisabled()).toBe(true);
+    });
+
+    it('should not disable incorrect ACL type & ACL mode setup to allow user to fix the issue in edit mode', async () => {
+      spectator.setInput({
+        parent: parentDataset,
+        existing: {
+          ...existingDataset,
+          acltype: {
+            value: DatasetAclType.Posix,
+          } as ZfsProperty<DatasetAclType, string>,
+          aclmode: {
+            value: AclMode.Passthrough,
+          } as ZfsProperty<AclMode, string>,
+        },
+      });
+
+      const aclType = await getSelect('acltype');
+      const aclMode = await getSelect('aclmode');
+
+      expect(await aclMode.getDisplayText()).toBe('Passthrough');
+      expect(await aclMode.isDisabled()).toBe(false);
+
+      expect(await aclType.getDisplayText()).toBe('POSIX');
+      expect(await aclType.isDisabled()).toBe(false);
+    });
+  });
+
+  describe('ZFS Deduplication', () => {
+    it('shows a warning when deduplication is enabled', async () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      await (await getSelect('deduplication')).selectOption('On');
+
+      expect(spectator.inject(DialogService).confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: helptextDatasetForm.deduplicationWarning,
+        }),
+      );
+    });
+
+    it('shows deduplication field based on product type and license', async () => {
+      // Default state (CommunityEdition) should show deduplication
+      expect(await loader.getHarnessOrNull(selectPredicate('deduplication'))).not.toBeNull();
+
+      // Test with Enterprise with dedup license - should show
+      const store$ = spectator.inject(MockStore);
+      store$.overrideSelector(selectSystemInfo, {
+        productType: ProductType.Enterprise,
+        license: {
+          features: [{ name: LicenseFeature.Dedup, start_date: null, expires_at: null }],
+        },
+      } as unknown as SystemInfo);
+      store$.refreshState();
+
+      const testSpectator = createComponent();
+      testSpectator.setInput({
+        advancedMode: true,
+      });
+
+      // Wait for all async operations including nested subscriptions
+      await testSpectator.fixture.whenStable();
+      testSpectator.detectChanges();
+      await testSpectator.fixture.whenStable();
+
+      const testLoader = TestbedHarnessEnvironment.loader(testSpectator.fixture);
+
+      expect(await testLoader.getHarnessOrNull(selectPredicate('deduplication'))).not.toBeNull();
+    });
+  });
+
+  describe('recordsize warning', () => {
+    it('shows a recordsize warning and switches to advanced mode when selected recordsize is less than recommended', async () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      jest.spyOn(spectator.component.advancedModeChange, 'emit');
+      await (await getSelect('recordsize')).selectOption('64K');
+
+      expect(spectator.query('.recordsize-warning')).toExist();
+      expect(spectator.component.advancedModeChange.emit).toHaveBeenCalled();
+    });
+  });
+
+  describe('Use Metadata (Special) VDEVs', () => {
+    it('sends inherit when set to Inherit', () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      // Inherit is the default value
+      const payload = spectator.component.getPayload();
+      expect(payload.special_small_block_size).toBe(inherit);
+    });
+
+    it('sends 0 when set to Off', () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      spectator.component.form.patchValue({
+        special_small_block_size: OnOff.Off,
+      });
+
+      const payload = spectator.component.getPayload();
+      expect(payload.special_small_block_size).toBe(0);
+    });
+
+    it('sends 16 MiB when set to On but not customized', () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      spectator.component.form.patchValue({
+        special_small_block_size: OnOff.On,
+      });
+
+      const payload = spectator.component.getPayload();
+      expect(payload.special_small_block_size).toBe(16777216); // 16 MiB in bytes
+    });
+
+    it('shows threshold field when set to On', async () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      await (await getSelect('special_small_block_size')).selectOption('On');
+
+      expect(spectator.query('tn-input[formControlName="special_small_block_size_custom"]')).toExist();
+    });
+
+    it('sends custom value when specified', () => {
+      spectator.setInput({
+        parent: parentDataset,
+      });
+
+      spectator.component.form.patchValue({
+        special_small_block_size: OnOff.On,
+        special_small_block_size_custom: 131072, // 128 KiB
+      });
+
+      const payload = spectator.component.getPayload();
+      expect(payload.special_small_block_size).toBe(131072);
+    });
+
+    describe('editing existing dataset', () => {
+      it('shows Off when existing dataset has special_small_block_size set to 0', () => {
+        const datasetWithZero = {
+          ...existingDataset,
+          special_small_block_size: {
+            value: '0',
+            source: ZfsPropertySource.Local,
+          },
+        } as Dataset;
+
+        spectator.setInput({
+          existing: datasetWithZero,
+          parent: parentDataset,
+        });
+
+        expect(spectator.component.form.value.special_small_block_size).toBe(OnOff.Off);
+      });
+
+      it('shows On with custom value when existing dataset has special_small_block_size set to 128K', () => {
+        const datasetWith128K = {
+          ...existingDataset,
+          special_small_block_size: {
+            value: '131072',
+            source: ZfsPropertySource.Local,
+          },
+        } as Dataset;
+
+        spectator.setInput({
+          existing: datasetWith128K,
+          parent: parentDataset,
+        });
+
+        expect(spectator.component.form.value.special_small_block_size).toBe(OnOff.On);
+        expect(spectator.component.form.value.special_small_block_size_custom).toBe(131072);
+      });
+
+      it('sends inherit when changing from local value to Inherit', () => {
+        const datasetWith128K = {
+          ...existingDataset,
+          special_small_block_size: {
+            value: '131072',
+            source: ZfsPropertySource.Local,
+          },
+        } as Dataset;
+
+        spectator.setInput({
+          existing: datasetWith128K,
+          parent: parentDataset,
+        });
+
+        // Verify it starts as ON
+        expect(spectator.component.form.value.special_small_block_size).toBe(OnOff.On);
+
+        // Change to Inherit
+        spectator.component.form.patchValue({
+          special_small_block_size: inherit,
+        });
+
+        const payload = spectator.component.getPayload();
+        expect(payload.special_small_block_size).toBe(inherit);
+      });
+
+      it('shows On when existing dataset has special_small_block_size = 16 MiB (default)', () => {
+        const datasetWith16M = {
+          ...existingDataset,
+          special_small_block_size: {
+            value: (16 * 1024 * 1024).toString(),
+            source: ZfsPropertySource.Local,
+          },
+        } as Dataset;
+
+        spectator.setInput({
+          existing: datasetWith16M,
+          parent: parentDataset,
+        });
+
+        expect(spectator.component.form.value.special_small_block_size).toBe(OnOff.On);
+        expect(spectator.component.form.value.special_small_block_size_custom).toBe(16777216);
+      });
+    });
+
+    describe('when tiering is enabled', () => {
+      beforeEach(() => {
+        const tierService = spectator.inject(SharingTierService);
+        jest.spyOn(tierService, 'getTierConfig').mockReturnValue(of({ enabled: true }));
+        spectator.component.ngOnInit();
+        spectator.detectChanges();
+      });
+
+      it('hides the Use Metadata (Special) VDEVs field', async () => {
+        spectator.setInput({ parent: parentDataset });
+
+        expect(await loader.getHarnessOrNull(selectPredicate('special_small_block_size'))).toBeNull();
+      });
+
+      it('omits special_small_block_size and special_small_block_size_custom from the payload', () => {
+        spectator.setInput({ parent: parentDataset });
+
+        spectator.component.form.patchValue({
+          special_small_block_size: OnOff.On,
+          special_small_block_size_custom: 131072,
+        });
+
+        const payload = spectator.component.getPayload();
+        expect(payload).not.toHaveProperty('special_small_block_size');
+        expect(payload).not.toHaveProperty('special_small_block_size_custom');
+      });
+    });
+  });
+});

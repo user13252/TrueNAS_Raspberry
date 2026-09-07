@@ -1,0 +1,300 @@
+import {
+  ChangeDetectionStrategy, Component, computed, input, OnChanges, OnInit, inject,
+} from '@angular/core';
+import { Router } from '@angular/router';
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCardComponent, TnCardFooterActionsDirective, TnCardHeaderDirective,
+  TnIconComponent, TnTooltipDirective,
+} from '@truenas/ui-components';
+import { UiSearchDirective } from 'app/directives/ui-search.directive';
+import { PoolCardIconType } from 'app/enums/pool-card-icon-type.enum';
+import { PoolStatus } from 'app/enums/pool-status.enum';
+import { TopologyWarning, VDevType } from 'app/enums/v-dev-type.enum';
+import { buildNormalizedFileSize } from 'app/helpers/file-size.utils';
+import { Disk, StorageDashboardDisk } from 'app/interfaces/disk.interface';
+import { Pool, PoolTopology } from 'app/interfaces/pool.interface';
+import {
+  EnclosureAndSlot,
+  TopologyDisk,
+  VDevItem,
+} from 'app/interfaces/storage.interface';
+import { SharingTierService } from 'app/pages/sharing/components/sharing-tier.service';
+import { PoolCardIconComponent } from 'app/pages/storage/components/dashboard-pool/pool-card-icon/pool-card-icon.component';
+import { vDevsCardElements } from 'app/pages/storage/components/dashboard-pool/vdevs-card/vdevs-card.elements';
+import { StorageService } from 'app/services/storage.service';
+
+/**
+ * Per-VDEV-type display state. `assigned` is the source of truth for whether a
+ * row should render; `text` is the user-visible string. Keeping these as
+ * separate fields avoids the locale-dependent "is this string the same as the
+ * 'not assigned' marker" comparison that used to drive template visibility.
+ */
+interface VdevTypeState {
+  assigned: boolean;
+  text: string;
+}
+
+interface TopologyState {
+  data: VdevTypeState;
+  special: VdevTypeState;
+  log: VdevTypeState;
+  cache: VdevTypeState;
+  spare: VdevTypeState;
+  dedup: VdevTypeState;
+}
+
+/**
+ * Warnings keyed identically to TopologyState. Empty string means no warning.
+ */
+interface TopologyWarningState {
+  data: string;
+  special: string;
+  log: string;
+  cache: string;
+  spare: string;
+  dedup: string;
+}
+
+export type EmptyDiskObject = Record<
+  string, string | number | boolean | string[] | EnclosureAndSlot
+>;
+
+@Component({
+  selector: 'ix-vdevs-card',
+  templateUrl: './vdevs-card.component.html',
+  styleUrls: ['./vdevs-card.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnCardComponent,
+    TnCardHeaderDirective,
+    TnCardFooterActionsDirective,
+    UiSearchDirective,
+    PoolCardIconComponent,
+    TnButtonComponent,
+    TnIconComponent,
+    TnTooltipDirective,
+    TranslateModule,
+  ],
+})
+export class VDevsCardComponent implements OnInit, OnChanges {
+  protected router = inject(Router);
+  private translate = inject(TranslateService);
+  private storageService = inject(StorageService);
+  private tierService = inject(SharingTierService);
+
+  readonly poolState = input.required<Pool>();
+  readonly disks = input<StorageDashboardDisk[]>([]);
+
+  protected readonly tierEnabled = this.tierService.tierEnabled;
+
+  protected showTierLabels = computed(() => {
+    return this.tierEnabled() && this.poolState().topology?.special?.length > 0;
+  });
+
+  protected readonly searchableElements = vDevsCardElements;
+  protected readonly vdevsHelpTooltip = this.translate.instant('A pool is made of VDEVs (virtual devices). Each VDEV is a group of drives working together');
+  private readonly notAssignedDev = this.translate.instant('VDEVs not assigned');
+  private readonly emptyVdevState: VdevTypeState = { assigned: false, text: this.notAssignedDev };
+
+  topologyState: TopologyState = {
+    data: this.emptyVdevState,
+    special: this.emptyVdevState,
+    log: this.emptyVdevState,
+    cache: this.emptyVdevState,
+    spare: this.emptyVdevState,
+    dedup: this.emptyVdevState,
+  };
+
+  topologyWarningsState: TopologyWarningState = {
+    data: '',
+    special: '',
+    log: '',
+    cache: '',
+    spare: '',
+    dedup: '',
+  };
+
+  /**
+   * Layout for the non-data VDEV rows. `data` is rendered separately because
+   * it has a unique "Offline VDEVs" branch driven by isPoolOffline().
+   */
+  protected readonly otherVdevRows: {
+    key: 'special' | 'log' | 'cache' | 'spare' | 'dedup';
+    titleKey: string;
+    tierLabelKey?: string;
+    hidden?: () => boolean;
+  }[] = [
+    { key: 'special', titleKey: T('Special VDEVs'), tierLabelKey: T('Performance Tier') },
+    { key: 'log', titleKey: T('Log VDEVs') },
+    { key: 'cache', titleKey: T('Cache VDEVs') },
+    { key: 'spare', titleKey: T('Spare VDEVs'), hidden: () => this.isDraidLayoutDataVdevs },
+    { key: 'dedup', titleKey: T('Dedup VDEVs') },
+  ];
+
+  protected iconType = computed(() => {
+    if (this.isStatusError(this.poolState())) {
+      return PoolCardIconType.Error;
+    }
+    if (this.isStatusWarning(this.poolState()) || !this.poolState().healthy) {
+      return PoolCardIconType.Warn;
+    }
+    return PoolCardIconType.Safe;
+  });
+
+  protected iconTooltip = computed(() => {
+    if (this.isStatusError(this.poolState()) || this.isStatusWarning(this.poolState())) {
+      return this.translate.instant('Pool contains {status} Data VDEVs', { status: this.poolState().status });
+    }
+    if (!this.poolState().healthy) {
+      return this.translate.instant('Pool is not healthy');
+    }
+    return this.translate.instant('Everything is fine');
+  });
+
+  readonly noOtherVdevTypes = computed(() => {
+    const nonDataVdevs = [
+      this.topologyState.special,
+      this.topologyState.log,
+      this.topologyState.cache,
+      this.topologyState.spare,
+      this.topologyState.dedup,
+    ];
+
+    return nonDataVdevs.every((vdevType) => !vdevType.assigned);
+  });
+
+  get isDraidLayoutDataVdevs(): boolean {
+    return /\bDRAID\b/.test(this.topologyState.data.text);
+  }
+
+  ngOnChanges(): void {
+    this.parseTopology(this.poolState().topology);
+  }
+
+  ngOnInit(): void {
+    this.parseTopology(this.poolState().topology);
+  }
+
+  parseTopology(topology: PoolTopology): void {
+    if (!topology) {
+      return;
+    }
+
+    this.topologyWarningsState.data = this.parseDevsWarnings(topology.data, VDevType.Data);
+    this.topologyWarningsState.log = this.parseDevsWarnings(topology.log, VDevType.Log);
+    this.topologyWarningsState.cache = this.parseDevsWarnings(topology.cache, VDevType.Cache);
+    this.topologyWarningsState.spare = this.parseDevsWarnings(topology.spare, VDevType.Spare);
+    this.topologyWarningsState.special = this.parseDevsWarnings(topology.special, VDevType.Special);
+    this.topologyWarningsState.dedup = this.parseDevsWarnings(topology.dedup, VDevType.Dedup);
+
+    this.topologyState.data = this.parseDevs(topology.data, VDevType.Data, this.topologyWarningsState.data);
+    this.topologyState.log = this.parseDevs(topology.log, VDevType.Log, this.topologyWarningsState.log);
+    this.topologyState.cache = this.parseDevs(topology.cache, VDevType.Cache, this.topologyWarningsState.cache);
+    this.topologyState.spare = this.parseDevs(topology.spare, VDevType.Spare, this.topologyWarningsState.spare);
+    this.topologyState.special = this.parseDevs(
+      topology.special,
+      VDevType.Special,
+      this.topologyWarningsState.special,
+    );
+    this.topologyState.dedup = this.parseDevs(topology.dedup, VDevType.Dedup, this.topologyWarningsState.dedup);
+  }
+
+  private parseDevs(vdevs: VDevItem[], category: VDevType, warning?: string): VdevTypeState {
+    if (!vdevs.length) {
+      return this.emptyVdevState;
+    }
+
+    let outputString = '';
+
+    // Check VDEV Widths
+    let vdevWidth = 0;
+
+    // There should only be one value
+    const allVdevWidths: Set<number> = this.storageService.getVdevWidths(vdevs);
+    const isMixedWidth = this.storageService.isMixedWidth(allVdevWidths);
+    const isSingleDeviceCategory = [VDevType.Spare, VDevType.Cache].includes(category);
+
+    if (!isMixedWidth && !isSingleDeviceCategory) {
+      vdevWidth = Array.from(allVdevWidths.values())[0];
+    }
+
+    const type = vdevs[0]?.type;
+    const size = vdevs[0]?.children?.length
+      ? this.disks()?.find((disk) => disk.name === vdevs[0]?.children[0]?.disk)?.size
+      : this.disks()?.find((disk) => disk.name === (vdevs[0] as TopologyDisk)?.disk)?.size;
+
+    outputString = `${vdevs.length} x `;
+    if (vdevWidth) {
+      outputString += this.translate.instant('{type} | {vdevWidth} wide | ', { type, vdevWidth });
+    }
+
+    const isMixedVdevCapacity = warning?.includes(TopologyWarning.MixedVdevCapacity)
+      || warning?.includes(TopologyWarning.MixedDiskCapacity);
+
+    if (!isMixedVdevCapacity && size) {
+      outputString += buildNormalizedFileSize(size);
+    } else if (isMixedVdevCapacity) {
+      outputString += this.translate.instant('Mixed Capacity');
+    } else {
+      outputString += '?';
+    }
+
+    return { assigned: true, text: outputString };
+  }
+
+  private parseDevsWarnings(vdevs: VDevItem[], category: VDevType): string {
+    let outputString = '';
+    const disks: Disk[] = this.disks().map((disk: StorageDashboardDisk) => {
+      return this.dashboardDiskToDisk(disk);
+    });
+    const warnings = this.storageService.validateVdevs(category, vdevs, disks);
+    if (warnings.length === 1) {
+      outputString = warnings[0];
+    }
+    if (warnings.length > 1) {
+      outputString = warnings.join(', ');
+    }
+    return outputString;
+  }
+
+  private isStatusError(poolState: Pool): boolean {
+    return [
+      PoolStatus.Faulted,
+      PoolStatus.Unavailable,
+      PoolStatus.Removed,
+    ].includes(poolState.status);
+  }
+
+  private isStatusWarning(poolState: Pool): boolean {
+    return [
+      PoolStatus.Locked,
+      PoolStatus.Unknown,
+      PoolStatus.Offline,
+      PoolStatus.Degraded,
+    ].includes(poolState.status);
+  }
+
+  protected isPoolOffline = computed(() => {
+    return this.poolState()?.status === PoolStatus.Offline;
+  });
+
+  // TODO: Unclear why this conversion is needed.
+  private dashboardDiskToDisk(dashDisk: StorageDashboardDisk): Disk {
+    const output: EmptyDiskObject | Disk = {};
+    const keys: string[] = Object.keys(dashDisk);
+    keys.forEach((key: keyof StorageDashboardDisk) => {
+      if (
+        key === 'alerts'
+        || key === 'tempAggregates'
+      ) {
+        return;
+      }
+
+      output[key as keyof Disk] = dashDisk[key];
+    });
+
+    return output as unknown as Disk;
+  }
+}

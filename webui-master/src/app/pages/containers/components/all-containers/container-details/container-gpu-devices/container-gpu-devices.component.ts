@@ -1,0 +1,109 @@
+import { ChangeDetectionStrategy, Component, computed, inject, DestroyRef } from '@angular/core';
+import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnBannerActionDirective, TnBannerComponent, TnButtonComponent,
+  TnCardComponent, TnCardFooterActionsDirective,
+} from '@truenas/ui-components';
+import { NgxSkeletonLoaderModule } from 'ngx-skeleton-loader';
+import { catchError, of } from 'rxjs';
+import { ContainerDeviceType, containerGpuType } from 'app/enums/container.enum';
+import { containersHelptext } from 'app/helptext/containers/containers';
+import {
+  ContainerDevice,
+} from 'app/interfaces/container.interface';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  AddGpuDeviceMenuComponent,
+} from 'app/pages/containers/components/all-containers/container-details/container-gpu-devices/add-gpu-device-menu/add-gpu-device-menu.component';
+import {
+  DeviceActionsMenuComponent,
+} from 'app/pages/containers/components/common/device-actions-menu/device-actions-menu.component';
+import { getDeviceDescription } from 'app/pages/containers/components/common/utils/get-device-description.utils';
+import { ContainerDevicesStore } from 'app/pages/containers/stores/container-devices.store';
+import { ContainersStore } from 'app/pages/containers/stores/containers.store';
+import { isContainerActive } from 'app/pages/containers/utils/container-status.utils';
+import { AppState } from 'app/store';
+import { advancedConfigUpdated } from 'app/store/system-config/system-config.actions';
+import { waitForAdvancedConfig } from 'app/store/system-config/system-config.selectors';
+
+@Component({
+  selector: 'ix-container-gpu-devices',
+  templateUrl: './container-gpu-devices.component.html',
+  styleUrls: ['./container-gpu-devices.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnCardComponent,
+    TnCardFooterActionsDirective,
+    TranslateModule,
+    NgxSkeletonLoaderModule,
+    DeviceActionsMenuComponent,
+    AddGpuDeviceMenuComponent,
+    TnBannerComponent,
+    TnBannerActionDirective,
+    TnButtonComponent,
+  ],
+})
+export class ContainerGpuDevicesComponent {
+  private destroyRef = inject(DestroyRef);
+  private devicesStore = inject(ContainerDevicesStore);
+  private containersStore = inject(ContainersStore);
+  private translate = inject(TranslateService);
+  private api = inject(ApiService);
+  private store$ = inject<Store<AppState>>(Store);
+  private snackbar = inject(SnackbarService);
+  private loader = inject(LoaderService);
+
+  private readonly nvidiaDriversEnabled = toSignal(
+    this.store$.pipe(waitForAdvancedConfig).pipe(
+      catchError(() => of({ nvidia: false })),
+    ),
+  );
+
+  protected readonly gpuChoices = this.devicesStore.gpuChoices;
+
+  protected readonly isLoadingDevices = this.devicesStore.isLoading;
+  protected readonly helptext = containersHelptext;
+
+  // Middleware refuses device operations on any container that is not stopped, which since
+  // 26.0 includes SUSPENDED - not just RUNNING.
+  protected readonly isContainerActive = computed(() => {
+    return isContainerActive(this.containersStore.selectedContainer());
+  });
+
+  protected readonly shownDevices = computed(() => {
+    return this.devicesStore.devices().filter((device) => {
+      return device.dtype === ContainerDeviceType.Gpu;
+    });
+  });
+
+  protected readonly hasNvidiaGpusWithoutDrivers = computed(() => {
+    const gpuChoices = this.gpuChoices();
+    const nvidiaEnabled = this.nvidiaDriversEnabled()?.nvidia ?? false;
+
+    if (!gpuChoices || nvidiaEnabled) {
+      return false;
+    }
+
+    return Object.values(gpuChoices).some((gpuType) => gpuType === containerGpuType.Nvidia);
+  });
+
+  protected getDeviceDescription(device: ContainerDevice): string {
+    return getDeviceDescription(this.translate, device);
+  }
+
+  protected enableNvidiaDrivers(): void {
+    this.api.call('system.advanced.update', [{ nvidia: true }]).pipe(
+      this.loader.withLoader(),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => {
+      this.snackbar.success(
+        this.translate.instant('NVIDIA drivers have been enabled.'),
+      );
+      this.store$.dispatch(advancedConfigUpdated());
+    });
+  }
+}

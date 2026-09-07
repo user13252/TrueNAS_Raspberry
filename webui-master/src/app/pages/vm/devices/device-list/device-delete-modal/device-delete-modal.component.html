@@ -1,0 +1,65 @@
+<tn-dialog-shell testId="device-delete" [title]="'Delete' | translate">
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <div
+    class="device-delete-modal-content"
+  >
+    <p
+      [innerHTML]="'Delete <b>{deviceType} {device}</b>' | translate: { device: device.id, deviceType: getDeviceTypeLabel() }"
+    ></p>
+
+    @if (device.attributes.dtype === VmDeviceType.Disk) {
+      <tn-form-field>
+        <tn-checkbox
+          testId="zvol"
+          formControlName="zvol"
+          [label]="'Delete zvol device' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+
+      @if (form.value.zvol) {
+        <tn-form-field [label]="zvolConfirmLabelText">
+          <tn-input
+            testId="zvol-confirm"
+            formControlName="zvolConfirm"
+          ></tn-input>
+        </tn-form-field>
+      }
+    }
+
+    @if (device.attributes.dtype === VmDeviceType.Raw) {
+      <tn-form-field>
+        <tn-checkbox
+          testId="raw-file"
+          formControlName="raw_file"
+          [label]="'Delete raw file' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+
+    <tn-form-field>
+      <tn-checkbox
+        testId="force"
+        formControlName="force"
+        [label]="'Force Delete' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </div>
+</form>
+
+<div tnDialogAction class="device-delete-modal-actions">
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="cancel()"
+  ></tn-button>
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="warn"
+    testId="delete-device"
+    [label]="'Delete Device' | translate"
+    [disabled]="form.invalid"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</div>
+</tn-dialog-shell>

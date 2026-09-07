@@ -1,0 +1,42 @@
+<div class="bulk-list-item">
+  <div class="bulk-list-item-state">
+    @switch (item().state) {
+      @case (State.Initial) {
+        <tn-icon
+          name="radiobox-marked"
+          library="mdi"
+          class="initial"
+          [tnTooltip]="item().message || 'Pending' | translate"
+        ></tn-icon>
+      }
+      @case (State.Running) {
+        <tn-spinner
+          class="running"
+          mode="indeterminate"
+          [diameter]="20"
+          [tnTooltip]="item().message || 'Running' | translate"
+          [ariaLabel]="item().message || 'Running' | translate"
+        ></tn-spinner>
+      }
+      @case (State.Success) {
+        <tn-icon
+          name="check-circle"
+          library="mdi"
+          class="success"
+          [tnTooltip]="item().message || 'Success' | translate"
+        ></tn-icon>
+      }
+      @case (State.Error) {
+        <tn-icon
+          name="alert-circle"
+          library="mdi"
+          class="error"
+          [tnTooltip]="item().message || 'Error' | translate"
+        ></tn-icon>
+      }
+    }
+  </div>
+  <div class="bulk-list-item-title">
+    <ng-content></ng-content>
+  </div>
+</div>

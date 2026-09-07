@@ -1,0 +1,196 @@
+@if (advancedMode()) {
+  <tn-form-section [heading]="'Other Options' | translate" [formGroup]="form">
+    <tn-form-field [label]="'Comments' | translate">
+      <tn-input formControlName="comments"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Sync' | translate"
+      [tooltip]="helptext.syncTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="sync"
+        [options]="(syncOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Compression Level' | translate"
+      [tooltip]="helptext.compressionTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="compression"
+        [options]="(compressionOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Enable Atime' | translate"
+      [tooltip]="helptext.atimeTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="atime"
+        [options]="(atimeOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (hasDeduplication()) {
+      <tn-form-field
+        [label]="'ZFS Deduplication' | translate"
+        [tooltip]="helptext.deduplicationTooltip | translate"
+        [required]="true"
+      >
+        <tn-select
+          formControlName="deduplication"
+          [options]="(deduplicationOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    }
+
+    <tn-form-field
+      [label]="'Case Sensitivity' | translate"
+      [tooltip]="helptext.caseSensitivityTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="casesensitivity"
+        [options]="(caseSensitivityOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Checksum' | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="checksum"
+        [options]="(checksumOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (hasChecksumWarning) {
+      <ix-warning [message]="helptext.deduplicationChecksumInlineWarning"></ix-warning>
+    }
+
+    <tn-form-field
+      [label]="'Read-only' | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="readonly"
+        [options]="(readonlyOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Exec' | translate"
+      [tooltip]="helptext.execTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="exec"
+        [options]="(execOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Snapshot Directory' | translate"
+      [tooltip]="helptext.snapdirTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="snapdir"
+        [options]="(snapdirOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Snapdev' | translate"
+      [tooltip]="helptext.snapdevTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="snapdev"
+        [options]="(snapdevOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Copies' | translate"
+      [tooltip]="helptext.copiesTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="copies"
+        [options]="(copiesOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Record Size' | translate"
+      [tooltip]="helptext.recordsizeTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="recordsize"
+        [options]="(recordsizeOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (hasRecordsizeWarning) {
+      <div class="recordsize-warning">
+        {{ helptext.recordsizeWarning | translate: { size: minimumRecommendedRecordsize } }}
+      </div>
+    }
+
+    <tn-form-field
+      [label]="'ACL Type' | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="acltype"
+        [options]="(aclTypeOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'ACL Mode' | translate"
+      [tooltip]="helptext.aclmodeTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="aclmode"
+        [options]="(aclModeOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (!tierEnabled()) {
+      <tn-form-field
+        [label]="'Use Metadata (Special) VDEVs' | translate"
+        [tooltip]="helptext.useSpecialVdevsTooltip | translate"
+        [required]="true"
+      >
+        <tn-select
+          formControlName="special_small_block_size"
+          [options]="(specialSmallBlockSizeOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+
+      @if (form.value.special_small_block_size === OnOff.On) {
+        <tn-form-field
+          [label]="'Threshold' | translate"
+          [tooltip]="helptext.specialSmallBlocksCustomTooltip | translate"
+          [required]="true"
+        >
+          <tn-input
+            formControlName="special_small_block_size_custom"
+            [inputType]="InputType.Size"
+          ></tn-input>
+        </tn-form-field>
+      }
+    }
+  </tn-form-section>
+}

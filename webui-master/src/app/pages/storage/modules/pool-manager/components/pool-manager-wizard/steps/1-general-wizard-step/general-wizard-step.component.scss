@@ -1,0 +1,6 @@
+// Field rhythm comes from the wizard host (`pool-manager-wizard.component.scss`), which
+// spaces every `tn-form-field` inside a `tn-step`. Only the notices need spacing here.
+ix-warning {
+  display: block;
+  margin-bottom: 16px;
+}

@@ -1,0 +1,43 @@
+.card {
+  height: 100%;
+
+  .card-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+
+    .container {
+      align-items: center;
+      display: flex;
+      height: 100%;
+      overflow: hidden;
+      padding: 6px;
+    }
+  }
+}
+
+:host ::ng-deep {
+  .container {
+    img {
+      position: relative;
+      top: -4px;
+    }
+
+    &.half {
+      img {
+        width: 251px;
+      }
+    }
+
+    &.quarter {
+      img {
+        width: 80%;
+      }
+    }
+  }
+}
+
+// Replicates the legacy global "mat-card-content > div" padding from _material-reduction.scss.
+.card-content > div {
+  padding: 16px;
+}

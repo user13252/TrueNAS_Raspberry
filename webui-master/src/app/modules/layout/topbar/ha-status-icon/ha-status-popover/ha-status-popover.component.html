@@ -1,0 +1,27 @@
+<div class="panel-header">
+  <h3>{{ 'HA Status' | translate }}</h3>
+</div>
+
+<div class="panel-content">
+  @if (failoverDisabledReasons.length) {
+    <div class="status-line">
+      <tn-icon name="alert" library="mdi"></tn-icon>
+      {{ 'HA is disabled' | translate }}
+    </div>
+  } @else {
+    <div class="status-line status-line--enabled">
+      <tn-icon name="check-circle" library="mdi"></tn-icon>
+      {{ 'HA is enabled' | translate }}
+    </div>
+  }
+
+  @if (failoverDisabledReasons.length) {
+    <ul class="disabled-reasons">
+      @for (reason of failoverDisabledReasons; track reason) {
+        <li>
+          {{ ((reason | mapValue: disabledReasonExplanations) || reason) | translate }}
+        </li>
+      }
+    </ul>
+  }
+</div>

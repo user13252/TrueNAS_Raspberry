@@ -1,0 +1,439 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { Router } from '@angular/router';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import { TranslateService } from '@ngx-translate/core';
+import {
+  TnBannerHarness, TnDialog, TnEmptyHarness, TnTableHarness,
+} from '@truenas/ui-components';
+import { EMPTY, of } from 'rxjs';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { ServiceName } from 'app/enums/service-name.enum';
+import { ServiceStatus } from 'app/enums/service-status.enum';
+import { TruenasConnectStatus } from 'app/enums/truenas-connect-status.enum';
+import { ConfirmDeleteCallOptions } from 'app/interfaces/dialog.interface';
+import { Service } from 'app/interfaces/service.interface';
+import { TruenasConnectConfig } from 'app/interfaces/truenas-connect-config.interface';
+import { WebShare } from 'app/interfaces/webshare-config.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { EmptyService } from 'app/modules/empty/empty.service';
+import { BasicSearchComponent } from 'app/modules/forms/search-input/components/basic-search/basic-search.component';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SlideInResult } from 'app/modules/slide-ins/slide-in-result';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { TruenasConnectService } from 'app/modules/truenas-connect/services/truenas-connect.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { WebShareSharesFormComponent } from 'app/pages/sharing/webshare/webshare-shares-form/webshare-shares-form.component';
+import { WebShareService } from 'app/pages/sharing/webshare/webshare.service';
+import { selectService } from 'app/store/services/services.selectors';
+import { selectSystemInfo } from 'app/store/system-info/system-info.selectors';
+import { WebShareListComponent } from './webshare-list.component';
+
+describe('WebShareListComponent', () => {
+  let spectator: Spectator<WebShareListComponent>;
+  let loader: HarnessLoader;
+  let api: ApiService;
+  let formPanel: FormSidePanelService;
+  let table: TnTableHarness;
+
+  const mockWebShares: WebShare[] = [
+    { id: 1, name: 'documents', path: '/mnt/tank/documents' },
+    { id: 2, name: 'media', path: '/mnt/tank/media' },
+    { id: 3, name: 'home', path: '/mnt/tank/home' },
+  ];
+
+  const mockTruenasConnectConfig = {
+    id: 1,
+    enabled: true,
+    status: TruenasConnectStatus.Configured,
+    client_id: 'test-client-id',
+  } as unknown as TruenasConnectConfig;
+
+  const mockService: Service = {
+    id: 1,
+    service: ServiceName.WebShare,
+    state: ServiceStatus.Running,
+    enable: true,
+  } as Service;
+
+  const createComponent = createComponentFactory({
+    component: WebShareListComponent,
+    imports: [],
+    providers: [
+      mockAuth(),
+      mockApi([
+        mockCall('sharing.webshare.query', mockWebShares),
+        mockCall('sharing.webshare.delete', true),
+        mockCall('tn_connect.ips_with_hostnames', {}),
+        mockCall('interface.websocket_local_ip', '192.168.1.100'),
+      ]),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+      mockProvider(DialogService, {
+        confirmDelete: jest.fn((options: ConfirmDeleteCallOptions) => options.call()),
+      }),
+      mockProvider(SnackbarService),
+      mockProvider(EmptyService),
+      mockProvider(TnDialog),
+      mockProvider(TruenasConnectService, {
+        config$: of(mockTruenasConnectConfig),
+        config: () => mockTruenasConnectConfig,
+        openStatusModal: jest.fn(),
+      }),
+      mockProvider(TranslateService, {
+        instant: jest.fn((key: string) => key),
+        get: jest.fn(() => of({})),
+        onLangChange: of({ lang: 'en' }),
+        onTranslationChange: of({}),
+        onDefaultLangChange: of({}),
+      }),
+      provideMockStore({
+        initialState: {
+          services: {
+            ids: [],
+            entities: {},
+          },
+          preferences: {
+            preferences: {},
+          },
+        },
+        selectors: [
+          {
+            selector: selectService(ServiceName.WebShare),
+            value: mockService,
+          },
+          {
+            selector: selectSystemInfo,
+            value: { license: { features: ['WEBSHARE'] } },
+          },
+        ],
+      }),
+    ],
+  });
+
+  beforeEach(async () => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    api = spectator.inject(ApiService);
+    formPanel = spectator.inject(FormSidePanelService);
+    spectator.detectChanges();
+
+    table = await loader.getHarness(TnTableHarness);
+  });
+
+  it('should display WebShare list on load', async () => {
+    expect(await table.getRowCount()).toBe(3);
+
+    // Verify that the data provider has the correct data
+    expect(spectator.component.dataProvider).toBeDefined();
+  });
+
+  it('should open form when Add button is clicked', () => {
+    spectator.component.doAdd();
+    spectator.detectChanges();
+
+    expect(formPanel.open).toHaveBeenCalledWith(WebShareSharesFormComponent, {
+      title: 'Add WebShare',
+      inputs: {
+        webShareData: {
+          isNew: true,
+          name: '',
+          path: '',
+        },
+      },
+    });
+  });
+
+  it('should open form when Edit action is clicked', () => {
+    spectator.component.doEdit({
+      id: 1,
+      name: 'documents',
+      path: '/mnt/tank/documents',
+    });
+
+    expect(formPanel.open).toHaveBeenCalledWith(WebShareSharesFormComponent, {
+      title: 'Edit WebShare',
+      inputs: {
+        webShareData: {
+          id: 1,
+          isNew: false,
+          name: 'documents',
+          path: '/mnt/tank/documents',
+          isHomeBase: undefined,
+        },
+      },
+    });
+  });
+
+  it('should delete share when Delete action is confirmed', () => {
+    // Call the delete method directly to test delete confirmation flow
+    spectator.component.doDelete({
+      id: 1,
+      name: 'documents',
+      path: '/mnt/tank/documents',
+    });
+
+    expect(spectator.inject(DialogService).confirmDelete).toHaveBeenCalledWith({
+      title: 'Delete WebShare',
+      message: 'Are you sure you want to delete the WebShare "{name}"?<br><br>Users will no longer be able to access {path} through WebShare.',
+      call: expect.any(Function),
+      successMessage: 'WebShare deleted',
+    });
+
+    expect(api.call).toHaveBeenCalledWith('sharing.webshare.delete', [1]);
+  });
+
+  it('should not delete share when confirmation is cancelled', () => {
+    (spectator.inject(DialogService).confirmDelete as jest.Mock).mockReturnValue(EMPTY);
+
+    spectator.component.doDelete({
+      id: 1,
+      name: 'documents',
+      path: '/mnt/tank/documents',
+    });
+
+    expect(api.call).not.toHaveBeenCalledWith('sharing.webshare.delete', expect.anything());
+  });
+
+  it('should filter shares based on search query', () => {
+    const searchInput = spectator.query(BasicSearchComponent);
+    expect(searchInput).toBeTruthy();
+
+    jest.spyOn(spectator.component.dataProvider, 'setFilter');
+
+    spectator.component.onListFiltered('media');
+    spectator.detectChanges();
+
+    expect(spectator.component.dataProvider.setFilter).toHaveBeenCalledWith({
+      query: 'media',
+      columnKeys: ['name', 'path'],
+    });
+  });
+
+  it('should reload data after successful form submission', () => {
+    jest.spyOn(formPanel, 'open').mockReturnValue(SlideInResult.success(true));
+    jest.spyOn(spectator.component.dataProvider, 'load');
+
+    spectator.component.doAdd();
+    spectator.detectChanges();
+
+    expect(spectator.component.dataProvider.load).toHaveBeenCalled();
+  });
+
+  it('should sort shares by name by default', () => {
+    const sorting = spectator.component.dataProvider.sorting;
+    expect(sorting.propertyName).toBe('name');
+    expect(sorting.direction).toBe('asc');
+  });
+
+  it('should update columns when column selector changes', () => {
+    const originalColumns = [...spectator.component.columns()];
+    const newColumns = originalColumns.filter((col) => col.propertyName !== 'path');
+
+    spectator.component.onColumnsChange(newColumns);
+
+    expect(spectator.component.columns()).toEqual(newColumns);
+    expect(spectator.component.columns()).not.toBe(newColumns); // Should be a new array
+  });
+
+  it('should open TrueNAS Connect dialog', () => {
+    const tnc = spectator.inject(TruenasConnectService);
+
+    spectator.component.openTruenasConnectDialog();
+
+    expect(tnc.openStatusModal).toHaveBeenCalled();
+  });
+
+  it('should check for TrueNAS Connect before adding share', () => {
+    // Test that hasTruenasConnect$ observable is defined and accessible
+    expect(spectator.component.hasTruenasConnect$).toBeDefined();
+  });
+});
+
+describe('WebShareListComponent - TrueNAS Connect not configured', () => {
+  let spectator: Spectator<WebShareListComponent>;
+
+  const mockTruenasConnectConfigDisabled = {
+    id: 1,
+    enabled: false,
+    status: TruenasConnectStatus.Disabled,
+    client_id: 'test-client-id',
+  } as unknown as TruenasConnectConfig;
+
+  const mockService: Service = {
+    id: 1,
+    service: ServiceName.WebShare,
+    state: ServiceStatus.Running,
+    enable: true,
+  } as Service;
+
+  const createComponent = createComponentFactory({
+    component: WebShareListComponent,
+    imports: [],
+    providers: [
+      mockAuth(),
+      mockApi([
+        mockCall('sharing.webshare.query', []),
+        mockCall('tn_connect.config', mockTruenasConnectConfigDisabled),
+        mockCall('tn_connect.ips_with_hostnames', {}),
+        mockCall('interface.websocket_local_ip', '192.168.1.100'),
+      ]),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+      mockProvider(DialogService, {
+        confirmDelete: jest.fn((options: ConfirmDeleteCallOptions) => options.call()),
+      }),
+      mockProvider(SnackbarService),
+      mockProvider(EmptyService),
+      mockProvider(TnDialog),
+      mockProvider(TranslateService, {
+        instant: jest.fn((key: string) => key),
+        // Echo the key so `| translate` pipes render the source string (the pipe
+        // resolves through get(), not instant()).
+        get: jest.fn((key: string) => of(key)),
+        onLangChange: of({ lang: 'en' }),
+        onTranslationChange: of({}),
+        onDefaultLangChange: of({}),
+      }),
+      mockProvider(TruenasConnectService, {
+        config$: of(mockTruenasConnectConfigDisabled),
+        openStatusModal: jest.fn(),
+      }),
+      provideMockStore({
+        initialState: {
+          services: {
+            ids: [],
+            entities: {},
+          },
+          preferences: {
+            preferences: {},
+          },
+        },
+        selectors: [
+          {
+            selector: selectService(ServiceName.WebShare),
+            value: mockService,
+          },
+          {
+            selector: selectSystemInfo,
+            value: { license: { features: ['WEBSHARE'] } },
+          },
+        ],
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    spectator.detectChanges();
+  });
+
+  it('should show empty state when TrueNAS Connect is not configured', async () => {
+    // Assert the dedicated Connect empty state by title — tn-table renders its own
+    // internal tn-empty when the data source is empty, so a bare element query
+    // could pass even if the @if regressed to the table branch.
+    const loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    const empty = await loader.getHarness(TnEmptyHarness);
+    expect(await empty.getTitle()).toBe('WebShare service provides web-based file access.');
+  });
+});
+
+describe('WebShareListComponent - No WebShare users configured', () => {
+  let spectator: Spectator<WebShareListComponent>;
+
+  const mockTruenasConnectConfig = {
+    id: 1,
+    enabled: true,
+    status: TruenasConnectStatus.Configured,
+    client_id: 'test-client-id',
+  } as unknown as TruenasConnectConfig;
+
+  const mockService: Service = {
+    id: 1,
+    service: ServiceName.WebShare,
+    state: ServiceStatus.Running,
+    enable: true,
+  } as Service;
+
+  const createComponent = createComponentFactory({
+    component: WebShareListComponent,
+    imports: [],
+    providers: [
+      mockAuth(),
+      mockApi([
+        mockCall('sharing.webshare.query', []),
+        mockCall('tn_connect.config', mockTruenasConnectConfig),
+        mockCall('user.query', []),
+      ]),
+      mockProvider(FormSidePanelService, {
+        open: jest.fn(() => SlideInResult.empty()),
+      }),
+      mockProvider(DialogService, {
+        confirmDelete: jest.fn((options: ConfirmDeleteCallOptions) => options.call()),
+      }),
+      mockProvider(SnackbarService),
+      mockProvider(EmptyService),
+      mockProvider(TnDialog),
+      mockProvider(TruenasConnectService, {
+        config$: of(mockTruenasConnectConfig),
+        openStatusModal: jest.fn(),
+      }),
+      mockProvider(WebShareService, {
+        getWebShareTableRows: jest.fn(() => of([])),
+        transformToTableRows: jest.fn().mockReturnValue([]),
+        hasWebshareUsers$: of(false),
+        hostnameMapping$: of({ ipsWithHostnames: {}, localIp: '', hostname: undefined }),
+        isTruenasDirectDomain: true,
+        canOpenWebShare$: of(true),
+        webShareUnavailableReason$: of(null),
+      }),
+      provideMockStore({
+        initialState: {
+          services: {
+            ids: [],
+            entities: {},
+          },
+          preferences: {
+            preferences: {},
+          },
+        },
+        selectors: [
+          {
+            selector: selectService(ServiceName.WebShare),
+            value: mockService,
+          },
+          {
+            selector: selectSystemInfo,
+            value: { license: { features: ['WEBSHARE'] } },
+          },
+        ],
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    spectator.detectChanges();
+  });
+
+  it('should show info message when no users have WebShare access configured', async () => {
+    const loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    const banners = await loader.getAllHarnesses(
+      TnBannerHarness.with({ textContains: 'It appears you have no users configured to access WebShare.' }),
+    );
+    expect(banners).toHaveLength(1);
+  });
+
+  it('should navigate to users page when info message is clicked', () => {
+    const router = spectator.inject(Router);
+    jest.spyOn(router, 'navigate').mockReturnValue(Promise.resolve(true));
+
+    spectator.click('tn-banner');
+
+    expect(router.navigate).toHaveBeenCalledWith(['/credentials', 'users']);
+  });
+});

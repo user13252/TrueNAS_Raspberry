@@ -1,0 +1,109 @@
+<ix-page-header [loading]="!!(dataProvider.isLoading$ | async)">
+  <ix-basic-search
+    [query]="searchQuery()"
+    (queryChange)="onListFiltered($event)"
+  ></ix-basic-search>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    [testId]="'bootenv-stats'"
+    [label]="'Stats/Settings' | translate"
+    [ixUiSearch]="searchableElements.elements.stats"
+    (onClick)="openBootenvStats()"
+  ></tn-button>
+
+  <tn-button
+    [testId]="'bootenv-status'"
+    [label]="'Boot Pool Status' | translate"
+    [routerLink]="['/', 'system', 'boot', 'status']"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    [testId]="'bootenv-scrub'"
+    [label]="'Scrub Boot Pool' | translate"
+    [ixUiSearch]="searchableElements.elements.scrubBootPool"
+    (onClick)="doScrub()"
+  ></tn-button>
+</ix-page-header>
+
+@if (selectedBootenvs().length) {
+  <div class="batch-actions-toolbar">
+    <div class="title">
+      <strong>{{ 'Batch Operations' | translate }}</strong>
+    </div>
+    <div class="actions">
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        icon="mdi-delete"
+        [testId]="'delete'"
+        [label]="'Delete' | translate"
+        [disabled]="!selectionHasItems()"
+        (onClick)="doDelete(selectedBootenvs())"
+      ></tn-button>
+    </div>
+  </div>
+}
+
+@if (!(dataProvider.currentPageCount$ | async) && !(dataProvider.isLoading$ | async)) {
+  @let emptyType = dataProvider.emptyType$ | async;
+  <tn-empty
+    [ixUiSearch]="searchableElements.elements.boot"
+    [title]="emptyService.titleForType(emptyType)"
+    [description]="emptyService.descriptionForType(emptyType)"
+  ></tn-empty>
+} @else {
+  <tn-table
+    class="table"
+    [ixUiSearch]="searchableElements.elements.boot"
+    [dataSource]="(dataProvider.currentPage$ | async) ?? []"
+    [displayedColumns]="displayedColumns"
+    [trackBy]="trackByBootenvId"
+    [selectable]="true"
+    [loading]="!!(dataProvider.isLoading$ | async)"
+    [(sortColumn)]="sortColumn"
+    [(sortDirection)]="sortDirection"
+    (selectionChange)="onSelectionChange($event)"
+    (sortChange)="onSortChange($event)"
+  >
+    <ng-container [tnColumnDef]="'id'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Name' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.id }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'active'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Active' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ activeLabel(row) }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'created'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Date Created' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.created.$date | formatDateTime }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'used_bytes'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Used Space' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.used_bytes | ixFileSize }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'keep'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Keep' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>{{ row.keep | yesNo | translate }}</ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'actions'" [width]="'160px'">
+      <ng-template tnHeaderCellDef></ng-template>
+      <ng-template let-row tnCellDef>
+        <ix-table-actions-cell
+          mode="inline"
+          [actions]="actions"
+          [row]="row"
+          [uniqueRowTag]="uniqueRowTag(row)"
+          [ariaLabel]="ariaLabel(row)"
+        ></ix-table-actions-cell>
+      </ng-template>
+    </ng-container>
+  </tn-table>
+}
+
+<tn-table-pager [dataProvider]="dataProvider"></tn-table-pager>

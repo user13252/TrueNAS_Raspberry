@@ -1,0 +1,34 @@
+@import 'scss-imports/variables';
+
+.license-info {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+
+  .title {
+    font-weight: bold;
+    height: 100%;
+  }
+
+  .info {
+    width: 100%;
+  }
+
+  div {
+    span {
+      display: inline-block;
+    }
+  }
+}
+
+.hostname {
+  text-align: center;
+}
+
+.use-enterprise {
+  min-height: calc(48px * 2);
+
+  @media (max-width: $breakpoint-sm) {
+    min-height: calc(48px * 1.2);
+  }
+}

@@ -1,0 +1,12 @@
+<div
+  class="logo-container"
+  [class.logo-loaded]="wasLogoLoaded()"
+>
+  <img
+    class="logo"
+    [offset]="800"
+    [lazyLoad]="url()"
+    [defaultImage]="appImagePlaceholder"
+    (onStateChange)="onLogoLoaded($event)"
+  >
+</div>

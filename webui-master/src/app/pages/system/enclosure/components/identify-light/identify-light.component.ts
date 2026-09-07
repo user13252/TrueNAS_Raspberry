@@ -1,0 +1,65 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnIconComponent } from '@truenas/ui-components';
+import { EMPTY } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { DriveBayLightStatus } from 'app/enums/enclosure-slot-status.enum';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { EnclosureStore } from 'app/pages/system/enclosure/services/enclosure.store';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-identify-light',
+  templateUrl: './identify-light.component.html',
+  styleUrls: ['./identify-light.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnIconComponent,
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+export class IdentifyLightComponent {
+  private api = inject(ApiService);
+  private errorHandler = inject(ErrorHandlerService);
+  private store = inject(EnclosureStore);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly isStatusKnown = computed(() => Boolean(this.status()));
+  protected readonly status = computed(() => this.store.selectedSlot()?.drive_bay_light_status);
+
+  protected readonly DriveBayLightStatus = DriveBayLightStatus;
+
+  protected changeLightStatus(newStatus: DriveBayLightStatus): void {
+    const slot = this.store.selectedSlot();
+    const enclosure = this.store.selectedEnclosure();
+    const oldStatus = this.status();
+
+    this.store.changeLightStatus({
+      status: newStatus,
+      enclosureId: enclosure.id,
+      driveBayNumber: slot.drive_bay_number,
+    });
+
+    this.api.call('enclosure2.set_slot_status', [{
+      status: newStatus,
+      enclosure_id: enclosure.id,
+      slot: slot.drive_bay_number,
+    }])
+      .pipe(
+        catchError((error: unknown) => {
+          this.errorHandler.showErrorModal(error);
+          this.store.changeLightStatus({
+            status: oldStatus,
+            enclosureId: enclosure.id,
+            driveBayNumber: slot.drive_bay_number,
+          });
+
+          return EMPTY;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+  }
+}

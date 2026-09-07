@@ -1,0 +1,33 @@
+:host {
+  display: block;
+  width: 520px;
+
+  .loading {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+  }
+}
+
+.radio-option {
+  margin-bottom: 8px;
+
+  .radio-option-hint {
+    color: var(--fg2);
+    font-size: 12px;
+    margin: 0 0 0 32px;
+  }
+}
+
+.form-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.form-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  justify-content: flex-end;
+}

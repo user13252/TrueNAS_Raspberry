@@ -1,0 +1,11 @@
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+
+export * from './iscsi/iscsi';
+export * from './nfs/nfs';
+export * from './s3/s3';
+export * from './smb/smb';
+
+export const shared = {
+  deleteShareMessage: T('The sharing configuration will be removed.\
+ Data in the share dataset will not be affected.'),
+};

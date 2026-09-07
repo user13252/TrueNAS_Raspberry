@@ -1,0 +1,183 @@
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+import { TranslateService } from '@ngx-translate/core';
+import {
+  AuditEvent, AuditService, WebshellType, webshellTypeLabels,
+} from 'app/enums/audit.enum';
+import { assertUnreachable } from 'app/helpers/assert-unreachable.utils';
+import { AuditEntry } from 'app/interfaces/audit/audit.interface';
+import {
+  MiddlewareAuditEntry,
+  MiddlewareWebshellEventData,
+} from 'app/interfaces/audit/middleware-audit-entry.interface';
+import { SmbAuditEntry } from 'app/interfaces/audit/smb-audit-entry.interface';
+import { SudoAuditEntry } from 'app/interfaces/audit/sudo-audit-entry.interface';
+import { SystemAuditEntry } from 'app/interfaces/audit/system-audit-entry.interface';
+import { credentialTypeLabels } from 'app/interfaces/credential-type.interface';
+
+export function getLogImportantData(log: AuditEntry, translate: TranslateService): string {
+  const service = log.service;
+
+  switch (service) {
+    case AuditService.Middleware:
+      return getMiddlewareLogImportantData(log, translate);
+    case AuditService.Smb:
+      return getSmbLogImportantData(log, translate);
+    case AuditService.Sudo:
+      return getSudoLogImportantData(log, translate);
+    case AuditService.System:
+      return getSystemLogImportantData(log, translate);
+    default:
+      assertUnreachable(service);
+      return ' - ';
+  }
+}
+
+function getMiddlewareLogImportantData(log: MiddlewareAuditEntry, translate: TranslateService): string {
+  const event = log.event;
+  switch (event) {
+    case AuditEvent.MethodCall:
+      return log.event_data?.description || log.event_data?.method;
+    case AuditEvent.Reboot:
+      return log.event_data?.reason;
+    case AuditEvent.Logout:
+    case AuditEvent.Authentication: {
+      const credentialType = log.event_data?.credentials?.credentials;
+      const credentialTypeLabel = translate.instant(credentialTypeLabels.get(credentialType) || credentialType);
+
+      if (log.event_data?.error) {
+        return translate.instant(T('Failed Authentication: {credentials}'), {
+          credentials: credentialType ? credentialTypeLabel : credentialType,
+        });
+      }
+
+      return translate.instant(T('Credentials: {credentials}'), {
+        credentials: credentialType ? credentialTypeLabel : credentialType,
+      });
+    }
+    case AuditEvent.WebshellAuthentication:
+    case AuditEvent.WebshellLogout:
+      return getWebshellImportantData(log.event_data, event, translate);
+    default:
+      assertUnreachable(event);
+      return ' - ';
+  }
+}
+
+function getWebshellImportantData(
+  eventData: MiddlewareWebshellEventData,
+  event: AuditEvent.WebshellAuthentication | AuditEvent.WebshellLogout,
+  translate: TranslateService,
+): string {
+  const shellType = eventData.shell_type;
+  const shellTypeLabel = translate.instant(webshellTypeLabels.get(shellType) ?? shellType);
+  const targetIdentifier = getWebshellTargetIdentifier(shellType, eventData.target);
+  const params = { shellType: shellTypeLabel, target: targetIdentifier, username: eventData.username };
+
+  if (event === AuditEvent.WebshellLogout) {
+    return targetIdentifier
+      ? translate.instant(T('Shell Logout: {shellType} ({target}) | User: {username}'), params)
+      : translate.instant(T('Shell Logout: {shellType} | User: {username}'), params);
+  }
+
+  if (eventData.error) {
+    return targetIdentifier
+      ? translate.instant(T('Failed Shell Authentication: {shellType} ({target}) | User: {username}'), params)
+      : translate.instant(T('Failed Shell Authentication: {shellType} | User: {username}'), params);
+  }
+
+  return targetIdentifier
+    ? translate.instant(T('Shell: {shellType} ({target}) | User: {username}'), params)
+    : translate.instant(T('Shell: {shellType} | User: {username}'), params);
+}
+
+function getWebshellTargetIdentifier(
+  shellType: WebshellType,
+  target: MiddlewareWebshellEventData['target'],
+): string | undefined {
+  switch (shellType) {
+    case WebshellType.App:
+    case WebshellType.Container:
+      return target?.app_name ?? target?.container_id;
+    case WebshellType.Vm:
+      return target?.vm_name;
+    case WebshellType.Host:
+      return undefined;
+    default:
+      assertUnreachable(shellType);
+      return undefined;
+  }
+}
+
+function getSudoLogImportantData(log: SudoAuditEntry, translate: TranslateService): string {
+  const event = log.event;
+  switch (event) {
+    case AuditEvent.Accept:
+      return translate.instant(T('Command: {command}'), { command: log.event_data?.sudo.accept.command });
+    case AuditEvent.Reject:
+      return translate.instant(T('Command: {command}'), { command: log.event_data?.sudo.reject.command });
+    default:
+      assertUnreachable(event);
+      return ' - ';
+  }
+}
+
+function getSystemLogImportantData(log: SystemAuditEntry, translate: TranslateService): string {
+  const event = log.event;
+  switch (event) {
+    case AuditEvent.Generic:
+    case AuditEvent.Escalation:
+    case AuditEvent.Privileged:
+    case AuditEvent.Export:
+    case AuditEvent.Identity:
+    case AuditEvent.TimeChange:
+    case AuditEvent.ModuleLoad:
+    case AuditEvent.Login:
+      return translate.instant(T('Command: {command}'), {
+        command: log.event_data?.proctitle ?? '-',
+      });
+
+    case AuditEvent.Credential:
+      return translate.instant(
+        T('Action: {actionName} | User: {user}'),
+        { path: log.event_data?.auth_action ?? '-', user: log.event_data?.username ?? '-' },
+      );
+
+    case AuditEvent.Service:
+      return translate.instant(T('Action: {actionName}'), { actionName: log.event_data?.service_action ?? '-' });
+
+    case AuditEvent.TtyRecord:
+      return translate.instant(T('User: {userName}'), { user: log.event_data?.tty_record?.username ?? '-' });
+
+    default:
+      assertUnreachable(event);
+      return '-';
+  }
+}
+
+function getSmbLogImportantData(log: SmbAuditEntry, translate: TranslateService): string {
+  const event = log.event;
+  switch (event) {
+    case AuditEvent.Rename:
+      return `${log.event_data?.src_file?.path} -> ${log.event_data?.dst_file?.path}`;
+    case AuditEvent.Authentication:
+      return translate.instant(T('Account: {account}'), { account: log.event_data?.clientAccount });
+    case AuditEvent.Connect:
+    case AuditEvent.Disconnect:
+      return translate.instant(T('Host: {host}'), { host: log.event_data?.host });
+    case AuditEvent.Create:
+    case AuditEvent.Unlink:
+      return translate.instant(T('File: {filename}'), { filename: log.event_data?.file?.path });
+    case AuditEvent.Close:
+    case AuditEvent.Read:
+    case AuditEvent.Write:
+    case AuditEvent.OffloadRead:
+    case AuditEvent.OffloadWrite:
+    case AuditEvent.SetAcl:
+    case AuditEvent.SetAttr:
+    case AuditEvent.SetQuota:
+      return translate.instant(T('File: {filename}'), { filename: `${log.event_data?.file?.handle?.type}/${log.event_data?.file?.handle?.value}` });
+    default:
+      assertUnreachable(event);
+      return ' - ';
+  }
+}

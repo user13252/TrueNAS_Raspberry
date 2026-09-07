@@ -1,0 +1,311 @@
+import {
+  ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, effect, inject, untracked,
+} from '@angular/core';
+import { Store } from '@ngrx/store';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnIconComponent, TnIconButtonComponent, TnButtonComponent, TnSlideToggleComponent, TnTooltipDirective,
+  TnTestIdDirective,
+} from '@truenas/ui-components';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { MockConfigFormComponent } from 'app/modules/websocket-debug-panel/components/mock-config/mock-config-form/mock-config-form.component';
+import { WebSocketDebugError } from 'app/modules/websocket-debug-panel/interfaces/error.types';
+import {
+  MockConfig,
+  isErrorResponse, isSuccessResponse,
+} from 'app/modules/websocket-debug-panel/interfaces/mock-config.interface';
+import {
+  addMockConfig, clearPrefilledMockConfig, deleteMockConfig, toggleMockConfig, exportMockConfigs,
+} from 'app/modules/websocket-debug-panel/store/websocket-debug.actions';
+import { PrefilledMockConfig } from 'app/modules/websocket-debug-panel/store/websocket-debug.reducer';
+import { selectMockConfigs, selectPrefilledMockConfig } from 'app/modules/websocket-debug-panel/store/websocket-debug.selectors';
+
+// Constants for configuration display
+const maxStringPreviewLength = 50;
+const maxObjectKeysPreview = 3;
+
+@Component({
+  selector: 'ix-mock-config-list',
+  standalone: true,
+  imports: [
+    TnButtonComponent,
+    TnSlideToggleComponent,
+    TnTooltipDirective,
+    TnTestIdDirective,
+    TranslateModule,
+    TnIconComponent,
+    TnIconButtonComponent,
+    MockConfigFormComponent,
+  ],
+  templateUrl: './mock-config-list.component.html',
+  styleUrls: ['./mock-config-list.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class MockConfigListComponent {
+  private readonly store = inject(Store);
+  private readonly dialog = inject(DialogService);
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  protected readonly mockConfigs = this.store.selectSignal(selectMockConfigs);
+  protected readonly prefilledConfig = this.store.selectSignal(selectPrefilledMockConfig);
+  protected showForm = false;
+  protected editingConfig: MockConfig | null = null;
+  protected prefilledMockData: PrefilledMockConfig | null = null;
+
+  protected readonly hasEnabledMocks = computed(() => {
+    return this.mockConfigs().some((config) => config.enabled);
+  });
+
+  constructor() {
+    effect(() => {
+      const prefilled = this.prefilledConfig();
+      if (prefilled) {
+        untracked(() => {
+          this.prefilledMockData = prefilled;
+          this.editingConfig = null;
+          this.showForm = true;
+          this.cdr.markForCheck();
+        });
+      }
+    });
+  }
+
+  protected toggleConfig(id: string): void {
+    this.store.dispatch(toggleMockConfig({ id }));
+  }
+
+  protected deleteConfig(id: string): void {
+    this.store.dispatch(deleteMockConfig({ id }));
+  }
+
+  protected editConfig(config: MockConfig): void {
+    this.editingConfig = config;
+    this.showForm = true;
+  }
+
+  protected addNewConfig(): void {
+    this.editingConfig = null;
+    this.prefilledMockData = null;
+    this.showForm = true;
+  }
+
+  protected onFormSubmit(config: MockConfig): void {
+    if (this.editingConfig) {
+      // Form component handles the update
+    } else {
+      this.store.dispatch(addMockConfig({ config }));
+    }
+    this.showForm = false;
+    this.editingConfig = null;
+    this.prefilledMockData = null;
+    this.store.dispatch(clearPrefilledMockConfig());
+  }
+
+  protected onFormCancel(): void {
+    this.showForm = false;
+    this.editingConfig = null;
+    this.prefilledMockData = null;
+    this.store.dispatch(clearPrefilledMockConfig());
+  }
+
+  protected exportConfigs(): void {
+    this.store.dispatch(exportMockConfigs());
+  }
+
+  protected importConfigs(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      try {
+        const content = loadEvent.target?.result;
+        if (typeof content !== 'string') {
+          throw new WebSocketDebugError(
+            'File content is not a string',
+            'INVALID_FILE_CONTENT',
+          );
+        }
+
+        let configs: unknown;
+        try {
+          configs = JSON.parse(content);
+        } catch (parseError) {
+          throw new WebSocketDebugError(
+            'Invalid JSON format in imported file',
+            'INVALID_JSON_FORMAT',
+            parseError,
+          );
+        }
+
+        // Validate that configs is an array
+        if (!Array.isArray(configs)) {
+          throw new WebSocketDebugError(
+            'Imported data must be an array of mock configurations',
+            'INVALID_CONFIG_FORMAT',
+          );
+        }
+
+        // Validate each config has required properties and handle backward compatibility
+        const validConfigs = configs
+          .filter((config: unknown): config is Record<string, unknown> => {
+            return typeof config === 'object' && config !== null
+              && 'methodName' in config && typeof config.methodName === 'string'
+              && 'response' in config && typeof config.response === 'object';
+          })
+          .map((config): MockConfig => {
+            const response = config.response as Record<string, unknown>;
+            // Handle backward compatibility for configs without 'type' field
+            if (!response.type) {
+              return {
+                ...config,
+                response: {
+                  type: 'success' as const,
+                  result: response.result ?? null,
+                  delay: response.delay as number | undefined,
+                },
+              } as MockConfig;
+            }
+            return config as unknown as MockConfig;
+          });
+
+        if (validConfigs.length === 0) {
+          throw new WebSocketDebugError(
+            'No valid mock configurations found in file',
+            'NO_VALID_CONFIGS',
+          );
+        }
+
+        if (validConfigs.length < configs.length) {
+          console.warn(`Skipped ${configs.length - validConfigs.length} invalid configurations`);
+        }
+
+        validConfigs.forEach((config) => {
+          this.store.dispatch(addMockConfig({ config }));
+        });
+
+        this.dialog.info(
+          'Import Successful',
+          `Imported ${validConfigs.length} mock configuration(s)`,
+        );
+      } catch (error) {
+        const debugError = error instanceof WebSocketDebugError
+          ? error
+          : new WebSocketDebugError(
+              'Failed to import mock configurations',
+              'IMPORT_ERROR',
+              error,
+            );
+        console.error(debugError.message, debugError);
+
+        this.dialog.error({ title: 'Import Failed', message: debugError.message });
+      }
+    };
+
+    reader.onerror = () => {
+      const error = new WebSocketDebugError(
+        'Failed to read file',
+        'FILE_READ_ERROR',
+      );
+      console.error(error.message);
+      this.dialog.error({ title: 'File Read Error', message: 'Could not read the selected file' });
+    };
+
+    reader.readAsText(file);
+  }
+
+  protected getConfigDescription(config: MockConfig): string {
+    const parts = this.buildDescriptionParts(config);
+    return parts.length > 0 ? parts.join(' • ') : 'Empty response';
+  }
+
+  protected getResponseTypeLabel(config: MockConfig): string {
+    return config.response?.type === 'error' ? 'Error' : 'Success';
+  }
+
+  private buildDescriptionParts(config: MockConfig): string[] {
+    const parts: string[] = [];
+    const hasEvents = config.events && config.events.length > 0;
+
+    if (hasEvents && config.events) {
+      parts.push(`${config.events.length} events`);
+    }
+
+    // Handle different response types
+    if (config.response && isErrorResponse(config.response)) {
+      parts.push(`Error: ${config.response.error?.message || 'Unknown error'}`);
+      if (config.response.error?.code) {
+        parts.push(`Code: ${config.response.error.code}`);
+      }
+    } else if (config.response && isSuccessResponse(config.response)) {
+      const responsePreview = this.getResponsePreview(config.response.result);
+      if (responsePreview) {
+        parts.push(responsePreview);
+      }
+    }
+
+    if (config.response?.delay) {
+      parts.push(`${config.response.delay}ms delay`);
+    }
+
+    if (config.messagePattern) {
+      parts.push(`pattern: ${config.messagePattern}`);
+    }
+
+    return parts;
+  }
+
+  private getResponsePreview(result: unknown): string {
+    if (result === undefined) {
+      return '';
+    }
+
+    if (result === null) {
+      return 'null';
+    }
+
+    if (typeof result === 'string') {
+      return this.getStringPreview(result);
+    }
+
+    if (typeof result === 'number' || typeof result === 'boolean') {
+      return String(result);
+    }
+
+    if (Array.isArray(result)) {
+      return `Array[${result.length}]`;
+    }
+
+    if (typeof result === 'object') {
+      return this.getObjectPreview(result as Record<string, unknown>);
+    }
+
+    return typeof result;
+  }
+
+  private getStringPreview(str: string): string {
+    if (str.length > maxStringPreviewLength) {
+      return `"${str.substring(0, maxStringPreviewLength)}..."`;
+    }
+    return `"${str}"`;
+  }
+
+  private getObjectPreview(obj: Record<string, unknown>): string {
+    try {
+      const keys = Object.keys(obj);
+      if (keys.length === 0) {
+        return '{}';
+      }
+
+      if (keys.length <= maxObjectKeysPreview) {
+        return `{${keys.join(', ')}}`;
+      }
+
+      return `{${keys.slice(0, maxObjectKeysPreview).join(', ')}, ...}`;
+    } catch {
+      // Handle edge cases where Object.keys might fail
+      return '{...}';
+    }
+  }
+}

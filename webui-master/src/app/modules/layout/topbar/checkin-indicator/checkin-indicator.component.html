@@ -1,0 +1,15 @@
+@if (hasPendingNetworkChanges$ | async) {
+  <tn-icon-button
+    id="network"
+    class="topbar-button-right"
+    name="hub"
+    library="mdi"
+    size="lg"
+    iconClass="movement"
+    testId="has-pending-network-changes"
+    [dense]="true"
+    [tooltip]="tooltips.pendingNetworkChanges | translate"
+    [ariaLabel]="tooltips.pendingNetworkChanges | translate"
+    (onClick)="showNetworkChangesDialog()"
+  ></tn-icon-button>
+}

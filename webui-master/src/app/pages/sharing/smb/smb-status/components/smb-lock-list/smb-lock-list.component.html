@@ -1,0 +1,78 @@
+<tn-card [padContent]="false">
+  <h3 tnCardHeader class="tn-card__title">{{ 'Locks' | translate }}</h3>
+
+  <ng-template tnCardHeaderActions>
+    <div class="actions">
+      <ix-basic-search [query]="searchQuery()" (queryChange)="onListFiltered($event)"></ix-basic-search>
+
+      <ix-table-column-picker
+        [columns]="columns()"
+        [columnPreferencesKey]="'smbLockList'"
+        (columnsChange)="onColumnsChange($event)"
+      ></ix-table-column-picker>
+
+      <tn-button
+        color="primary"
+        [testId]="'refresh-data'"
+        [label]="'Refresh' | translate"
+        (onClick)="loadData()"
+      ></tn-button>
+    </div>
+  </ng-template>
+
+  <tn-table
+    class="table"
+    [testId]="'table-table'"
+    [expandable]="true"
+    [dataSource]="rows()"
+    [displayedColumns]="displayedColumns()"
+    [trackBy]="trackByLock"
+    [loading]="isLoading()"
+    [emptyMessage]="emptyService.titleForType(emptyType())"
+    [emptyDescription]="emptyService.descriptionForType(emptyType())"
+    [emptyIcon]="emptyService.iconForType(emptyType())"
+    (sortChange)="onSortChange($event)"
+  >
+    <ng-container [tnColumnDef]="'service_path'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Path' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Path' | translate), uniqueRowTag(row), 'row-text']">{{ row.service_path }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'filename'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Filename' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Filename' | translate), uniqueRowTag(row), 'row-text']">{{ row.filename }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'fileid'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'File ID' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('File ID' | translate), uniqueRowTag(row), 'row-text']">{{ getFileId(row) }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'opens'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Open Files' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Open Files' | translate), uniqueRowTag(row), 'row-text']">{{ getOpenFilesLabel(row) }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'num_pending_deletes'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Num Pending Deletes' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Num Pending Deletes' | translate), uniqueRowTag(row), 'row-text']">
+          {{ row.num_pending_deletes }}
+        </span>
+      </ng-template>
+    </ng-container>
+
+    <ng-template let-lock tnDetailRowDef>
+      <ix-smb-open-files [lock]="lock"></ix-smb-open-files>
+    </ng-template>
+  </tn-table>
+  <tn-table-pager [dataProvider]="dataProvider"></tn-table-pager>
+</tn-card>

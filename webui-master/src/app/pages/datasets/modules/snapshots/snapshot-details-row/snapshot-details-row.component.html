@@ -1,0 +1,105 @@
+<dl class="details">
+  <div class="details-row">
+    <dt>{{ 'Used' | translate }}:</dt>
+    @if (isLoading) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      <dd>
+        @if (usedBytes !== undefined) {
+          {{ usedBytes | ixFileSize }}
+        } @else {
+          {{ 'N/A' | translate }}
+        }
+      </dd>
+    }
+  </div>
+  <div class="details-row">
+    <dt>{{ 'Date created' | translate }}:</dt>
+    @if (isLoading) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      <dd>
+        @if (creationTimestampMs !== undefined) {
+          <ix-date [date]="creationTimestampMs"></ix-date>
+        } @else {
+          {{ 'N/A' | translate }}
+        }
+      </dd>
+    }
+  </div>
+  <div class="details-row">
+    <dt>{{ 'Referenced' | translate }}:</dt>
+    @if (isLoading) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      <dd>
+        @if (referencedBytes !== undefined) {
+          {{ referencedBytes | ixFileSize }}
+        } @else {
+          {{ 'N/A' | translate }}
+        }
+      </dd>
+    }
+  </div>
+  <div class="details-row">
+    <dt>{{ 'Retention' | translate }}:</dt>
+    @if (isLoading) {
+      <ngx-skeleton-loader></ngx-skeleton-loader>
+    } @else {
+      <dd>
+        @if (snapshotInfo?.retention?.datetime?.$date) {
+          @if (snapshotInfo?.retention?.periodic_snapshot_task_id) {
+            {{ 'Will be automatically destroyed at {datetime} by periodic snapshot task' | translate:
+            { datetime: snapshotInfo.retention.datetime.$date | formatDateTime } }}
+          }
+          @if (!snapshotInfo?.retention?.periodic_snapshot_task_id) {
+            {{ 'Is planned to be automatically destroyed at {datetime}' | translate:
+            { datetime: snapshotInfo.retention.datetime.$date | formatDateTime } }}
+          }
+        }
+        @if (!snapshotInfo?.retention?.datetime?.$date) {
+          {{ 'Will not be destroyed automatically' | translate }}
+        }
+      </dd>
+    }
+  </div>
+  <ng-container *ixRequiresRoles="requiredRoles">
+    <tn-checkbox
+      [formControl]="holdControl"
+      [testId]="'hold'"
+      [label]="'Hold' | translate"
+    ></tn-checkbox>
+  </ng-container>
+</dl>
+
+<tn-divider></tn-divider>
+
+<div class="actions">
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    [testId]="['clone', snapshot().snapshot_name]"
+    [label]="'Clone To New Dataset' | translate"
+    (onClick)="doClone(snapshot())"
+  ></tn-button>
+
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    [testId]="['rollback', snapshot().snapshot_name]"
+    [label]="'Rollback' | translate"
+    (onClick)="doRollback(snapshot())"
+  ></tn-button>
+
+  <span
+    [tnTooltip]="'Snapshots must not have dependent clones' | translate"
+    [tnTooltipDisabled]="!hasClones"
+  >
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      [testId]="['delete', snapshot().snapshot_name]"
+      [label]="'Delete' | translate"
+      [disabled]="hasClones"
+      (onClick)="doDelete(snapshot())"
+    ></tn-button>
+  </span>
+</div>
+

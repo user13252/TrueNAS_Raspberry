@@ -1,0 +1,72 @@
+:host ::ng-deep {
+  @import '@xterm/xterm/css/xterm';
+}
+
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.terminal-wrapper {
+  background: black;
+  flex: 1 1 auto;
+  margin-left: 8px;
+  margin-right: 8px;
+  min-height: 0;
+  padding: 10px 0 10px 10px;
+  position: relative;
+}
+
+#terminal {
+  height: 100%;
+
+  &.terminal-dimmed {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+}
+
+.terminal-busy-overlay {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 10;
+
+  .busy-content {
+    align-items: center;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+
+    p {
+      font-size: 14px;
+      line-height: 1.4;
+      margin: 0;
+      max-width: 300px;
+    }
+  }
+}
+
+.font-size-controls {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+
+  button {
+    color: var(--fg1);
+
+    &:disabled {
+      opacity: 0.5;
+    }
+  }
+}
+

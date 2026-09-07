@@ -1,0 +1,16 @@
+github_checks:
+  annotations: false
+ignore:
+  - "**/*.module.ts"
+  - "**/*.routing.ts"
+  - "src/environments/*"
+  - "src/*"
+coverage:
+  status:
+    patch:
+      default:
+        target: 75%
+        base: auto
+    project:
+      default:
+        informational: true

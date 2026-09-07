@@ -1,0 +1,27 @@
+<tn-dialog-shell testId="redirect" [title]="data.title | translate">
+  <div class="message-content">
+    <span [innerHTML]="data.message | translate"></span>
+  </div>
+  <input #el class="invisible" type="text" tnTestIdType="input" [tnTestId]="'url'" [value]="data.url" />
+
+  <div tnDialogAction>
+    <tn-button
+      variant="outline"
+      testId="cancel"
+      [label]="'Cancel' | translate"
+      (onClick)="dialogRef.close(false)"
+    ></tn-button>
+    <tn-button
+      variant="outline"
+      testId="copy-url"
+      [label]="'Copy URL' | translate"
+      (onClick)="copyToClipboard()"
+    ></tn-button>
+    <tn-button
+      color="primary"
+      testId="continue"
+      [label]="'Continue' | translate"
+      (onClick)="dialogRef.close(true)"
+    ></tn-button>
+  </div>
+</tn-dialog-shell>

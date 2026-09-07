@@ -1,0 +1,759 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { Spectator, createComponentFactory, mockProvider } from '@ngneat/spectator/jest';
+import {
+  TnBannerHarness, TnButtonHarness, TnCheckboxGroupHarness, TnCheckboxHarness, TnInputHarness,
+  TnSelectHarness, TnDialog,
+} from '@truenas/ui-components';
+import { of } from 'rxjs';
+import { fakeSuccessfulJob } from 'app/core/testing/utils/fake-job.utils';
+import { mockCall, mockApi, mockJob } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import {
+  ContainerCapabilitiesPolicy, ContainerDeviceType, ContainerIdmapType, ContainerStatus,
+} from 'app/enums/container.enum';
+import { AvailableUsb, Container } from 'app/interfaces/container.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { ixFormTestingProviders } from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ContainerFormComponent } from 'app/pages/containers/components/container-form/container-form.component';
+import { ContainersStore } from 'app/pages/containers/stores/containers.store';
+
+describe('ContainerFormComponent', () => {
+  let spectator: Spectator<ContainerFormComponent>;
+  let loader: HarnessLoader;
+
+  beforeAll(() => {
+    Object.defineProperty(global, 'crypto', {
+      value: {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        randomUUID: () => 'test-uuid-456',
+      },
+    });
+  });
+
+  const existingContainer: Container = {
+    id: 1,
+    uuid: 'test-uuid-123',
+    name: 'test-container',
+    description: 'Test description',
+    cpuset: '0-1',
+    autostart: true,
+    time: 'local',
+    shutdown_timeout: 30,
+    dataset: 'pool1/containers/test-container',
+    init: '/sbin/init',
+    initdir: '/root',
+    initenv: { TEST: 'value' },
+    inituser: 'root',
+    initgroup: 'root',
+    idmap: { type: ContainerIdmapType.Default },
+    capabilities_policy: ContainerCapabilitiesPolicy.Default,
+    capabilities_state: {},
+    status: {
+      state: ContainerStatus.Running,
+      pid: 1234,
+      domain_state: null,
+    },
+  };
+
+  const createdContainer: Container = {
+    ...existingContainer,
+    id: 1,
+    name: 'new-container',
+  };
+
+  const createComponent = createComponentFactory({
+    component: ContainerFormComponent,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    providers: [
+      mockAuth(),
+      mockApi([
+        mockCall('container.pool_choices', { pool1: 'pool1', pool2: 'pool2' }),
+        mockCall('lxc.config', {
+          bridge: 'lxdbr0',
+          v4_network: null,
+          v6_network: null,
+          preferred_pool: 'pool1',
+        }),
+        mockJob('container.create', fakeSuccessfulJob(createdContainer)),
+        mockCall('container.update', existingContainer),
+        mockCall('container.get_instance', existingContainer),
+        mockCall('lxc.bridge_choices', { '[AUTO]': 'Automatic', lxdbr0: 'lxdbr0' }),
+        mockCall('container.query', []),
+        mockCall('container.device.usb_choices', {
+          usb_1_1: {
+            capability: { vendor_id: '0x046d', product_id: '0x0825' },
+            available: true,
+            description: 'Web Cam by Logitech',
+          } as AvailableUsb,
+        }),
+        mockCall('container.device.create'),
+      ]),
+      mockProvider(ContainersStore, {
+        reload: jest.fn(),
+      }),
+      mockProvider(TnDialog, {
+        open: jest.fn(() => ({
+          closed: of({
+            name: 'ubuntu',
+            version: '22.04',
+          }),
+        })),
+      }),
+      mockProvider(DialogService, {
+        jobDialog: jest.fn(() => ({
+          afterClosed: () => of({ result: createdContainer }),
+        })),
+      }),
+      mockProvider(Router, {
+        navigate: jest.fn(),
+      }),
+      mockProvider(SnackbarService, {
+        success: jest.fn(),
+      }),
+      ...ixFormTestingProviders(),
+    ],
+  });
+
+  const getInput = (formControlName: string): Promise<TnInputHarness> => loader.getHarness(
+    TnInputHarness.with({ selector: `[formControlName="${formControlName}"]` }),
+  );
+
+  const getSelect = (formControlName: string): Promise<TnSelectHarness> => loader.getHarness(
+    TnSelectHarness.with({ selector: `[formControlName="${formControlName}"]` }),
+  );
+
+  /**
+   * The Advanced/Basic toggle and Save live in the `<tn-side-panel>` footer, not in the form,
+   * so both are driven through the host-facing surface the panel container uses.
+   */
+  const toggleAdvanced = async (): Promise<void> => {
+    spectator.component.footerActions[0].onClick();
+    spectator.detectChanges();
+    await spectator.fixture.whenStable();
+  };
+
+  const submit = async (): Promise<void> => {
+    spectator.component.submit();
+    spectator.detectChanges();
+    await spectator.fixture.whenStable();
+  };
+
+  describe('creating new container', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('does not render its own Save button — the side panel host owns it', async () => {
+      const saveButtons = await loader.getAllHarnesses(TnButtonHarness.with({ label: 'Save' }));
+      const createButtons = await loader.getAllHarnesses(TnButtonHarness.with({ label: 'Create' }));
+      expect([...saveButtons, ...createButtons]).toHaveLength(0);
+    });
+
+    it('offers the Advanced Options toggle as a side panel footer action', async () => {
+      expect(spectator.component.footerActions).toEqual([
+        expect.objectContaining({ label: 'Advanced Options', testId: 'advanced-options' }),
+      ]);
+
+      await toggleAdvanced();
+
+      expect(spectator.component.footerActions).toEqual([
+        expect.objectContaining({ label: 'Basic Options', testId: 'advanced-options' }),
+      ]);
+    });
+
+    it('shows Browse Catalog button for image selection', async () => {
+      const browseButton = await loader.getHarness(TnButtonHarness.with({ label: 'Browse Catalog' }));
+      expect(browseButton).toBeTruthy();
+    });
+
+    it('opens image selection dialog when Browse Catalog is clicked', async () => {
+      const browseButton = await loader.getHarness(TnButtonHarness.with({ label: 'Browse Catalog' }));
+      await browseButton.click();
+
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalled();
+    });
+  });
+
+  describe('editing existing container', () => {
+    const createEditComponent = createComponentFactory({
+      component: ContainerFormComponent,
+      imports: [
+        ReactiveFormsModule,
+      ],
+      providers: [
+        mockAuth(),
+        mockApi([
+          mockCall('container.pool_choices', { pool1: 'pool1', pool2: 'pool2' }),
+          mockCall('lxc.config', {
+            bridge: 'lxdbr0',
+            v4_network: null,
+            v6_network: null,
+            preferred_pool: 'pool1',
+          }),
+          mockJob('container.create'),
+          mockCall('container.update', existingContainer),
+          mockCall('container.get_instance', existingContainer),
+          mockCall('lxc.bridge_choices', { '[AUTO]': 'Automatic', lxdbr0: 'lxdbr0' }),
+          mockCall('container.query', []),
+        ]),
+        mockProvider(ContainersStore, {
+          initialize: jest.fn(),
+        }),
+        mockProvider(TnDialog, {
+          open: jest.fn(() => ({
+            closed: of({
+              name: 'ubuntu',
+              version: '22.04',
+            }),
+          })),
+        }),
+        mockProvider(DialogService),
+        mockProvider(Router),
+        ...ixFormTestingProviders(),
+      ],
+    });
+
+    beforeEach(() => {
+      spectator = createEditComponent({ props: { editContainer: existingContainer } });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('sets isEditMode to true', () => {
+      // eslint-disable-next-line @typescript-eslint/dot-notation
+      expect(spectator.component['isEditMode']()).toBe(true);
+    });
+
+    it('does not show pool field when editing', async () => {
+      await expect(
+        loader.getHarness(TnSelectHarness.with({ selector: '[formControlName="pool"]' })),
+      ).rejects.toThrow();
+    });
+
+    it('does not show image field when editing', async () => {
+      await expect(
+        loader.getHarness(TnInputHarness.with({ selector: '[formControlName="image"]' })),
+      ).rejects.toThrow();
+    });
+
+    it('loads the container being edited from the panel input', () => {
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('container.get_instance', [1]);
+    });
+
+    // Middleware refuses to rename a container that is not stopped - since 26.0 SUSPENDED
+    // counts as active too - so the form doesn't offer a rename it would reject.
+    it('disables the Name field, because this container is running', async () => {
+      const nameInput = await getInput('name');
+      expect(await nameInput.isDisabled()).toBe(true);
+    });
+  });
+
+  describe.each([ContainerStatus.Running, ContainerStatus.Suspended, ContainerStatus.Stopped])(
+    'renaming a %s container',
+    (state) => {
+      const container: Container = { ...existingContainer, status: { ...existingContainer.status, state } };
+
+      const createStateComponent = createComponentFactory({
+        component: ContainerFormComponent,
+        imports: [ReactiveFormsModule],
+        providers: [
+          mockAuth(),
+          mockApi([
+            mockCall('container.pool_choices', { pool1: 'pool1' }),
+            mockCall('lxc.config', {
+              bridge: 'lxdbr0',
+              v4_network: null,
+              v6_network: null,
+              preferred_pool: 'pool1',
+            }),
+            mockCall('container.get_instance', container),
+            mockCall('lxc.bridge_choices', { lxdbr0: 'lxdbr0' }),
+            mockCall('container.query', []),
+          ]),
+          mockProvider(ContainersStore),
+          mockProvider(TnDialog),
+          mockProvider(DialogService),
+          mockProvider(Router),
+          ...ixFormTestingProviders(),
+        ],
+      });
+
+      it(`${state === ContainerStatus.Stopped ? 'allows' : 'refuses'} the rename`, async () => {
+        spectator = createStateComponent({ props: { editContainer: container } });
+        loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+        const nameInput = await getInput('name');
+        expect(await nameInput.isDisabled()).toBe(state !== ContainerStatus.Stopped);
+      });
+    },
+  );
+
+  describe('form structure', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('hides CPU Set field in basic view', async () => {
+      await expect(
+        getInput('cpuset'),
+      ).rejects.toThrow();
+    });
+
+    it('shows CPU Set field in Advanced Settings', async () => {
+      await toggleAdvanced();
+
+      const cpusetInput = await getInput('cpuset');
+      expect(cpusetInput).toBeTruthy();
+    });
+  });
+
+  describe('creating a container', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('submits create job with correct payload when form is submitted', async () => {
+      const dialogService = spectator.inject(DialogService);
+      const router = spectator.inject(Router);
+      const snackbar = spectator.inject(SnackbarService);
+      const containersStore = spectator.inject(ContainersStore);
+      const closedSpy = jest.fn();
+      spectator.component.closed.subscribe(closedSpy);
+
+      const nameInput = await getInput('name');
+      await nameInput.setValue('new-container');
+
+      const descriptionInput = await getInput('description');
+      await descriptionInput.setValue('Test container');
+
+      const autostartCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Autostart' }));
+      await autostartCheckbox.uncheck();
+
+      // eslint-disable-next-line @typescript-eslint/dot-notation
+      spectator.component['form'].patchValue({
+        pool: 'pool1',
+        image: 'ubuntu:22.04',
+      });
+      spectator.detectChanges();
+
+      expect(spectator.component.canSubmit()).toBe(true);
+
+      await submit();
+
+      expect(dialogService.jobDialog).toHaveBeenCalled();
+      const jobDialogCall = (dialogService.jobDialog as jest.Mock).mock.calls[0];
+      expect(jobDialogCall[1]).toEqual({ title: 'Creating Container' });
+
+      expect(snackbar.success).toHaveBeenCalledWith('Container created');
+      expect(closedSpy).toHaveBeenCalledWith(true);
+      expect(containersStore.reload).toHaveBeenCalled();
+      expect(router.navigate).toHaveBeenCalledWith(['/containers', 'view', 1]);
+
+      expect(spectator.inject(ApiService).call).not.toHaveBeenCalledWith('container.device.create', expect.anything());
+    });
+
+    it('attaches selected USB devices by physical port after the container is created', async () => {
+      const nameInput = await getInput('name');
+      await nameInput.setValue('new-container');
+
+      // eslint-disable-next-line @typescript-eslint/dot-notation
+      spectator.component['form'].patchValue({
+        pool: 'pool1',
+        image: 'ubuntu:22.04',
+      });
+
+      await toggleAdvanced();
+
+      const usbDevices = await loader.getHarness(TnCheckboxGroupHarness);
+      await usbDevices.setValue(['Web Cam by Logitech']);
+
+      await submit();
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('container.device.create', [{
+        container: 1,
+        attributes: {
+          dtype: ContainerDeviceType.Usb,
+          device: 'usb_1_1',
+          usb: null,
+        },
+      }]);
+      expect(spectator.inject(Router).navigate).toHaveBeenCalledWith(['/containers', 'view', 1]);
+    });
+  });
+
+  describe('updating a container', () => {
+    const createEditComponent = createComponentFactory({
+      component: ContainerFormComponent,
+      imports: [
+        ReactiveFormsModule,
+      ],
+      providers: [
+        mockAuth(),
+        mockApi([
+          mockCall('container.pool_choices', { pool1: 'pool1', pool2: 'pool2' }),
+          mockCall('lxc.config', {
+            bridge: 'lxdbr0',
+            v4_network: null,
+            v6_network: null,
+            preferred_pool: 'pool1',
+          }),
+          mockJob('container.create'),
+          mockCall('container.update', { ...existingContainer, name: 'updated-container' } as Container),
+          mockCall('container.get_instance', existingContainer),
+          mockCall('lxc.bridge_choices', { '[AUTO]': 'Automatic', lxdbr0: 'lxdbr0' }),
+          mockCall('container.query', []),
+        ]),
+        mockProvider(ContainersStore, {
+          initialize: jest.fn(),
+          containerUpdated: jest.fn(),
+        }),
+        mockProvider(TnDialog, {
+          open: jest.fn(() => ({
+            closed: of({
+              name: 'ubuntu',
+              version: '22.04',
+            }),
+          })),
+        }),
+        mockProvider(DialogService),
+        mockProvider(Router),
+        mockProvider(SnackbarService),
+        ...ixFormTestingProviders(),
+      ],
+    });
+
+    beforeEach(() => {
+      spectator = createEditComponent({ props: { editContainer: existingContainer } });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('submits update call with only changed fields when form is submitted', async () => {
+      const api = spectator.inject(ApiService);
+      const snackbar = spectator.inject(SnackbarService);
+      const containersStore = spectator.inject(ContainersStore);
+      const closedSpy = jest.fn();
+      spectator.component.closed.subscribe(closedSpy);
+
+      const nameInput = await getInput('name');
+      await nameInput.setValue('updated-container');
+
+      await submit();
+
+      expect(api.call).toHaveBeenCalledWith('container.update', [
+        1,
+        expect.objectContaining({
+          name: 'updated-container',
+        }),
+      ]);
+
+      expect(snackbar.success).toHaveBeenCalledWith('Container updated');
+      expect(closedSpy).toHaveBeenCalledWith(true);
+      expect(containersStore.containerUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'updated-container' }),
+      );
+    });
+  });
+
+  describe('preferred pool functionality', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('hides pool selector in basic view when preferred pool is configured', async () => {
+      await spectator.fixture.whenStable();
+      await expect(
+        loader.getHarness(TnSelectHarness.with({ selector: '[formControlName="pool"]' })),
+      ).rejects.toThrow();
+    });
+
+    it('shows "Use Preferred Pool" checkbox in Advanced Settings when preferred pool is configured', async () => {
+      await spectator.fixture.whenStable();
+
+      await toggleAdvanced();
+      const usePreferredPoolCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Use Preferred Pool' }));
+      expect(usePreferredPoolCheckbox).toBeTruthy();
+      expect(await usePreferredPoolCheckbox.isChecked()).toBe(true);
+    });
+
+    it('shows pool selector when "Use Preferred Pool" is unchecked', async () => {
+      await spectator.fixture.whenStable();
+
+      await toggleAdvanced();
+
+      const usePreferredPoolCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Use Preferred Pool' }));
+      await usePreferredPoolCheckbox.uncheck();
+      spectator.detectChanges();
+
+      await spectator.fixture.whenStable();
+      const poolSelect = await loader.getHarness(TnSelectHarness.with({ selector: '[formControlName="pool"]' }));
+      expect(poolSelect).toBeTruthy();
+    });
+
+    it('sends empty string for pool when no pool is selected (uses preferred pool)', async () => {
+      const dialogService = spectator.inject(DialogService);
+
+      const nameInput = await getInput('name');
+      await nameInput.setValue('new-container');
+
+      // eslint-disable-next-line @typescript-eslint/dot-notation
+      spectator.component['form'].patchValue({
+        image: 'ubuntu:22.04',
+      });
+      spectator.detectChanges();
+
+      await submit();
+
+      expect(dialogService.jobDialog).toHaveBeenCalled();
+      const jobDialogCall = (dialogService.jobDialog as jest.Mock).mock.calls[0];
+      const jobObservable = jobDialogCall[0];
+
+      jobObservable.subscribe((job: { params: unknown[] }) => {
+        const payload = job.params[0];
+        expect(payload).toMatchObject({
+          pool: '',
+          name: 'new-container',
+        });
+      });
+    });
+  });
+
+  describe('preferred pool functionality without configured pool', () => {
+    const createComponentWithoutPreferredPool = createComponentFactory({
+      component: ContainerFormComponent,
+      imports: [
+        ReactiveFormsModule,
+      ],
+      providers: [
+        mockAuth(),
+        mockApi([
+          mockCall('container.pool_choices', { pool1: 'pool1', pool2: 'pool2' }),
+          mockCall('lxc.config', {
+            bridge: 'lxdbr0',
+            v4_network: null,
+            v6_network: null,
+            preferred_pool: null,
+          }),
+          mockJob('container.create', fakeSuccessfulJob(createdContainer)),
+          mockCall('container.update', existingContainer),
+          mockCall('container.get_instance', existingContainer),
+          mockCall('lxc.bridge_choices', { '[AUTO]': 'Automatic', lxdbr0: 'lxdbr0' }),
+          mockCall('container.query', []),
+          mockCall('container.device.usb_choices', {}),
+        ]),
+        mockProvider(ContainersStore, {
+          initialize: jest.fn(),
+        }),
+        mockProvider(TnDialog, {
+          open: jest.fn(() => ({
+            closed: of({
+              name: 'ubuntu',
+              version: '22.04',
+            }),
+          })),
+        }),
+        mockProvider(DialogService, {
+          jobDialog: jest.fn(() => ({
+            afterClosed: () => of({ result: createdContainer }),
+          })),
+        }),
+        mockProvider(Router, {
+          navigate: jest.fn(),
+        }),
+        mockProvider(SnackbarService, {
+          success: jest.fn(),
+        }),
+        ...ixFormTestingProviders(),
+      ],
+    });
+
+    beforeEach(() => {
+      spectator = createComponentWithoutPreferredPool();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('shows pool selector in basic view when no preferred pool is configured', async () => {
+      await spectator.fixture.whenStable();
+      const poolSelect = await loader.getHarness(TnSelectHarness.with({ selector: '[formControlName="pool"]' }));
+      expect(poolSelect).toBeTruthy();
+    });
+
+    it('does not show pool selector in Advanced Settings when no preferred pool is configured', async () => {
+      await spectator.fixture.whenStable();
+
+      await toggleAdvanced();
+
+      const poolSelects = await loader.getAllHarnesses(TnSelectHarness.with({ selector: '[formControlName="pool"]' }));
+      expect(poolSelects).toHaveLength(1);
+    });
+  });
+
+  describe('idmap fields', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('shows ID Map Type in advanced mode for create', async () => {
+      await toggleAdvanced();
+
+      const idmapSelect = await getSelect('idmap_type');
+      expect(idmapSelect).toBeTruthy();
+    });
+
+    it('shows slice input when Isolated is selected', async () => {
+      await toggleAdvanced();
+
+      const idmapSelect = await getSelect('idmap_type');
+      await idmapSelect.selectOption('Isolated');
+      spectator.detectChanges();
+
+      const sliceInput = await getInput('idmap_slice');
+      expect(sliceInput).toBeTruthy();
+    });
+
+    it('shows privileged warning when Privileged is selected', async () => {
+      await toggleAdvanced();
+
+      const idmapSelect = await getSelect('idmap_type');
+      await idmapSelect.selectOption('Privileged');
+      spectator.detectChanges();
+
+      const warning = await loader.getHarness(TnBannerHarness);
+      expect(warning).toBeTruthy();
+    });
+
+    it('does not show slice input for Default idmap type', async () => {
+      await toggleAdvanced();
+
+      await expect(
+        getInput('idmap_slice'),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('idmap fields in edit mode', () => {
+    const createEditComponent = createComponentFactory({
+      component: ContainerFormComponent,
+      imports: [ReactiveFormsModule],
+      providers: [
+        mockAuth(),
+        mockApi([
+          mockCall('container.pool_choices', { pool1: 'pool1' }),
+          mockCall('lxc.config', {
+            bridge: 'lxdbr0',
+            v4_network: null,
+            v6_network: null,
+            preferred_pool: 'pool1',
+          }),
+          mockJob('container.create'),
+          mockCall('container.update', existingContainer),
+          mockCall('container.get_instance', existingContainer),
+          mockCall('lxc.bridge_choices', { '[AUTO]': 'Automatic' }),
+          mockCall('container.query', []),
+        ]),
+        mockProvider(ContainersStore, { initialize: jest.fn() }),
+        mockProvider(TnDialog),
+        mockProvider(DialogService),
+        mockProvider(Router),
+        ...ixFormTestingProviders(),
+      ],
+    });
+
+    beforeEach(() => {
+      spectator = createEditComponent({ props: { editContainer: existingContainer } });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('does not show ID Map Type in edit mode', async () => {
+      await toggleAdvanced();
+
+      await expect(
+        getSelect('idmap_type'),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('capabilities policy options', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('has only Default and Allow All options', async () => {
+      await toggleAdvanced();
+
+      const capabilitiesSelect = await getSelect('capabilities_policy');
+      const options = await capabilitiesSelect.getOptions();
+      expect(options).toEqual(['Default', 'Allow All']);
+    });
+  });
+
+  describe('idmap payload', () => {
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    async function submitWithIdmap(idmapType: ContainerIdmapType, idmapSlice?: number | null): Promise<void> {
+      const nameInput = await getInput('name');
+      await nameInput.setValue('idmap-test');
+
+      // eslint-disable-next-line @typescript-eslint/dot-notation
+      spectator.component['form'].patchValue({
+        pool: 'pool1',
+        image: 'ubuntu:22.04',
+        idmap_type: idmapType,
+        ...(idmapSlice !== undefined ? { idmap_slice: idmapSlice } : {}),
+      });
+      spectator.detectChanges();
+
+      await submit();
+    }
+
+    it('sends default idmap when Default is selected', async () => {
+      const api = spectator.inject(ApiService);
+      await submitWithIdmap(ContainerIdmapType.Default);
+
+      expect(api.job).toHaveBeenCalledWith('container.create', [
+        expect.objectContaining({ idmap: { type: ContainerIdmapType.Default } }),
+      ]);
+    });
+
+    it('sends null idmap when Privileged is selected', async () => {
+      const api = spectator.inject(ApiService);
+      await submitWithIdmap(ContainerIdmapType.Privileged);
+
+      expect(api.job).toHaveBeenCalledWith('container.create', [
+        expect.objectContaining({ idmap: null }),
+      ]);
+    });
+
+    it('sends isolated idmap with slice when Isolated is selected with a slice', async () => {
+      const api = spectator.inject(ApiService);
+      await submitWithIdmap(ContainerIdmapType.Isolated, 5);
+
+      expect(api.job).toHaveBeenCalledWith('container.create', [
+        expect.objectContaining({ idmap: { type: ContainerIdmapType.Isolated, slice: 5 } }),
+      ]);
+    });
+
+    it('sends isolated idmap with null slice when Isolated is selected without a slice', async () => {
+      const api = spectator.inject(ApiService);
+      await submitWithIdmap(ContainerIdmapType.Isolated, null);
+
+      expect(api.job).toHaveBeenCalledWith('container.create', [
+        expect.objectContaining({ idmap: { type: ContainerIdmapType.Isolated, slice: null } }),
+      ]);
+    });
+  });
+});

@@ -1,0 +1,70 @@
+:host {
+  display: block;
+  margin-top: 24px;
+}
+
+:host tn-form-section {
+  margin-top: 0;
+
+  // `<ix-form>` owns the `<form>` element, and its host has no display of its own; the row
+  // layout therefore lives on the projected wrapper rather than on the form itself.
+  ix-form {
+    display: block;
+  }
+
+  .form-row {
+    align-items: flex-start;
+    display: flex;
+    gap: 12px;
+    margin-top: -10px;
+    padding: 0;
+
+    > *:first-child {
+      min-width: 200px;
+    }
+
+    > * {
+      margin-bottom: 0;
+      margin-top: 0;
+    }
+
+    .checkbox-with-tooltip {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      margin-top: 39px;
+
+      .default-checkbox {
+        ::ng-deep label {
+          white-space: nowrap;
+        }
+      }
+
+      .help-icon-inline {
+        cursor: pointer;
+        color: var(--fg2);
+        flex-shrink: 0;
+        outline: none;
+
+        &:focus-visible {
+          outline: 2px solid var(--primary);
+          outline-offset: 2px;
+        }
+      }
+    }
+
+    .set-button {
+      margin-top: 32px;
+    }
+
+    @media (max-width: 991px) {
+      display: block;
+
+      .set-button,
+      .checkbox-with-tooltip,
+      .default-checkbox {
+        margin-top: 0;
+      }
+    }
+  }
+}

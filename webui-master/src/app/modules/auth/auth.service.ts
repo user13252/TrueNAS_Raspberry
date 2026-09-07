@@ -1,0 +1,398 @@
+import { DestroyRef, Injectable, OnDestroy, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
+import { environment } from 'environments/environment';
+import { LocalStorage } from 'ngx-webstorage';
+import {
+  BehaviorSubject,
+  catchError,
+  combineLatest,
+  defaultIfEmpty,
+  filter,
+  map,
+  Observable,
+  of,
+  ReplaySubject,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs';
+import { AccountAttribute } from 'app/enums/account-attribute.enum';
+import { LoginResult } from 'app/enums/login-result.enum';
+import { Role } from 'app/enums/role.enum';
+import { WINDOW } from 'app/helpers/window.helper';
+import { LoginExMechanism, LoginExResponse, LoginExResponseType } from 'app/interfaces/auth.interface';
+import { LoggedInUser } from 'app/interfaces/ds-cache.interface';
+import { GlobalTwoFactorConfig } from 'app/interfaces/two-factor-config.interface';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { TokenLastUsedService } from 'app/services/token-last-used.service';
+import { WebSocketStatusService } from 'app/services/websocket-status.service';
+import { AppState } from 'app/store';
+import { adminUiInitialized } from 'app/store/admin-panel/admin.actions';
+
+@Injectable({
+  providedIn: 'root',
+})
+export class AuthService implements OnDestroy {
+  private store$ = inject<Store<AppState>>(Store);
+  private api = inject(ApiService);
+  private tokenLastUsedService = inject(TokenLastUsedService);
+  private wsStatus = inject(WebSocketStatusService);
+  private errorHandler = inject(ErrorHandlerService);
+  private window = inject<Window>(WINDOW);
+  private destroyRef = inject(DestroyRef);
+
+  @LocalStorage() private token: string | undefined | null;
+  protected loggedInUser$ = new BehaviorSubject<LoggedInUser | null>(null);
+
+  // Store pending authentication data before session initialization
+  private pendingAuthData: {
+    userInfo: LoggedInUser;
+  } | null = null;
+
+  // Flag to prevent premature adminUiInitialized dispatch
+  private sessionInitialized = false;
+
+  private latestTokenGenerated$ = new ReplaySubject<string | null>(1);
+  get authToken$(): Observable<string> {
+    return this.latestTokenGenerated$.asObservable().pipe(filter((token): token is string => !!token));
+  }
+
+  get hasAuthToken(): boolean {
+    return Boolean(this.token) && this.token !== 'null';
+  }
+
+  readonly user$ = this.loggedInUser$.asObservable();
+
+  readonly isLocalUser$: Observable<boolean> = this.user$.pipe(
+    filter(Boolean),
+    map((user) => user.account_attributes.includes(AccountAttribute.Local)),
+  );
+
+  /**
+   * Whether the current user is allowed to open a Web Shell. Every shell
+   * (system, VM serial, container console) connects through the same
+   * `/websocket/shell/` endpoint, which is gated by the `web_shell` privilege.
+   *
+   * Only emits for a resolved (non-null) user. `take(1)`-gated consumers (e.g.
+   * the terminal access check) rely on this: shell routes sit behind AuthGuard,
+   * so a user is always resolved by the time they activate. Filtering out the
+   * transient nulls (initial seed, refreshUser, reconnect) means we wait for the
+   * re-resolved user instead of snapshotting a premature `false` and denying
+   * access permanently.
+   */
+  readonly hasWebShellAccess$: Observable<boolean> = this.user$.pipe(
+    filter(Boolean),
+    map((user) => Boolean(user.privilege?.web_shell)),
+  );
+
+  private readonly hasPasswordChangedSinceLastLogin$ = new BehaviorSubject(false);
+  readonly isPasswordChangeRequired$: Observable<boolean> = combineLatest([
+    this.user$.pipe(
+      filter(Boolean),
+      map((user) => user.account_attributes.includes(AccountAttribute.PasswordChangeRequired)),
+    ),
+    this.hasPasswordChangedSinceLastLogin$,
+  ]).pipe(
+    map(([changeRequired, changedSinceLastLogin]) => changeRequired && !changedSinceLastLogin),
+  );
+
+  /**
+   * Special case that only matches root and admin users.
+   */
+  readonly isSysAdmin$ = this.user$.pipe(
+    filter(Boolean),
+    map((user) => user.account_attributes.includes(AccountAttribute.SysAdmin)),
+  );
+
+  readonly userTwoFactorConfig$ = this.user$.pipe(
+    filter(Boolean),
+    map((user) => user.two_factor_config),
+  );
+
+  private readonly cachedGlobalTwoFactorConfig$ = new BehaviorSubject<GlobalTwoFactorConfig | null>(null);
+
+  constructor() {
+    this.setupAuthenticationUpdate();
+    this.setupWsConnectionUpdate();
+    this.setupTokenUpdate();
+  }
+
+  getGlobalTwoFactorConfig(): Observable<GlobalTwoFactorConfig> {
+    return this.cachedGlobalTwoFactorConfig$.pipe(
+      switchMap((cachedConfig) => {
+        if (cachedConfig) {
+          return of(cachedConfig);
+        }
+
+        return this.wsStatus.isAuthenticated$.pipe(
+          take(1),
+          filter(Boolean),
+          switchMap(() => this.api.call('auth.twofactor.config').pipe(
+            tap((config) => this.cachedGlobalTwoFactorConfig$.next(config)),
+          )),
+        );
+      }),
+    );
+  }
+
+  globalTwoFactorConfigUpdated(): void {
+    this.cachedGlobalTwoFactorConfig$.next(null);
+  }
+
+  /**
+   * This method exists so removing authToken is deliberate instead of allowing
+   * use of the lastGeneratedToken$ and setting token to null/undefined by mistake
+   */
+  clearAuthToken(): void {
+    this.window.sessionStorage.removeItem('loginBannerDismissed');
+    this.tokenLastUsedService.clearTokenLastUsed();
+    this.latestTokenGenerated$.next(null);
+    this.latestTokenGenerated$.complete();
+    this.latestTokenGenerated$ = new ReplaySubject<string>(1);
+    this.setupTokenUpdate();
+  }
+
+  login(
+    username: string,
+    password: string,
+    otp: string | null = null,
+  ): Observable<{ loginResult: LoginResult; loginResponse: LoginExResponse }> {
+    const loginCall$ = otp
+      ? this.api.call('auth.login_ex_continue', [{ mechanism: LoginExMechanism.OtpToken, otp_token: otp }])
+      : this.api.call('auth.login_ex', [{
+          mechanism: LoginExMechanism.PasswordPlain, username, password, login_options: { reconnect_token: true },
+        }]);
+
+    return loginCall$.pipe(
+      switchMap((result) => this.processLoginResult(result).pipe(
+        map((loginResult) => ({
+          loginResponse: result,
+          loginResult,
+        })),
+      )),
+    );
+  }
+
+  isTwoFactorSetupRequired(): Observable<boolean> {
+    return this.wsStatus.isAuthenticated$.pipe(
+      take(1),
+      filter(Boolean),
+      switchMap(() => this.getGlobalTwoFactorConfig().pipe(
+        switchMap((globalConfig) => {
+          if (!globalConfig.enabled) {
+            return of(false);
+          }
+
+          return this.userTwoFactorConfig$.pipe(
+            map((userConfig) => !userConfig.secret_configured),
+          );
+        }),
+      )),
+      defaultIfEmpty(false),
+    );
+  }
+
+  setQueryToken(token: string | null): void {
+    const isSecure = this.window.location.protocol === 'https:' || !environment.production;
+    if (!token || !isSecure) {
+      return;
+    }
+
+    this.token = token;
+  }
+
+  loginWithToken(): Observable<LoginResult> {
+    if (!this.token) {
+      return of(LoginResult.NoToken);
+    }
+
+    performance.mark('Login Start');
+    return this.api.call('auth.login_ex', [{
+      mechanism: LoginExMechanism.TokenPlain,
+      token: this.token,
+      login_options: { reconnect_token: true },
+    }]).pipe(
+      switchMap((loginResult) => this.processLoginResult(loginResult)),
+      catchError((error: unknown) => {
+        this.errorHandler.showErrorModal(error);
+        return of(LoginResult.NoAccess);
+      }),
+    );
+  }
+
+  /**
+   * Checks whether user has any of the supplied roles.
+   * Does not ensure that user was loaded.
+   *
+   * Use mockAuth if you need to set user role in tests.
+   */
+  hasRole(roles: Role[] | Role): Observable<boolean> {
+    return this.user$.pipe(
+      filter(Boolean),
+      map((user) => {
+        const currentRoles = user?.privilege?.roles?.$set || [];
+        const neededRoles = Array.isArray(roles) ? roles : [roles];
+
+        if (!neededRoles?.length || !currentRoles.length) {
+          return false;
+        }
+
+        return neededRoles.some((role) => currentRoles.includes(role));
+      }),
+    );
+  }
+
+  logout(): Observable<void> {
+    return this.api.call('auth.logout').pipe(
+      tap(() => {
+        this.clearAuthToken();
+        this.hasPasswordChangedSinceLastLogin$.next(false);
+        this.wsStatus.setLoginStatus(false);
+        this.api.clearSubscriptions();
+        this.sessionInitialized = false;
+        this.pendingAuthData = null;
+        this.loggedInUser$.next(null); // Clear user data on logout
+        this.cachedGlobalTwoFactorConfig$.next(null); // Clear cached 2FA config
+      }),
+    );
+  }
+
+  requiredPasswordChanged(): void {
+    this.hasPasswordChangedSinceLastLogin$.next(true);
+  }
+
+  isFullAdmin(): Observable<boolean> {
+    return this.hasRole([Role.FullAdmin]).pipe(take(1));
+  }
+
+  refreshUser(): Observable<undefined> {
+    this.loggedInUser$.next(null);
+    return this.getLoggedInUserInformation().pipe(
+      map((): undefined => undefined),
+    );
+  }
+
+  getOneTimeToken(): Observable<string> {
+    return this.api.call('auth.generate_token', [300, {}, true, true]);
+  }
+
+  /**
+   * Completes the login process by initializing the session.
+   * This should only be called after all pre-flight checks (like failover) have passed.
+   */
+  initializeSession(): Observable<LoginResult> {
+    if (!this.pendingAuthData) {
+      return of(LoginResult.NoToken);
+    }
+
+    const { userInfo } = this.pendingAuthData;
+
+    // Now safe to set the user and initialize the app
+    this.loggedInUser$.next(userInfo);
+    this.wsStatus.setLoginStatus(true);
+    this.window.sessionStorage.setItem('loginBannerDismissed', 'true');
+
+    // Mark session as initialized and dispatch adminUiInitialized
+    this.sessionInitialized = true;
+    this.store$.dispatch(adminUiInitialized());
+
+    // Clear pending data
+    this.pendingAuthData = null;
+
+    return of(LoginResult.Success);
+  }
+
+  protected processLoginResult(loginResult: LoginExResponse): Observable<LoginResult> {
+    return of(loginResult).pipe(
+      switchMap((result) => {
+        if (result.response_type === LoginExResponseType.Success) {
+          if (!result.user_info?.privilege?.webui_access) {
+            // Don't set login status here - wait for session initialization
+            return of(LoginResult.NoAccess);
+          }
+
+          // Store authentication data but don't initialize session yet
+          this.pendingAuthData = {
+            userInfo: result.user_info,
+          };
+
+          // Store reconnect token from the login response
+          if (result.reconnect_token) {
+            this.latestTokenGenerated$.next(result.reconnect_token);
+          }
+
+          // Return success but session is not initialized
+          return of(LoginResult.Success);
+        }
+
+        // Don't set login status for error cases - it should remain false
+        // Clean up any pending auth data on error
+        this.pendingAuthData = null;
+
+        if (result.response_type === LoginExResponseType.OtpRequired) {
+          return of(LoginResult.NoOtp);
+        }
+
+        if (result.response_type === LoginExResponseType.Redirect) {
+          return of(LoginResult.Redirect);
+        }
+
+        if (result.response_type === LoginExResponseType.Denied) {
+          return of(LoginResult.Denied);
+        }
+
+        return of(LoginResult.IncorrectDetails);
+      }),
+    );
+  }
+
+  private getLoggedInUserInformation(): Observable<LoggedInUser> {
+    return this.api.call('auth.me').pipe(
+      tap((loggedInUser) => {
+        this.loggedInUser$.next(loggedInUser);
+      }),
+    );
+  }
+
+  protected setupAuthenticationUpdate(): void {
+    this.wsStatus.isAuthenticated$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: (isAuthenticated) => {
+        if (isAuthenticated && this.sessionInitialized) {
+          this.store$.dispatch(adminUiInitialized());
+        } else if (!isAuthenticated) {
+          this.cachedGlobalTwoFactorConfig$.next(null);
+        }
+      },
+    });
+  }
+
+  protected setupWsConnectionUpdate(): void {
+    this.wsStatus.isConnected$.pipe(
+      filter((isConnected) => !isConnected),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => {
+      this.wsStatus.setLoginStatus(false);
+      this.loggedInUser$.next(null);
+      // Reset session initialized flag when connection is lost
+      this.sessionInitialized = false;
+    });
+  }
+
+  protected setupTokenUpdate(): void {
+    this.latestTokenGenerated$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((token) => {
+      this.token = token;
+    });
+  }
+
+  ngOnDestroy(): void {
+    // Reset session state
+    this.sessionInitialized = false;
+    this.pendingAuthData = null;
+  }
+}

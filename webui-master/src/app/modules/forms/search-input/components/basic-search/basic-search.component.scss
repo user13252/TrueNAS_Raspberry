@@ -1,0 +1,41 @@
+@import 'scss-imports/variables';
+
+:host {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.search-field {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  @media (min-width: $breakpoint-md) {
+    min-width: 250px;
+  }
+}
+
+.switch-link {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--lines);
+  border-radius: 4px;
+  color: var(--primary);
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 12px;
+  gap: 4px;
+  padding: 7px 10px;
+  user-select: none;
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--hover-bg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+  }
+}

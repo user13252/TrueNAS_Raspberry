@@ -1,0 +1,50 @@
+.tc-dialog-content {
+  margin-bottom: 20px;
+  margin-top: 10px;
+}
+
+.status-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.status-label {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.status-reason {
+  font-size: 14px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.tc-ip {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.tc-ip-label {
+  font-weight: 500;
+}
+
+.tc-ip-icon {
+  flex-shrink: 0;
+  height: 21px;
+  width: 21px;
+}
+
+tn-icon.status-connected {
+  color: var(--green);
+}
+
+tn-icon.status-failed {
+  color: var(--red);
+}
+
+tn-icon.status-disabled {
+  color: var(--grey);
+}

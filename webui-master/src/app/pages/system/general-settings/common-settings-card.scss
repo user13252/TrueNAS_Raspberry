@@ -1,0 +1,14 @@
+tn-list-item {
+  .label {
+    font-weight: bold;
+    margin-right: 8px;
+    line-height: initial;
+  }
+
+  .value {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

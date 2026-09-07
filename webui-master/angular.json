@@ -1,0 +1,139 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "truenas-scale-ui": {
+      "root": "",
+      "sourceRoot": "src",
+      "projectType": "application",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "allowedCommonJsDependencies": [
+              "is-cidr",
+              "dygraphs",
+              "chart.js",
+              "cron-parser",
+              "cronstrue"
+            ],
+            "outputPath": {
+              "base": "dist",
+              "browser": ""
+            },
+            "index": "src/index.html",
+            "tsConfig": "src/tsconfig.app.json",
+            "polyfills": [
+              "src/polyfills.ts"
+            ],
+            "assets": [
+              "src/sw.js",
+              {
+                "glob": "**/*",
+                "input": "node_modules/@truenas/ui-components/assets/tn-icons",
+                "output": "assets/tn-icons"
+              },
+              "src/assets"
+            ],
+            "stylePreprocessorOptions": {
+              "sass": {
+                "silenceDeprecations": [
+                  "color-functions",
+                  "global-builtin",
+                  "import"
+                ]
+              },
+              "includePaths": [
+                "./src/assets/styles",
+                "./node_modules"
+              ]
+            },
+            "styles": [
+              "node_modules/@bugsplat/angular-tree-component/css/angular-tree-component.css",
+              "node_modules/@truenas/ui-components/src/styles/themes.css",
+              "src/assets/styles/index.scss"
+            ],
+            "scripts": [
+              "node_modules/marked/marked.min.js"
+            ],
+            "extractLicenses": false,
+            "sourceMap": true,
+            "optimization": false,
+            "namedChunks": true,
+            "browser": "src/main.ts"
+          },
+          "configurations": {
+            "production": {
+              "optimization": true,
+              "outputHashing": "all",
+              "namedChunks": false,
+              "extractLicenses": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.prod.ts"
+                }
+              ]
+            }
+          },
+          "defaultConfiguration": ""
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "buildTarget": "truenas-scale-ui:build"
+          },
+          "configurations": {
+            "production": {
+              "buildTarget": "truenas-scale-ui:build:production"
+            }
+          }
+        },
+        "extract-i18n": {
+          "builder": "@angular/build:extract-i18n",
+          "options": {
+            "buildTarget": "truenas-scale-ui:build"
+          }
+        }
+      }
+    }
+  },
+  "schematics": {
+    "@ngneat/spectator:spectator-component": {
+      "jest": true
+    },
+    "@schematics/angular:component": {
+      "prefix": "ix",
+      "style": "scss",
+      "changeDetection": "OnPush",
+      "type": "component"
+    },
+    "@schematics/angular:directive": {
+      "prefix": "ix",
+      "type": "directive"
+    },
+    "@schematics/angular:service": {
+      "type": "service"
+    },
+    "@schematics/angular:guard": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:interceptor": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:module": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:pipe": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:resolver": {
+      "typeSeparator": "."
+    }
+  },
+  "cli": {
+    "analytics": false,
+    "packageManager": "yarn"
+  }
+}

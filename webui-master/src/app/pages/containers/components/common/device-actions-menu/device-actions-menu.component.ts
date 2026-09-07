@@ -1,0 +1,205 @@
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, input, output, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnDialog,
+  TnIconButtonComponent,
+  TnMenuComponent,
+  TnMenuItem,
+  TnMenuTriggerDirective,
+} from '@truenas/ui-components';
+import {
+  NEVER, filter, switchMap,
+} from 'rxjs';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { ContainerDeviceType, ContainerNicDeviceType } from 'app/enums/container.enum';
+import { Role } from 'app/enums/role.enum';
+import {
+  ContainerDevice,
+  ContainerFilesystemDevice,
+  ContainerNicDevice,
+} from 'app/interfaces/container.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  ContainerFilesystemDeviceFormComponent,
+} from 'app/pages/containers/components/all-containers/container-details/container-filesystem-devices/container-filesystem-device-form/container-filesystem-device-form.component';
+import { ContainerNicFormDialog } from 'app/pages/containers/components/common/container-nic-form-dialog/container-nic-form-dialog.component';
+import { getDeviceDescription } from 'app/pages/containers/components/common/utils/get-device-description.utils';
+import { ContainerDevicesStore } from 'app/pages/containers/stores/container-devices.store';
+import { ContainersStore } from 'app/pages/containers/stores/containers.store';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-device-actions-menu',
+  templateUrl: './device-actions-menu.component.html',
+  styleUrls: ['./device-actions-menu.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TranslateModule,
+    TnIconButtonComponent,
+    TnMenuComponent,
+    TnMenuTriggerDirective,
+    RequiresRolesDirective,
+  ],
+})
+export class DeviceActionsMenuComponent {
+  protected readonly requiredRoles = [Role.ContainerDeviceWrite];
+
+  private destroyRef = inject(DestroyRef);
+  private dialog = inject(DialogService);
+  private tnDialog = inject(TnDialog);
+  private api = inject(ApiService);
+  private errorHandler = inject(ErrorHandlerService);
+  private translate = inject(TranslateService);
+  private snackbar = inject(SnackbarService);
+  private devicesStore = inject(ContainerDevicesStore);
+  private containersStore = inject(ContainersStore);
+  private loader = inject(LoaderService);
+  private formPanel = inject(FormSidePanelService);
+
+  readonly device = input.required<ContainerDevice>();
+  readonly showEdit = input(true);
+  readonly isDisabled = input(false);
+  readonly disabledTooltip = input<string | null>(null);
+
+  readonly edit = output();
+
+  protected readonly deviceDescription = computed(() => {
+    return getDeviceDescription(this.translate, this.device());
+  });
+
+  protected readonly isStorageDevice = computed(() => {
+    return this.device().dtype === ContainerDeviceType.Filesystem;
+  });
+
+  protected readonly canManage = computed(() => {
+    return !this.manageRestrictedExplanation() && !this.isDisabled();
+  });
+
+  protected readonly manageRestrictedExplanation = computed(() => {
+    if (this.isDisabled() && this.disabledTooltip()) {
+      return this.disabledTooltip();
+    }
+
+    return null;
+  });
+
+  protected readonly menuItems = computed<TnMenuItem[]>(() => {
+    const items: TnMenuItem[] = [];
+
+    if (this.showEdit()) {
+      items.push({
+        id: 'edit',
+        label: this.translate.instant('Edit'),
+        testId: ['edit', this.deviceDescription()],
+        action: () => this.editPressed(),
+      });
+    }
+
+    items.push({
+      id: 'delete',
+      label: this.translate.instant('Delete'),
+      testId: ['delete', this.deviceDescription()],
+      action: () => this.deletePressed(),
+    });
+
+    return items;
+  });
+
+  protected editPressed(): void {
+    const device = this.device();
+
+    // For filesystem devices, open the form
+    if (this.isStorageDevice()) {
+      const container = this.containersStore.selectedContainer();
+      if (!container) {
+        return;
+      }
+
+      this.formPanel.open(ContainerFilesystemDeviceFormComponent, {
+        title: this.translate.instant('Edit Disk'),
+        inputs: {
+          container,
+          disk: device as ContainerFilesystemDevice,
+        },
+      }).onSuccess(() => this.devicesStore.reload(), this.destroyRef);
+      return;
+    }
+
+    // For NIC devices, open the dialog
+    if (device.dtype === ContainerDeviceType.Nic) {
+      this.tnDialog.open(ContainerNicFormDialog, {
+        data: {
+          device: device as ContainerNicDevice & { id: number },
+        },
+        minWidth: '500px',
+      }).closed.pipe(
+        filter(Boolean),
+        switchMap((config: {
+          mac?: string;
+          useDefault: boolean;
+          type: ContainerNicDeviceType;
+          trust_guest_rx_filters?: boolean;
+        }) => {
+          const nicDevice = device as ContainerNicDevice;
+          if (!nicDevice.id) {
+            return NEVER;
+          }
+
+          const payload: ContainerNicDevice = {
+            dtype: ContainerDeviceType.Nic,
+            type: config.type,
+            nic_attach: nicDevice.nic_attach,
+            mac: config.mac || null,
+          };
+
+          // Only include trust_guest_rx_filters if it's present in config
+          // (dialog only includes it for VIRTIO devices)
+          if (config.trust_guest_rx_filters !== undefined) {
+            payload.trust_guest_rx_filters = config.trust_guest_rx_filters;
+          }
+
+          return this.api.call('container.device.update', [nicDevice.id, {
+            attributes: payload,
+          }]).pipe(
+            this.loader.withLoader(),
+            this.errorHandler.withErrorHandler(),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      ).subscribe(() => {
+        this.snackbar.success(this.translate.instant('NIC Device was updated'));
+        this.devicesStore.reload();
+        this.containersStore.reload();
+      });
+      return;
+    }
+
+    // For other devices, emit the edit event
+    this.edit.emit();
+  }
+
+  protected deletePressed(): void {
+    const deviceId = this.device().id;
+    if (!deviceId) return;
+
+    this.dialog.confirmDelete({
+      title: this.translate.instant('Delete Item'),
+      message: this.translate.instant(
+        'Are you sure you want to delete {item}?',
+        { item: this.deviceDescription() },
+      ),
+      call: () => this.api.call('container.device.delete', [deviceId]),
+      successMessage: this.translate.instant('Device was deleted'),
+    }).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => {
+      this.devicesStore.deviceDeleted(deviceId);
+      this.containersStore.reload();
+    });
+  }
+}

@@ -1,0 +1,100 @@
+import { DialogRef, DIALOG_DATA } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, DestroyRef, signal, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnDialogShellComponent, TnIconComponent, TnTestIdDirective,
+} from '@truenas/ui-components';
+import { switchMap, tap } from 'rxjs';
+import { ErrorReport, ErrorReportAction, collapsibleDetailLabels } from 'app/interfaces/error-report.interface';
+import { CopyButtonComponent } from 'app/modules/buttons/copy-button/copy-button.component';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { DownloadService } from 'app/services/download.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+@Component({
+  selector: 'ix-error-dialog',
+  templateUrl: './error-dialog.component.html',
+  styleUrls: ['./error-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnDialogShellComponent,
+    TnButtonComponent,
+    TnIconComponent,
+    CopyButtonComponent,
+    TranslateModule,
+    TnTestIdDirective,
+  ],
+})
+export class ErrorDialog {
+  protected dialogRef = inject<DialogRef<boolean, ErrorDialog>>(DialogRef);
+  private api = inject(ApiService);
+  private download = inject(DownloadService);
+  private errorHandler = inject(ErrorHandlerService);
+  private router = inject(Router);
+  protected error = inject<ErrorReport>(DIALOG_DATA);
+  private destroyRef = inject(DestroyRef);
+
+  protected isDetailsOpen = signal(false);
+  protected expandedDetails = signal(new Set<string>());
+
+  protected toggleDetails(): void {
+    this.isDetailsOpen.set(!this.isDetailsOpen());
+  }
+
+  protected isCollapsibleDetail(label: string): boolean {
+    return collapsibleDetailLabels.has(label);
+  }
+
+  protected isDetailExpanded(label: string): boolean {
+    return this.expandedDetails().has(label);
+  }
+
+  protected toggleDetailExpanded(label: string): void {
+    this.expandedDetails.update((current) => {
+      const next = new Set(current);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
+  }
+
+  protected getDetailsAsText(): string {
+    if (!this.error.details) {
+      return '';
+    }
+    return this.error.details
+      .map((detail) => `${detail.label}: ${detail.value}`)
+      .join('\n');
+  }
+
+  protected downloadLogs(): void {
+    if (!this.error.logs) {
+      return;
+    }
+    const logsId = this.error.logs.id;
+    this.api.call('core.job_download_logs', [logsId, `${logsId}.log`]).pipe(
+      switchMap((url) => {
+        const mimetype = 'text/plain';
+        return this.download.streamDownloadFile(url, `${logsId}.log`, mimetype);
+      }),
+      tap((file) => this.download.downloadBlob(file, `${logsId}.log`)),
+      this.errorHandler.withErrorHandler(),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.dialogRef.close());
+  }
+
+  protected handleAction(action: ErrorReportAction): void {
+    if (action.route) {
+      this.router.navigate([action.route], { queryParams: action.params });
+      this.dialogRef.close();
+    } else if (action.action) {
+      action.action();
+      this.dialogRef.close();
+    }
+  }
+}

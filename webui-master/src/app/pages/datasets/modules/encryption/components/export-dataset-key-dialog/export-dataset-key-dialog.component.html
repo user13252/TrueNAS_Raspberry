@@ -1,0 +1,23 @@
+<tn-dialog-shell testId="export-dataset-key" [title]="'Key for {id}' | translate: { id: '\''+dataset.id+'\'' }">
+<p class="key">{{ key }}</p>
+  <p>
+    {{ 'WARNING: Only the key for the dataset in question will be downloaded.' | translate }}
+  </p>
+
+
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="close"
+    [label]="'Close' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+
+  <tn-button
+    color="primary"
+    testId="download-key"
+    [label]="'Download Key' | translate"
+    (onClick)="onDownload()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

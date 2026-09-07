@@ -1,0 +1,39 @@
+@import 'mixins/cards';
+@import 'scss-imports/variables';
+
+@include tn-detail-card;
+@include tn-details-item;
+
+.chart-extra {
+  align-items: center;
+  display: flex;
+  justify-content: space-around;
+
+  .details-item {
+    margin: 20px 0 0;
+  }
+}
+
+.details-item {
+  .value-placeholder {
+    flex: 1;
+  }
+}
+
+.details {
+  border-top: 1px solid var(--lines);
+  box-sizing: border-box;
+  margin: 10px 0 0;
+  padding: 10px 0 0 !important;
+}
+
+ix-space-management-chart {
+  display: grid;
+  grid-gap: 15px;
+  grid-template-columns: 1fr 2fr;
+  padding: 0 0 5px;
+
+  @media (max-width: $breakpoint-dualcolumn) {
+    padding-left: 0;
+  }
+}

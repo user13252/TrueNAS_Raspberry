@@ -1,0 +1,159 @@
+<div [class]="['alert-icon', alertLevelColor]">
+  <tn-icon
+    library="mdi"
+    size="md"
+    [name]="icon"
+    [tnTooltip]="iconTooltip"
+  ></tn-icon>
+</div>
+
+<div class="alert-body">
+  @if (!alert().dismissed) {
+    <div class="alert-header">
+      <h3 [class]="['alert-level', alertLevelColor]">
+        {{ levelLabel() }}
+      </h3>
+      @if (hasDuplicates()) {
+        <span
+          class="duplicate-count-badge"
+          [attr.aria-label]="duplicateCountTooltip()"
+          [tnTooltip]="duplicateCountTooltip()"
+        >
+          {{ duplicateCount() }}
+        </span>
+      }
+    </div>
+  }
+  <!--
+    The whole expandable region, not just the details block: a single alert expands in
+    place, so the text the toggle reveals is the message line itself.
+  -->
+  <div class="alert-expandable" [attr.id]="expandableId()">
+    <h4 class="alert-message" [innerHTML]="displayedMessage()"></h4>
+    @if (!isCollapsed() && detailMessages().length) {
+      <div class="alert-details">
+        @for (message of detailMessages(); track message) {
+          <div class="alert-detail" [innerHTML]="message"></div>
+        }
+      </div>
+    }
+  </div>
+  @if (isExpandable()) {
+    <button
+      type="button"
+      class="expand-collapse-button"
+      tnTestIdType="button"
+      [tnTestId]="[alert().key, 'expand']"
+      [attr.aria-expanded]="!isCollapsed()"
+      [attr.aria-controls]="expandableId()"
+      [class.collapsed]="isCollapsed()"
+      (click)="toggleCollapse()"
+    >
+      {{ isCollapsed() ? ('View More' | translate) : ('Collapse' | translate) }}
+    </button>
+  }
+  @if (isHaLicensed()) {
+    <div class="alert-node">{{ alert().node }}</div>
+  }
+  <div class="alert-time">
+    {{ alert().datetime.$date | formatDateTime }}
+    @if (timezone$ | async; as timezone) {
+      ({{ timezone }})
+    }
+  </div>
+
+  @let enhanced = enhancedAlert();
+  @if (enhanced.contextualHelp && !alert().dismissed) {
+    <div class="context-help">
+      <button
+        type="button"
+        class="context-help-toggle"
+        tnTestIdType="button"
+        [tnTestId]="[alert().key, 'toggle-help']"
+        (click)="toggleContextHelp()"
+      >
+        <tn-icon library="mdi" [name]="showContextHelp() ? 'chevron-up' : 'chevron-down'"></tn-icon>
+        {{ showContextHelp() ? ('Hide Details' | translate) : ('Why am I seeing this?' | translate) }}
+      </button>
+      @if (showContextHelp()) {
+        <div class="context-help-content">
+          <p>{{ enhanced.contextualHelp | translate }}</p>
+          @if (enhanced.documentationUrl) {
+            <a
+              class="action-link"
+              target="_blank"
+              rel="noopener noreferrer"
+              [href]="enhanced.documentationUrl"
+            >
+              {{ 'Learn More' | translate }}
+              <tn-icon name="open-in-new" library="mdi"></tn-icon>
+            </a>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  @if (enhanced.actions && enhanced.actions.length > 0 && !alert().dismissed && showActions()) {
+    <div class="smart-actions">
+      @for (action of enhanced.actions; track action.label) {
+        <button
+          type="button"
+          tnTestIdType="button"
+          [class.primary-action]="action.primary"
+          [tnTestId]="[alert().key, 'action', action.label]"
+          (click)="onSmartActionClick(action.handler)"
+        >
+          <tn-icon [name]="action.icon"></tn-icon>
+          {{ action.label | translate }}
+        </button>
+      }
+    </div>
+  }
+
+  <div class="links">
+    @if (alert().dismissed) {
+      <a
+        *ixRequiresRoles="requiredRoles"
+        tabindex="0"
+        role="button"
+        class="action-link"
+        tnTestIdType="link"
+        [tnTestId]="[alert().key, 'reopen']"
+        (click)="onReopen()"
+        (keydown.enter)="onReopen()"
+        (keydown.space)="onReopen(); $event.preventDefault()"
+      >
+        {{ 'Re-Open' | translate }}
+      </a>
+    } @else {
+      <a
+        *ixRequiresRoles="requiredRoles"
+        tabindex="0"
+        role="button"
+        class="action-link"
+        tnTestIdType="link"
+        [tnTestId]="[alert().key, 'dismiss']"
+        [tnTooltip]="dismissTooltip()"
+        (click)="onDismiss()"
+        (keydown.enter)="onDismiss()"
+        (keydown.space)="onDismiss(); $event.preventDefault()"
+      >
+        {{ dismissButtonText() }}
+      </a>
+    }
+  </div>
+</div>
+
+@if (!alert().dismissed && showActions()) {
+  <tn-icon-button
+    *ixRequiresRoles="requiredRoles"
+    class="dismiss-button"
+    size="sm"
+    [name]="closeIcon"
+    [testId]="[alert().key, 'dismiss-icon']"
+    [ariaLabel]="dismissTooltip() || dismissButtonText()"
+    [tooltip]="dismissTooltip() || dismissButtonText()"
+    (onClick)="onDismiss()"
+  ></tn-icon-button>
+}

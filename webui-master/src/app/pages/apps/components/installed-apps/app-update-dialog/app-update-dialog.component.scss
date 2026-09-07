@@ -1,0 +1,140 @@
+:host {
+  font-size: 14px;
+}
+
+:host ::ng-deep .mat-mdc-dialog-content {
+  max-width: unset;
+  overflow: auto;
+
+  .mat-mdc-form-field {
+    flex: 1;
+    margin: 0 0 0 10px;
+    min-width: 0;
+    width: unset !important;
+  }
+}
+
+.logo-container {
+  align-items: center;
+  display: flex;
+  height: 100px;
+  place-content: center flex-start;
+
+  .name-container {
+    align-items: baseline;
+    display: flex;
+  }
+}
+
+.logo {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  height: 100%;
+  margin-right: 30px;
+  width: 100px;
+
+  img {
+    height: 100%;
+    object-fit: contain;
+    width: 100px;
+  }
+}
+
+.resource {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 5px 0;
+  width: 100%;
+}
+
+.app-name {
+  font-size: 20px;
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.version {
+  color: var(--fg2);
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.version-tooltip {
+  margin-left: 10px;
+}
+
+.value {
+  margin-left: 12px;
+  opacity: 0.5;
+}
+
+.row-dark {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.detail-row {
+  padding: 5px;
+}
+
+.version-info {
+  background: var(--bg2);
+  border-radius: 4px;
+  margin: 16px 0;
+
+  .version-row {
+    align-items: center;
+    display: flex;
+    margin: 8px 0;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .version-label {
+    font-weight: 500;
+    min-width: 120px;
+  }
+
+  .version-value {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+
+    tn-icon {
+      color: var(--primary);
+    }
+  }
+}
+
+.changelog-link {
+  align-items: center;
+  display: flex;
+  margin: 16px 0;
+  padding: 8px 0;
+
+  .changelog-label {
+    font-weight: 500;
+    min-width: 120px;
+  }
+
+  .changelog-url {
+    align-items: center;
+    color: var(--primary);
+    display: flex;
+    gap: 6px;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+

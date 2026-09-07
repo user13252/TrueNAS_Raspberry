@@ -1,0 +1,41 @@
+<tn-card class="card" padding="small" [title]="'Namespaces' | translate">
+  <ng-template tnCardFooterActions>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      [testId]="'add-namespace'"
+      [label]="'Add' | translate"
+      [ixUiSearch]="searchableElements.elements.addNamespace"
+      (onClick)="onAddNamespace()"
+    ></tn-button>
+  </ng-template>
+
+  @if (!subsystem().namespaces?.length) {
+    <tn-banner
+      type="warning"
+      [heading]="helptext.noNamespacesWarningHeading | translate"
+      [message]="helptext.noNamespacesWarning | translate"
+    ></tn-banner>
+  } @else {
+    <ul class="namespace-list">
+      @for (namespace of subsystem().namespaces; track namespace.id) {
+        <li>
+          <span class="namespace">
+            <ix-namespace-description [namespace]="namespace"></ix-namespace-description>
+
+            <span class="namespace-actions">
+              <tn-icon-button
+                *ixRequiresRoles="requiredRoles"
+                name="delete"
+                library="mdi"
+                [ariaLabel]="'Delete namespace' | translate"
+                [tooltip]="'Delete namespace' | translate"
+                [testId]="['delete-namespace', namespaceTestIdSlug(namespace)]"
+                (onClick)="onDeleteNamespace(namespace)"
+              ></tn-icon-button>
+            </span>
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</tn-card>

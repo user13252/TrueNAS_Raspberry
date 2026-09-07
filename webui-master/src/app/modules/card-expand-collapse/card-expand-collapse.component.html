@@ -1,0 +1,17 @@
+<div #section class="content-wrapper" (window:resize)="onResize()">
+  <ng-content></ng-content>
+</div>
+@if (isCollapsed() && showButton()) {
+  <div class="gradient"></div>
+}
+@if (showButton()) {
+  <div class="more-less">
+    <tn-button
+      variant="filled"
+      color="default"
+      testId="show-more-less"
+      [label]="isCollapsed() ? ('View More' | translate) : ('Collapse' | translate)"
+      (onClick)="changeCollapsed()"
+    ></tn-button>
+  </div>
+}

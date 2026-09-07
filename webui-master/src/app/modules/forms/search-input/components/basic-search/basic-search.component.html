@@ -1,0 +1,30 @@
+<tn-input
+  class="search-field"
+  prefixIcon="magnify"
+  prefixIconLibrary="mdi"
+  suffixIconLibrary="mdi"
+  [testId]="'search'"
+  [placeholder]="placeholder() || ('Search' | translate)"
+  [ariaLabel]="placeholder() || ('Search' | translate)"
+  [suffixIcon]="query() ? 'close-circle' : undefined"
+  [suffixIconAriaLabel]="'Clear search' | translate"
+  [suffixActionTestId]="'clear-search'"
+  [ngModel]="query()"
+  (ngModelChange)="queryChange.emit($event)"
+  (onSuffixAction)="resetInput()"
+  (keydown.enter)="runSearch.emit()"
+></tn-input>
+
+@if (allowAdvanced()) {
+  <button
+    class="switch-link"
+    type="button"
+    tnTestIdType="button"
+    [tnTestId]="'switch-to-advanced'"
+    [tnTooltip]="'Switch To Advanced' | translate"
+    (click)="switchToAdvanced.emit()"
+  >
+    <tn-icon name="tune" library="mdi" size="sm"></tn-icon>
+    {{ 'Advanced' | translate }}
+  </button>
+}

@@ -1,0 +1,31 @@
+@import '../card-flush-table';
+@import '../card-service-toggle';
+
+@include card-flush-table;
+@include card-service-toggle;
+
+.card-title-link {
+  color: inherit;
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.table {
+  // tn-table wraps cell content by default, but this card sits in the fixed-width dashboard
+  // grid where a wrapped Name/Path would make rows several lines tall. Opt back into one-line
+  // ellipsis on the text cell — the full value stays available via the cell's tooltip. Paired
+  // with `[fixedLayout]` on the table, which is what gives the truncation a width to work
+  // against. Reaches into `.tn-table__cell-content` because the library exposes no per-cell
+  // truncation input.
+  ::ng-deep .tn-table__cell-content > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // Muted em-dash placeholder shown when a text cell (e.g. Description) has no value.
+  ::ng-deep .empty-value {
+    color: var(--fg2);
+  }
+}

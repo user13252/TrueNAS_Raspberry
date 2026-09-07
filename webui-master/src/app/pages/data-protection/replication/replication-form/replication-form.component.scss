@@ -1,0 +1,14 @@
+@import 'scss-imports/variables';
+@import 'mixins/forms';
+
+@include tn-form-fieldsets-columns();
+
+.eligible-snapshots {
+  font-size: 13px;
+  margin-bottom: 15px;
+  margin-left: 10px;
+
+  &.danger {
+    color: var(--red);
+  }
+}

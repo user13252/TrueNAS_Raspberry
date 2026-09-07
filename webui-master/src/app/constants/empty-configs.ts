@@ -1,0 +1,96 @@
+import { marker as T } from '@biesbjerg/ngx-translate-extract-marker';
+import { tnIconMarker } from '@truenas/ui-components';
+import { EmptyType } from 'app/enums/empty-type.enum';
+import { EmptyConfig } from 'app/interfaces/empty-config.interface';
+
+export const datasetEmptyConfig = {
+  type: EmptyType.NoPageData,
+  large: true,
+  title: T('No Datasets'),
+  icon: tnIconMarker('dataset-root', 'custom'),
+  message: T('A dataset is a logical container within a pool used to organize your files and folders. <br>\nAfter you create a pool, this page will list all your datasets.'),
+} as EmptyConfig;
+
+export const dataProtectionEmptyConfig = {
+  type: EmptyType.NoPageData,
+  large: true,
+  icon: tnIconMarker('security', 'material'),
+  title: T('No Data Protection Tasks'),
+  message: T('This page will help you protect your data by syncing it with other systems on the cloud. <br>\nBut first, you need to create a storage pool to get started.'),
+} as EmptyConfig;
+
+export const sharesEmptyConfig = {
+  type: EmptyType.NoPageData,
+  large: true,
+  icon: tnIconMarker('folder_shared', 'material'),
+  title: T('No Shares'),
+  message: T('Shares allow you to make your data accessible over the network. <br>\nYou’ll need a pool and a dataset that you want to share.'),
+} as EmptyConfig;
+
+export const cloudSyncTaskEmptyConfig = {
+  type: EmptyType.NoPageData,
+  icon: tnIconMarker('cloud-outline', 'mdi'),
+  message: T('Sync data to a popular cloud storage provider, such as: Google Drive and Photos, Dropbox, Amazon S3 and many others.'),
+  large: true,
+} as EmptyConfig;
+
+export const cloudBackupTaskEmptyConfig = {
+  type: EmptyType.NoPageData,
+  icon: tnIconMarker('true-cloud', 'custom'),
+  message: T('Back up to the decentralized network provided by Storj in partnership with TrueNAS.'),
+  large: true,
+} as EmptyConfig;
+
+export const snapshotTaskEmptyConfig = {
+  type: EmptyType.NoPageData,
+  icon: tnIconMarker('file-multiple-outline', 'mdi'),
+  message: T('<p>Automatically create point-in-time snapshots of selected datasets at regular intervals.</p>\n<p>These snapshots help preserve data states for recovery, backup, and versioning purposes,\n ensuring minimal data loss in case of accidental deletion or corruption.</p>'),
+  large: true,
+} as EmptyConfig;
+
+export const rsyncTaskEmptyConfig = {
+  type: EmptyType.NoPageData,
+  icon: tnIconMarker('desktop-classic', 'mdi'),
+  message: T('Best if you\'re syncing with a generic system that lacks ZFS capabilities.'),
+  large: true,
+} as EmptyConfig;
+
+export const replicationTaskEmptyConfig = {
+  type: EmptyType.NoPageData,
+  icon: tnIconMarker('replication', 'custom'),
+  message: T('Best if you\'re syncing with another TrueNAS or ZFS system — enables advanced features not available with other methods.'),
+  large: true,
+} as EmptyConfig;
+
+export const installedAppsEmptyConfig = {
+  type: EmptyType.NoPageData,
+  title: T('No Applications Installed'),
+  icon: tnIconMarker('apps', 'material'),
+  large: true,
+  message: T('Applications you install will automatically appear here.\n<br> Click below and browse available apps to get started.'),
+} as EmptyConfig;
+
+export const noSearchResultsConfig = {
+  type: EmptyType.NoSearchResults,
+  title: T('No Search Results.'),
+  message: T('No matching results found'),
+  large: true,
+} as EmptyConfig;
+
+export const loadingConfig = {
+  type: EmptyType.Loading,
+  large: false,
+  title: T('Loading...'),
+} as EmptyConfig;
+
+export const errorsConfig = {
+  type: EmptyType.Errors,
+  large: true,
+  title: T('Cannot retrieve response'),
+} as EmptyConfig;
+
+export const noItemsConfig = {
+  title: T('No records have been added yet'),
+  type: EmptyType.NoPageData,
+  large: true,
+} as EmptyConfig;

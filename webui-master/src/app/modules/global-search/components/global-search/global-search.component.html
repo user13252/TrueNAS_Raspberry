@@ -1,0 +1,44 @@
+<div
+  #searchBoxWrapper
+  cdkTrapFocus
+  class="search-box-wrapper"
+  [class.sidenav-collapsed]="sidenavService.isMenuCollapsed"
+  [class.sidenav-mobile]="sidenavService.isMobile()"
+  [cdkTrapFocusAutoCapture]="autoRestoreFocus"
+>
+  <div class="search-box">
+    <tn-icon name="magnify" library="mdi" class="search-icon"></tn-icon>
+
+    <!-- Deliberately not tnInput: bespoke overlay search input; the library's
+         stock input chrome (min-height, focus border) doesn't fit. -->
+    <input
+      #searchInput
+      tnTestId="global-search"
+      tnTestIdType="input"
+      class="search-input"
+      [placeholder]="'Search UI' | translate"
+      [formControl]="searchControl"
+      (keydown)="handleKeyDown($event)"
+    />
+
+    @if (searchControl.value) {
+      <button
+        type="button"
+        class="reset-icon reset-input"
+        [attr.aria-label]="'Clear search' | translate"
+        (click)="resetInput()"
+      >
+        <tn-icon name="close-circle" library="mdi"></tn-icon>
+      </button>
+    }
+  </div>
+
+  <ix-global-search-results
+    [searchTerm]="searchControl.value"
+    [results]="searchResults"
+    [isLoading]="isLoading"
+    [isSearchInputFocused]="isSearchInputFocused()"
+    (keydown)="handleKeyDown($event)"
+    (recentSearchRemoved)="setInitialSearchResults()"
+  ></ix-global-search-results>
+</div>

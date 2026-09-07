@@ -1,0 +1,98 @@
+<div class="job-events">
+  <div class="events-header">
+    <h4>{{ 'Events Timeline' | translate }}</h4>
+    <tn-button
+      testId="add-event-button"
+      color="primary"
+      [label]="'Add Event' | translate"
+      (onClick)="addEvent()"
+    ></tn-button>
+  </div>
+
+  @if (events().length === 0) {
+    <p class="empty-message">{{ 'No events. Add an event to simulate collection updates.' | translate }}</p>
+  }
+
+  <form [formGroup]="form">
+    <div formArrayName="events">
+      @for (eventControl of eventsFormArray.controls; track $index; let i = $index) {
+        <tn-card class="event-card" [formGroupName]="i">
+          <h5 tnCardHeader class="tn-card__title">{{ 'Event' | translate }} #{{ i + 1 }}</h5>
+          <tn-icon-button
+            tnCardHeader
+            name="delete"
+            library="mdi"
+            testId="remove-event-button"
+            [ariaLabel]="'Remove event' | translate"
+            (click)="removeEvent(i)"
+          ></tn-icon-button>
+
+          <div class="event-fields">
+            <div class="field-row">
+              <tn-form-field [label]="'Delay (ms)' | translate" [required]="true">
+                <tn-input
+                  testId="delay-input"
+                  formControlName="delay"
+                  [inputType]="InputType.Number"
+                ></tn-input>
+              </tn-form-field>
+
+              <tn-form-field [label]="'State' | translate" [required]="true">
+                <tn-select
+                  testId="state-select"
+                  formControlName="state"
+                  [options]="stateOptions"
+                ></tn-select>
+              </tn-form-field>
+            </div>
+
+            <tn-form-field [label]="'Description' | translate" [required]="true">
+              <tn-input
+                testId="description-input"
+                formControlName="description"
+              ></tn-input>
+            </tn-form-field>
+
+            <div class="progress-fields">
+              <tn-form-field [label]="'Progress %' | translate">
+                <tn-input
+                  testId="progress-percent-input"
+                  formControlName="progressPercent"
+                  [inputType]="InputType.Number"
+                ></tn-input>
+              </tn-form-field>
+
+              <tn-form-field [label]="'Progress Description' | translate">
+                <tn-input
+                  testId="progress-description-input"
+                  formControlName="progressDescription"
+                ></tn-input>
+              </tn-form-field>
+            </div>
+
+            @if (isResultVisible(i)) {
+              <tn-form-field [label]="'Result (JSON)' | translate">
+                <tn-input
+                  testId="result-textarea"
+                  formControlName="result"
+                  [multiline]="true"
+                  [rows]="3"
+                ></tn-input>
+              </tn-form-field>
+            }
+
+            @if (getEventControl(i).get('state')?.value === 'FAILED') {
+              <tn-form-field [label]="'Error Message' | translate">
+                <tn-input
+                  testId="error-input"
+                  formControlName="error"
+                  [placeholder]="'Error description' | translate"
+                ></tn-input>
+              </tn-form-field>
+            }
+          </div>
+        </tn-card>
+      }
+    </div>
+  </form>
+</div>

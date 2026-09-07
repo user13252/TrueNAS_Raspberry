@@ -1,0 +1,8 @@
+<span
+  class="date-spanner"
+  [class.has-time-difference]="isTimezoneDifference()"
+  [tnTooltip]="'Browser time: {time}' | translate: { time: (date() | formatDateTime) }"
+  [tnTooltipDisabled]="!isTimezoneDifference()"
+>
+  {{ machineTime() | formatDateTime }}
+</span>

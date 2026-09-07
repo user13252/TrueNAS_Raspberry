@@ -1,0 +1,35 @@
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-section>
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="enabled"
+        [label]="'Enable Automatic Failover' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Network Timeout Before Initiating Failover' | translate"
+      [tooltip]="helptext.timeoutTooltip | translate"
+    >
+      <tn-input formControlName="timeout" [inputType]="InputType.Number"></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+  <ix-form-actions>
+    <tn-button
+      color="default"
+      [testId]="'sync-to-peer'"
+      [disabled]="isLoading()"
+      [label]="'Sync To Peer' | translate"
+      (onClick)="onSyncToPeerPressed()"
+    ></tn-button>
+
+    <tn-button
+      color="default"
+      [testId]="'sync-from-peer'"
+      [disabled]="isLoading()"
+      [label]="'Sync From Peer' | translate"
+      (onClick)="onSyncFromPeerPressed()"
+    ></tn-button>
+  </ix-form-actions>
+</form>

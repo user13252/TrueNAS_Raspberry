@@ -1,0 +1,139 @@
+<ix-form
+  [formGroup]="form"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section [heading]="'General Options' | translate">
+    <tn-form-field
+      [label]="'Bind IP Addresses' | translate"
+      [tooltip]="tooltips.bindip | translate"
+    >
+      <tn-select
+        formControlName="bindip"
+        [options]="ipChoices()"
+        [multiple]="true"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="tooltips.servers_auto | translate">
+      <tn-checkbox
+        formControlName="servers_auto"
+        [label]="'Calculate number of threads dynamically' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    @if (!form.controls.servers_auto.value) {
+      <tn-form-field
+        [label]="'Specify number of threads manually' | translate"
+        [required]="true"
+        [tooltip]="tooltips.servers | translate"
+      >
+        <tn-input formControlName="servers" [inputType]="InputType.Number" [allowDecimals]="false"></tn-input>
+      </tn-form-field>
+    }
+  </tn-form-section>
+
+  <div class="two-columns">
+    <tn-form-section [heading]="'NFSv4' | translate">
+      <tn-form-field
+        [label]="'Enabled Protocols' | translate"
+        [tooltip]="tooltips.protocols | translate"
+        [required]="true"
+      >
+        <tn-select
+          formControlName="protocols"
+          [options]="(protocolOptions$ | async) ?? []"
+          [multiple]="true"
+        ></tn-select>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'NFSv4 DNS Domain' | translate"
+        [tooltip]="tooltips.v4_domain | translate"
+      >
+        <tn-input formControlName="v4_domain"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [tooltip]="tooltips.v4_krb | translate">
+        <tn-checkbox
+          formControlName="v4_krb"
+          [label]="'Require Kerberos for NFSv4' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </tn-form-section>
+    <tn-form-section [heading]="'Ports' | translate">
+      <tn-form-field
+        [label]="'mountd(8) bind port' | translate"
+        [tooltip]="tooltips.mountd_port | translate"
+      >
+        <tn-input formControlName="mountd_port" [inputType]="InputType.Number" [allowDecimals]="false"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'rpc.statd(8) bind port' | translate"
+        [tooltip]="tooltips.rpcstatd_port | translate"
+      >
+        <tn-input formControlName="rpcstatd_port" [inputType]="InputType.Number" [allowDecimals]="false"></tn-input>
+      </tn-form-field>
+
+      <tn-form-field
+        [label]="'rpc.lockd(8) bind port' | translate"
+        [tooltip]="tooltips.rpclockd_port | translate"
+      >
+        <tn-input formControlName="rpclockd_port" [inputType]="InputType.Number" [allowDecimals]="false"></tn-input>
+      </tn-form-field>
+    </tn-form-section>
+  </div>
+
+  <tn-form-section [heading]="'Other Options' | translate">
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="rdma"
+        [label]="'Enable NFS over RDMA' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="tooltips.allow_nonroot | translate">
+      <tn-checkbox
+        formControlName="allow_nonroot"
+        [label]="'Allow non-root mount' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="tooltips.userd_manage_gids | translate">
+      <tn-checkbox
+        formControlName="userd_manage_gids"
+        [label]="'Manage Groups Server-side' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+
+  <!--
+    Deliberately in the form body rather than a `footerActions` entry: the action is inseparable
+    from the help icon that explains WHY it is disabled, and a footer action has no tooltip slot
+    (a tooltip on the button itself would not fire — tn-button renders a native `disabled`, which
+    swallows pointer events). Keeping the pair together beats a disabled footer button with no
+    explanation.
+  -->
+  @if (isAddSpnVisible()) {
+    <!-- The role check gates the whole block, not just the button: a read-only user would
+         otherwise get an empty (or tooltip-only) container plus its top margin — a stray gap
+         at the end of the form. -->
+    <div *ixRequiresRoles="requiredRoles" class="add-spn-container">
+      @if (isAddSpnDisabled()) {
+        <ix-tooltip
+          [header]="'Add SPN' | translate"
+          [message]="'Save the \'Require Kerberos for NFSv4\' value before adding SPN' | translate"
+        ></ix-tooltip>
+      }
+      <tn-button
+        color="primary"
+        [testId]="'add-spn'"
+        [label]="'Add SPN' | translate"
+        [disabled]="isAddSpnDisabled()"
+        (onClick)="addSpn()"
+      ></tn-button>
+    </div>
+  }
+</ix-form>

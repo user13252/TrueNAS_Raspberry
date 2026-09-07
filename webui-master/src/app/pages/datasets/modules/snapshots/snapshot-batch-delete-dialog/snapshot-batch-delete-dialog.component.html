@@ -1,0 +1,95 @@
+<tn-dialog-shell testId="snapshot-batch-delete" [title]="'Delete' | translate">
+@if (!isJobCompleted) {
+  <form
+    class="ix-form-container"
+    [formGroup]="form"
+    (submit)="onSubmit()"
+  >
+    <p>
+      <strong>
+        {{ 'The following { n, plural, one {snapshot} other {# snapshots} } will be deleted. Are you sure you want to proceed?' | translate: { n: total } }}
+      </strong>
+    </p>
+
+    @for (dataset of dialogData.datasets; track dataset) {
+      <tn-expansion-panel elevation="none" padding="small" [expanded]="true" [background]="false">
+        <div slot="title">
+          <strong>{{ dataset }}</strong>
+          <span>
+            ({{
+            '{ n, plural, one {# snapshot} other {# snapshots} }' | translate: { n: dialogData.snapshots[dataset].length }
+            }})
+          </span>
+        </div>
+        <ul>
+          @for (snapshot of dialogData.snapshots[dataset]; track snapshot) {
+            <li>
+              {{ snapshot }}
+            </li>
+          }
+        </ul>
+      </tn-expansion-panel>
+    }
+
+    <tn-form-field>
+      <tn-checkbox
+        testId="confirm"
+        formControlName="confirm"
+        [label]="'Confirm' | translate"
+        [required]="true"
+      ></tn-checkbox>
+    </tn-form-field>
+  </form>
+} @else {
+  @if (jobErrors.length) {
+    <p class="result-message">
+      {{ 'Warning: {n} of {total} snapshots could not be deleted.' | translate: { n: jobErrors.length, total } }}
+    </p>
+    <div class="error-message-container">
+      <p>{{ getErrorMessage() }}</p>
+    </div>
+  } @else {
+    <p class="result-message">
+      {{ 'Deleted {n, plural, one {# snapshot} other {# snapshots} }' | translate:
+      { n: jobSuccess.length} }}
+    </p>
+  }
+}
+<ix-form-actions tnDialogAction>
+  @if (!isJobCompleted) {
+    <tn-button
+      variant="outline"
+      testId="cancel"
+      [label]="'Cancel' | translate"
+      (onClick)="dialogRef.close()"
+    ></tn-button>
+    <div
+      [tnTooltip]="'Snapshots must not have dependent clones' | translate"
+      [tnTooltipDisabled]="!hasClones"
+    >
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        color="warn"
+        testId="delete"
+        [label]="'Delete' | translate"
+        [disabled]="form.invalid || hasClones || isDeleting()"
+        (onClick)="onSubmit()"
+      ></tn-button>
+    </div>
+  } @else {
+    <tn-button
+      variant="outline"
+      testId="close"
+      [label]="'Close' | translate"
+      (onClick)="dialogRef.close(true)"
+    ></tn-button>
+    <tn-button
+      color="primary"
+      testId="go-to-storage"
+      [label]="'Go to Storage' | translate"
+      [routerLink]="['/storage']"
+      (onClick)="dialogRef.close(true)"
+    ></tn-button>
+  }
+</ix-form-actions>
+</tn-dialog-shell>

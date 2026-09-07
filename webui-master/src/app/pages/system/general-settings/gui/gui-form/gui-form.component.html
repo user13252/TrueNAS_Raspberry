@@ -1,0 +1,109 @@
+<ix-form
+  [formGroup]="formGroup"
+  [externalLoading]="isFormLoading()"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section [heading]="helptext.guiTitle | translate">
+    <ix-with-manage-certificates-link>
+      <tn-form-field
+        [label]="helptext.uiCertificate.label | translate"
+        [tooltip]="helptext.uiCertificate.tooltip | translate"
+        [required]="true"
+      >
+        <tn-select
+          testId="ui_certificate"
+          formControlName="ui_certificate"
+          [options]="(options.ui_certificate | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    </ix-with-manage-certificates-link>
+
+    <tn-form-field
+      [label]="helptext.uiAddress.label | translate"
+      [tooltip]="helptext.uiAddress.tooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        testId="ui_address"
+        formControlName="ui_address"
+        [options]="(options.ui_address | async) ?? []"
+        [multiple]="true"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="helptext.uiV6address.label | translate"
+      [tooltip]="helptext.uiV6address.tooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        testId="ui_v6address"
+        formControlName="ui_v6address"
+        [options]="(options.ui_v6address | async) ?? []"
+        [multiple]="true"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="helptext.uiPort.label | translate"
+      [tooltip]="helptext.uiPort.tooltip | translate"
+    >
+      <tn-input
+        testId="ui_port"
+        formControlName="ui_port"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="helptext.uiHttpsPort.label | translate"
+      [tooltip]="helptext.uiHttpsPort.tooltip | translate"
+    >
+      <tn-input
+        testId="ui_httpsport"
+        formControlName="ui_httpsport"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="helptext.uiHttpsProtocols.label | translate"
+      [tooltip]="helptext.uiHttpsProtocols.tooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        testId="ui_httpsprotocols"
+        formControlName="ui_httpsprotocols"
+        [options]="(options.ui_httpsprotocols | async) ?? []"
+        [multiple]="true"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.uiHttpsRedirect.tooltip | translate">
+      <tn-checkbox
+        testId="ui_httpsredirect"
+        formControlName="ui_httpsredirect"
+        [label]="helptext.uiHttpsRedirect.label | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+
+  <tn-form-section [heading]="helptext.otherTitle | translate">
+    <tn-form-field [tooltip]="usageCollectionTooltip()">
+      <tn-checkbox
+        testId="usage_collection"
+        formControlName="usage_collection"
+        [label]="helptext.usageCollection.label | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.uiConsoleMessage.tooltip | translate">
+      <tn-checkbox
+        testId="ui_consolemsg"
+        formControlName="ui_consolemsg"
+        [label]="helptext.uiConsoleMessage.label | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

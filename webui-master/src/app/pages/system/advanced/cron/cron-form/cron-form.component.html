@@ -1,0 +1,59 @@
+<ix-form
+  [formGroup]="form"
+  [editData]="editCronjob()"
+  [transformEditData]="transformEditCronjob"
+  [addTitle]="'Add Cron Job' | translate"
+  [editTitle]="'Edit Cron Job' | translate"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field [label]="'Description' | translate">
+      <tn-input formControlName="description"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Command' | translate"
+      [tooltip]="tooltips.command | translate"
+      [required]="true"
+    >
+      <tn-input formControlName="command"></tn-input>
+    </tn-form-field>
+
+    <ix-user-combobox
+      formControlName="user"
+      [label]="'Run As User' | translate"
+      [required]="true"
+      [tooltip]="tooltips.user | translate"
+    ></ix-user-combobox>
+
+    <ix-scheduler
+      formControlName="schedule"
+      [label]="'Schedule' | translate"
+      [required]="true"
+      [tooltip]="tooltips.schedule | translate"
+    ></ix-scheduler>
+
+    <tn-form-field [tooltip]="tooltips.stdout | translate">
+      <tn-checkbox
+        formControlName="stdout"
+        [label]="'Hide Standard Output' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="tooltips.stderr | translate">
+      <tn-checkbox
+        formControlName="stderr"
+        [label]="'Hide Standard Error' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field>
+      <tn-checkbox
+        formControlName="enabled"
+        [label]="'Enabled' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

@@ -1,0 +1,156 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { Spectator } from '@ngneat/spectator';
+import { createComponentFactory, mockProvider } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import { TnButtonHarness } from '@truenas/ui-components';
+import { BehaviorSubject } from 'rxjs';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { ProductType } from 'app/enums/product-type.enum';
+import { LoadingState } from 'app/helpers/operators/to-loading-state.helper';
+import { License, SystemInfo, ContractType } from 'app/interfaces/system-info.interface';
+import { selectUpdateJobForActiveNode } from 'app/modules/jobs/store/job.selectors';
+import { LocaleService } from 'app/modules/language/locale.service';
+import { WidgetResourcesService } from 'app/pages/dashboard/services/widget-resources.service';
+import { SlotSize } from 'app/pages/dashboard/types/widget.interface';
+import { WidgetSysInfoActiveComponent } from 'app/pages/dashboard/widgets/system/widget-sys-info-active/widget-sys-info-active.component';
+import { selectIsHaLicensed, selectIsHaEnabled } from 'app/store/ha-info/ha-info.selectors';
+import {
+  selectIsIxHardware, selectProductType,
+  selectHasEnclosureSupport,
+} from 'app/store/system-info/system-info.selectors';
+
+describe('WidgetSysInfoActiveComponent', () => {
+  let spectator: Spectator<WidgetSysInfoActiveComponent>;
+  let loader: HarnessLoader;
+  const refreshInterval$ = new BehaviorSubject<number>(0);
+
+  const systemInfo = {
+    platform: 'TRUENAS-M40-HA',
+    version: '25.10.0-MASTER-20250126-184805',
+    license: {
+      contract_type: ContractType.Gold,
+      expires_at: { $type: 'date', $value: '2025-01-01' },
+    } as License,
+    system_serial: 'AA-00001',
+    hostname: 'test-hostname-a',
+    uptime_seconds: 83532.938532175,
+    datetime: {
+      $date: 1710491651000,
+    },
+  } as SystemInfo;
+
+  const dashboardSystemInfo$ = new BehaviorSubject({
+    isLoading: false,
+    error: null,
+    value: systemInfo,
+  } as LoadingState<SystemInfo>);
+
+  const updateAvailable$ = new BehaviorSubject(true);
+
+  const createComponent = createComponentFactory({
+    component: WidgetSysInfoActiveComponent,
+    providers: [
+      mockAuth(),
+      mockProvider(WidgetResourcesService, {
+        dashboardSystemInfo$,
+        updateAvailable$,
+        refreshInterval$,
+      }),
+      mockProvider(LocaleService, {
+        getDateAndTime: () => ['2024-03-15', '10:34:11'],
+        getDateFromString: (date: string) => new Date(date),
+        getPreferredDateFormat: () => 'yyyy-MM-dd',
+      }),
+      provideMockStore({
+        selectors: [
+          {
+            selector: selectProductType,
+            value: ProductType.Enterprise,
+          },
+          {
+            selector: selectHasEnclosureSupport,
+            value: true,
+          },
+          {
+            selector: selectIsIxHardware,
+            value: true,
+          },
+          {
+            selector: selectIsHaLicensed,
+            value: true,
+          },
+          {
+            selector: selectIsHaEnabled,
+            value: true,
+          },
+          {
+            selector: selectUpdateJobForActiveNode,
+            value: null,
+          },
+        ],
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent({
+      props: {
+        size: SlotSize.Full,
+      },
+    });
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  it('checks title', () => {
+    expect(spectator.query('.header h3')).toHaveText('System Information');
+  });
+
+  it('checks system info rows', () => {
+    // TODO: replace with TnListItemHarness once @truenas/ui-components ships one.
+    const items = spectator.queryAll('tn-list-item')
+      .map((item) => item.textContent!.replace(/\s+/g, ' ').trim());
+    expect(items).toEqual([
+      'Platform: TRUENAS-M40-HA',
+      'Edition: Enterprise',
+      'Version: 25.10.0-MASTER-20250126-184805',
+      'Support License: Gold Contract Expires on 2025-01-01',
+      'System Serial: AA-00001',
+      'Uptime: 23 hours 12 minutes as of 10:34',
+    ]);
+  });
+
+  it('checks Uptime changed over time', () => {
+    jest.useFakeTimers();
+
+    const initialUptime = spectator.component.uptime();
+    const initialDatetime = spectator.component.datetime();
+
+    jest.advanceTimersByTime(5000);
+    refreshInterval$.next(1);
+
+    spectator.detectChanges();
+
+    const updatedUptime = spectator.component.uptime();
+    const updatedDatetime = spectator.component.datetime();
+
+    expect(updatedUptime).toBeGreaterThan(initialUptime);
+    expect(updatedDatetime).toBe(initialDatetime);
+
+    jest.useRealTimers();
+  });
+
+  it('checks update button text', async () => {
+    updateAvailable$.next(false);
+    const checkUpdateButton = await loader.getHarness(TnButtonHarness.with({ label: /Check for Updates/ }));
+    expect(await checkUpdateButton.host()).toExist();
+
+    updateAvailable$.next(true);
+    const updateButton = await loader.getHarness(TnButtonHarness.with({ label: /Updates Available/ }));
+    expect(await updateButton.host()).toExist();
+  });
+
+  it('shows hostname near product image when system serial is present', () => {
+    expect(spectator.query('.hostname')!.textContent!.trim()).toBe('test-hostname-a');
+  });
+});

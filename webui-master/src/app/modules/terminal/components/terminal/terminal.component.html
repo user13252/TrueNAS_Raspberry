@@ -1,0 +1,54 @@
+<ix-page-header>
+  @if (shellConnected()) {
+    <ix-terminal-font-size (fontSizeChanged)="onFontSizeChanged($event)"></ix-terminal-font-size>
+  }
+</ix-page-header>
+
+<div class="terminal-wrapper">
+  @if (accessDenied()) {
+    <div class="terminal-busy-overlay">
+      <div class="busy-content" role="alert">
+        <tn-icon name="lock" library="mdi" size="xl" aria-hidden="true"></tn-icon>
+        <p>{{ webShellAccessDenied | translate }}</p>
+      </div>
+    </div>
+  } @else if (!shellConnected()) {
+    <div class="terminal-busy-overlay">
+      <div class="busy-content">
+        @if (isReconnecting()) {
+          <ng-container *ngTemplateOutlet="terminalLoading"></ng-container>
+        } @else {
+          @if (!hasAttemptedAutoReconnect) {
+            <ng-container *ngTemplateOutlet="terminalLoading"></ng-container>
+          } @else {
+            <p>{{ 'Connection lost. Click Reconnect to restore the session.' | translate }}</p>
+            <tn-button
+              color="primary"
+              testId="reconnect"
+              [label]="'Reconnect' | translate"
+              [disabled]="isReconnecting()"
+              (onClick)="reconnect()"
+            ></tn-button>
+          }
+        }
+      </div>
+    </div>
+  }
+  @if (!accessDenied()) {
+    <div
+      #terminal
+      id="terminal"
+      [ngStyle]="{ 'font-size': fontSize + 'px' }"
+      [class.terminal-dimmed]="!shellConnected()"
+    ></div>
+  }
+</div>
+
+<ng-template #terminalLoading>
+  <tn-spinner mode="indeterminate" [diameter]="48"></tn-spinner>
+  @if (isInstanceShell()) {
+    <p>{{ 'Connecting to instance shell...' | translate }}</p>
+  } @else {
+    <p>{{ 'Connecting...' | translate }}</p>
+  }
+</ng-template>

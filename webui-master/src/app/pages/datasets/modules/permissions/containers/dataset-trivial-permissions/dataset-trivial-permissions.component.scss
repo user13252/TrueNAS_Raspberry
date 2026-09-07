@@ -1,0 +1,108 @@
+@import 'mixins/a11y';
+
+.header {
+  align-items: baseline;
+  border-bottom: 1px solid var(--lines);
+  column-gap: 8px;
+  display: flex;
+  // Match the horizontal padding of the sections below so the title lines up with the content.
+  padding: 12px 24px;
+
+  .header-title {
+    font-size: 1.4rem;
+    margin: 0;
+  }
+}
+
+.card {
+  margin: 0 auto;
+  max-width: 850px;
+}
+
+.dataset-path {
+  display: flex;
+  margin-left: 0;
+
+  .dataset-path-label {
+    font-weight: 500;
+    margin-right: 6px;
+  }
+
+  .dataset-path-value {
+    max-width: 30vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// The `<ix-form>` wrapper renders the form element itself; each section below owns its
+// horizontal padding so the title, section content and footer buttons share one left edge.
+ix-form.form {
+  display: block;
+}
+
+.owner-and-access {
+  border-bottom: 1px solid var(--lines);
+  column-gap: 64px;
+  display: flex;
+  padding: 16px 24px 24px;
+
+  .owner-fields,
+  .access-fields {
+    flex: 1;
+  }
+}
+
+.advanced-fields {
+  border-bottom: 1px solid var(--lines);
+  padding: 16px 24px 20px;
+}
+
+.access-mode {
+  border-collapse: collapse;
+
+  &__header {
+    font-size: x-small;
+    font-weight: 500;
+    padding: 5px 10px;
+  }
+
+  &__cell {
+    padding: 5px 10px;
+    text-align: center;
+  }
+
+  &__checkbox {
+    // The checkbox host is inline and wraps a block-level control, so `text-align: center`
+    // on the cell can't centre it. Centre it here so it lines up under its column header.
+    display: flex;
+    justify-content: center;
+
+    // TEMP: pierce tn-checkbox's private __text to visually hide the per-cell label
+    // (kept in the DOM as the checkbox's accessible name). Remove once
+    // @truenas/ui-components ships a label-hidden / aria-label-only checkbox mode.
+    ::ng-deep .tn-checkbox__text {
+      @include visually-hidden;
+    }
+  }
+}
+
+// A plain row rather than `ix-form-actions`: that component carries a 10px horizontal gutter
+// for legacy forms (which would offset the buttons from the sections above) and always renders
+// the projected `[type=submit]` ahead of its other content, which would put Save first in the
+// DOM. Here the footer owns its own padding and the buttons read in source order, so the visual
+// order matches the tab order. Save still submits natively — it sits inside `<ix-form>`'s form.
+.form-actions {
+  display: flex;
+  column-gap: 10px;
+  justify-content: flex-end;
+  // Match the horizontal padding of the sections above so the buttons share their left/right edge.
+  padding: 24px;
+
+  // Set ACL leads the row; the auto margin absorbs the free space, pushing Save/Cancel right.
+  // Without the role for it the row is empty on the left and `flex-end` right-aligns the rest.
+  .set-acl-button {
+    margin-right: auto;
+  }
+}

@@ -1,0 +1,29 @@
+@import 'mixins/cards';
+@import 'mixins/animations';
+
+@include tn-detail-card();
+
+:host ::ng-deep {
+  ix-missing-access-wrapper {
+    margin-left: auto;
+  }
+}
+
+.card {
+  height: 100%;
+
+  @include tn-details-item();
+}
+
+.icon {
+  height: 24px;
+  margin-right: 8px;
+  width: 24px;
+}
+
+.apps,
+.vms {
+  margin-bottom: 12px;
+  margin-top: 12px;
+  white-space: normal !important;
+}

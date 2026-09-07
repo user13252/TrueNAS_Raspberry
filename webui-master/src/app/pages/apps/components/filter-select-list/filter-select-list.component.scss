@@ -1,0 +1,28 @@
+:host {
+  display: block;
+  font-size: 12px;
+}
+
+.label {
+  border-bottom: 1px solid var(--lines);
+  padding: 4px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 4px;
+  row-gap: 7px;
+
+  .item {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+
+    tn-icon {
+      height: 16px;
+      width: 16px;
+    }
+  }
+}

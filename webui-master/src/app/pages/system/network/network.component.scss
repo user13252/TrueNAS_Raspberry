@@ -1,0 +1,72 @@
+@import 'scss-imports/cssvars';
+
+div.content {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+
+  .right-column {
+    display: flex;
+    flex-basis: 35%;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .left-column {
+    display: flex;
+    flex-basis: 65%;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  @media #{$media-lt-lg} {
+    flex-direction: column;
+
+    .right-column,
+    .left-column {
+      flex-basis: 100%;
+    }
+  }
+}
+
+div.right-column div.left-column {
+  height: inherit;
+}
+
+.interface-pending-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+div.disabled-notice {
+  margin-top: 16px;
+}
+
+.checkin-error {
+  color: var(--red);
+}
+
+.pseudolink {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.dashboard-card {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.pending-changes-card {
+  height: auto;
+}
+
+.timeout-field {
+  display: inline-block;
+  margin: 0 4px;
+  vertical-align: middle;
+  width: 70px;
+}

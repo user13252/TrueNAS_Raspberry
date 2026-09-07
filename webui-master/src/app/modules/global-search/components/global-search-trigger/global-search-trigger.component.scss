@@ -1,0 +1,63 @@
+@import 'scss-imports/cssvars';
+@import '../search-box.mixin';
+
+:host {
+  margin-left: 21px;
+  position: relative;
+  width: 100%;
+
+  @media(max-width: $breakpoint-xs) {
+    align-items: center;
+    display: flex;
+    height: 48px;
+    justify-content: center;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 48px;
+  }
+}
+
+// Hidden (not removed) while the overlay's identical search box is attached on
+// top of this one, so layout doesn't shift.
+.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.search-box {
+  @include search-box;
+
+  @media(max-width: $breakpoint-xs) {
+    background-color: transparent;
+    border: 0;
+  }
+
+  .search-icon {
+    // On mobile the input is hidden and the icon is the whole trigger — show it
+    // at full strength and make it read as clickable. (Base icon styles come
+    // from the search-box mixin.)
+    @media(max-width: $breakpoint-xs) {
+      cursor: pointer;
+      height: 28px;
+      opacity: 1;
+      position: static;
+      transform: none;
+      width: 28px;
+    }
+  }
+
+  .search-input {
+    @media(max-width: $breakpoint-xs) {
+      display: none;
+    }
+  }
+
+  .shortcut {
+    opacity: 0.7;
+    position: absolute;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+}

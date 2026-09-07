@@ -1,0 +1,21 @@
+<tn-card id="eula-card" [ixUiSearch]="searchableElements.elements.eula">
+  <div id="eula">
+    <h2>{{ 'End User License Agreement - TrueNAS' | translate }}</h2>
+    <div [innerHTML]="eula"></div>
+  </div>
+  @if (eula) {
+    <div>
+      <tn-divider></tn-divider>
+      <div id="button-row">
+        <tn-button
+          id="back-to-support-button"
+          variant="filled"
+          color="primary"
+          [testId]="'back-to-support'"
+          [routerLink]="['/system/general']"
+          [label]="'Back to Support' | translate"
+        ></tn-button>
+      </div>
+    </div>
+  }
+</tn-card>

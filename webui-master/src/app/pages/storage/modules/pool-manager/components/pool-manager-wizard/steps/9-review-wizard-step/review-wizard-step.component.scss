@@ -1,0 +1,43 @@
+:host {
+  display: block;
+  padding-top: 10px;
+}
+
+.summary-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 18px;
+  margin-right: 10%;
+
+  > div {
+    width: 100%;
+  }
+
+  .summary-group {
+    width: 50%;
+  }
+
+  h4 {
+    border-bottom: 1px solid var(--lines);
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+}
+
+.force-topology {
+  margin-bottom: 24px;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+
+  .label {
+    font-weight: bold;
+  }
+
+  .value {
+    font-weight: normal;
+  }
+}

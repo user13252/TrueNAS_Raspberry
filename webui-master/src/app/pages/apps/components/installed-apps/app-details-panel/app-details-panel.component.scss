@@ -1,0 +1,23 @@
+@import 'mixins/cards';
+@import 'scss-imports/variables';
+
+.cards {
+  @include details-cards();
+
+  .scroll-window {
+    column-gap: 8px;
+    columns: 1;
+
+    // Details panel only gets wide enough for two card columns past this breakpoint
+    // (see tree-node-with-details-container in mixins/layout.scss).
+    @media (min-width: $breakpoint-dualcolumn-slim) {
+      columns: 2;
+    }
+
+    > * {
+      break-inside: avoid;
+      display: block;
+      margin-bottom: 8px;
+    }
+  }
+}

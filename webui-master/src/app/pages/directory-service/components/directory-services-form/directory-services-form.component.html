@@ -1,0 +1,100 @@
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <!-- Basic Configuration -->
+  <tn-form-section [heading]="'Basic Configuration' | translate">
+    <tn-form-field
+      [label]="'Configuration Type' | translate"
+      [tooltip]="helptext.serviceTypeTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        testId="service_type"
+        formControlName="service_type"
+        [options]="(configurationTypeOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.enableTooltip | translate">
+      <tn-checkbox
+        formControlName="enable"
+        testId="enable"
+        [label]="'Enable Service' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.enableAccountCacheTooltip | translate">
+      <tn-checkbox
+        formControlName="enable_account_cache"
+        testId="enable_account_cache"
+        [label]="'Enable Account Cache' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field [tooltip]="helptext.enableDnsUpdatesTooltip | translate">
+      <tn-checkbox
+        formControlName="enable_dns_updates"
+        testId="enable_dns_updates"
+        [label]="'Enable DNS Updates' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Timeout (seconds)' | translate"
+      [tooltip]="helptext.timeoutTooltip | translate"
+      [required]="true"
+    >
+      <tn-input
+        name="timeout"
+        testId="timeout"
+        formControlName="timeout"
+        [inputType]="InputType.Number"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Kerberos Realm' | translate"
+      [tooltip]="helptext.kerberosRealmTooltip | translate"
+    >
+      <tn-input
+        name="kerberos_realm"
+        testId="kerberos_realm"
+        formControlName="kerberos_realm"
+      ></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+  <!-- Credential Configuration Sub-Component -->
+  @if (selectedConfigurationType) {
+    <ix-credential-config
+      [serviceType]="selectedConfigurationType"
+      [credential]="credentialData || preservedCredentialData || previousConfig()?.credential"
+      (credentialUpdated)="onCredentialDataChanged($event)"
+      (isValid)="onCredentialValidityChanged($event)"
+    ></ix-credential-config>
+  }
+
+  @if (selectedConfigurationType === DirectoryServiceType.ActiveDirectory) {
+    <ix-active-directory-config
+      [activeDirectoryConfig]="activeDirectoryConfig()"
+      (isValid)="onActiveDirectoryValidityChanged($event)"
+      (configurationChanged)="onConfigurationDataChanged($event)"
+      (kerberosRealmSuggested)="onKerberosRealmSuggested($event)"
+    ></ix-active-directory-config>
+  }
+
+  @if (selectedConfigurationType === DirectoryServiceType.Ldap) {
+    <ix-ldap-config
+      [ldapConfig]="ldapConfig()"
+      (isValid)="onLdapValidityChanged($event)"
+      (configurationChanged)="onConfigurationDataChanged($event)"
+    ></ix-ldap-config>
+  }
+
+  @if (selectedConfigurationType === DirectoryServiceType.Ipa) {
+    <ix-ipa-config
+      [ipaConfig]="ipaConfig()"
+      (configurationChanged)="onConfigurationDataChanged($event)"
+      (isValid)="onIpaValidityChanged($event)"
+    ></ix-ipa-config>
+  }
+</form>

@@ -1,0 +1,63 @@
+@import 'mixins/cards';
+
+@include tn-detail-card;
+@include tn-card-inline-title;
+
+:host {
+  display: flex;
+}
+
+tn-icon.pool-icon {
+  cursor: help;
+  display: inline-flex;
+  height: 16px;
+  vertical-align: middle;
+  width: 16px;
+}
+
+.card {
+  flex: 1;
+
+  .content-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .vdev-line {
+    align-items: center;
+    display: flex;
+    margin: 8px 0;
+    place-content: center space-between;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  .vdev-stats {
+    align-items: center;
+    display: flex;
+    place-content: center;
+  }
+
+  .empty-vdev-state {
+    display: flex;
+    flex-direction: column;
+    margin: 8px 0;
+
+    .empty-description {
+      opacity: 0.7;
+    }
+  }
+}
+
+.tier-label {
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+.warning {
+  display: flex;
+  padding: 0 6px;
+}

@@ -1,0 +1,53 @@
+.form-actions {
+  button {
+    margin-top: 10px;
+  }
+}
+
+.stig-hints {
+  color: var(--fg2);
+  display: block;
+  font-size: 12px;
+
+  .stig-info {
+    color: var(--orange);
+    font-weight: 500;
+  }
+
+  &.stig-info {
+    color: var(--orange);
+    font-weight: 500;
+  }
+}
+
+.stig-errors {
+  color: var(--red);
+  display: block;
+  font-size: 12px;
+  margin-top: 5px;
+
+  .link-button {
+    display: inline;
+  }
+
+  .stig-validation-list {
+    margin: 8px 0;
+    padding-left: 20px;
+
+    li {
+      margin: 4px 0;
+    }
+  }
+}
+
+.link-button {
+  color: var(--primary);
+  cursor: pointer;
+  display: inline;
+  margin-left: 5px;
+  text-decoration: underline;
+
+  &:hover {
+    color: var(--primary-lighter);
+  }
+}

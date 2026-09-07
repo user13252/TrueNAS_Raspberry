@@ -1,0 +1,26 @@
+<tn-dialog-shell testId="extend" [title]="'Extend Vdev' | translate">
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit($event)">
+  <ix-unused-disk-select
+    formControlName="newDisk"
+    [label]="'New Disk' | translate"
+    [required]="true"
+    [tooltip]="helptext.dialogFormFields.newDisk.tooltip | translate"
+  ></ix-unused-disk-select>
+
+</form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+  <tn-button
+    color="primary"
+    testId="extend"
+    [label]="'Extend' | translate"
+    [disabled]="form.invalid"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

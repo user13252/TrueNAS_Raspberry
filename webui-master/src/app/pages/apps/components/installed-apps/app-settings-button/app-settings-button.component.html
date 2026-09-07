@@ -1,0 +1,51 @@
+<span class="config-button">
+  <tn-button
+    testId="apps-settings"
+    [label]="'Configuration' | translate"
+    [tnMenuTriggerFor]="menu"
+    [ixUiSearch]="searchableElements.elements.settings"
+  ></tn-button>
+  <tn-icon class="config-caret" name="menu-down" library="mdi" aria-hidden="true"></tn-icon>
+</span>
+
+<tn-menu #menu>
+  <tn-menu-item
+    *ixRequiresRoles="updateDockerRoles"
+    testId="choose-pool"
+    [label]="'Choose Pool' | translate"
+    [ixUiSearch]="searchableElements.elements.choosePool"
+    (itemClick)="onChoosePool()"
+  ></tn-menu-item>
+
+  @if (!!(dockerStore.selectedPool$ | async)) {
+    <tn-menu-item
+      *ixRequiresRoles="updateDockerRoles"
+      testId="unset-pool"
+      [label]="'Unset Pool' | translate"
+      (itemClick)="onUnsetPool()"
+    ></tn-menu-item>
+  }
+
+  <tn-menu-item
+    testId="container-images"
+    [label]="'Manage Container Images' | translate"
+    (itemClick)="goTo(['/apps', 'manage-container-images'])"
+  ></tn-menu-item>
+
+  <tn-menu-item
+    testId="docker-registries"
+    tnTooltipPosition="right"
+    [label]="'Sign-in to a Docker registry' | translate"
+    [tnTooltip]="!(dockerStore.selectedPool$ | async)
+      ? ('Choose pool first' | translate)
+      : (helptext.dockerRegistries.tooltip | translate)"
+    [disabled]="!(dockerStore.selectedPool$ | async)"
+    (itemClick)="goTo(['/apps', 'docker-registries'])"
+  ></tn-menu-item>
+
+  <tn-menu-item
+    testId="update-preferred-trains"
+    [label]="'Settings' | translate"
+    (itemClick)="manageCatalog()"
+  ></tn-menu-item>
+</tn-menu>

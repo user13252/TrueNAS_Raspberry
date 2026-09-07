@@ -1,0 +1,65 @@
+@import 'scss-imports/cssvars';
+
+:host {
+  display: block;
+  max-height: inherit;
+
+  @media (max-width: $breakpoint-md) {
+    margin: 0 auto;
+    max-width: 600px;
+  }
+}
+
+.fade-in {
+  animation: fade-in 300ms ease-in;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.svg-container {
+  max-height: inherit;
+  text-align: center;
+
+  &.static {
+    pointer-events: none;
+  }
+
+  ::ng-deep {
+    svg {
+      max-height: inherit;
+    }
+
+    .overlay-rect {
+      cursor: pointer;
+      fill: var(--black);
+      fill-opacity: 0.3;
+      transition: fill-opacity 0.2s ease-in-out, filter 0.2s ease-in-out;
+
+      &:hover {
+        fill: var(--primary) !important;
+        stroke: var(--primary);
+        stroke-width: 4px;
+      }
+
+      &.selected {
+        fill-opacity: 0;
+        stroke: var(--primary);
+        stroke-dasharray: none;
+        stroke-width: 3px;
+      }
+
+      &.selected-vdev-disk {
+        fill: black;
+        opacity: 0.25;
+      }
+    }
+  }
+}

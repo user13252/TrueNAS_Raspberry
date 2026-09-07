@@ -1,0 +1,35 @@
+<tn-dialog-shell testId="services-to-be-restarted" [title]="helptext.exportError | translate">
+<div class="message-content">
+  @if (servicesInfo.stop_services.length) {
+    <div class="services-block">
+      <p>{{ helptext.exportMessages.stopServices | translate }}</p>
+
+      <ul>
+        @for (service of servicesInfo.stop_services; track service) {
+          <li>{{ service | translate }}</li>
+        }
+      </ul>
+    </div>
+  }
+
+  @if (servicesInfo.restart_services.length) {
+    <div class="services-block">
+      <p>{{ helptext.exportMessages.restartServices | translate }}</p>
+
+      <ul>
+        @for (service of servicesInfo.restart_services; track service) {
+          <li>{{ service | translate }}</li>
+        }
+      </ul>
+    </div>
+  }
+
+  <p>{{ helptext.exportMessages.continueMessage | translate }}</p>
+</div>
+
+<ix-form-actions tnDialogAction class="form-actions">
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close(false)"></tn-button>
+
+  <tn-button color="primary" testId="continue" [label]="helptext.exportMessages.continueAction | translate" (onClick)="dialogRef.close(true)"></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

@@ -1,0 +1,49 @@
+<ix-form
+  [formGroup]="form"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section [heading]="'Set Quotas' | translate">
+    <tn-form-field
+      [label]="dataQuotaLabel"
+      [tooltip]="dataQuotaTooltip"
+    >
+      <tn-input
+        formControlName="data_quota"
+        [inputType]="InputType.Size"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="objectQuotaLabel"
+      [tooltip]="objectQuotaTooltip"
+    >
+      <tn-input
+        formControlName="obj_quota"
+        [inputType]="InputType.Number"
+      ></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+
+  @if (quotaType() === DatasetQuotaType.User) {
+    <tn-form-section [heading]="'Apply Quotas to Selected Users' | translate">
+      <ix-user-chips
+        formControlName="users"
+        [label]="'Apply To Users' | translate"
+        [tooltip]="tooltips.users | translate"
+      ></ix-user-chips>
+    </tn-form-section>
+  }
+
+  @if (quotaType() === DatasetQuotaType.Group) {
+    <tn-form-section [heading]="'Apply Quotas to Selected Groups' | translate">
+      <ix-group-chips
+        formControlName="groups"
+        [label]="'Apply To Groups' | translate"
+        [tooltip]="tooltips.groups | translate"
+        [required]="true"
+      ></ix-group-chips>
+    </tn-form-section>
+  }
+</ix-form>

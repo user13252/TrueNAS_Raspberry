@@ -1,0 +1,63 @@
+<tn-dialog-shell testId="unlock-summary" [title]="title | translate">
+<div id="unlock-msg">
+  <div class="message-content">
+    @if (errorDatasets.length > 0) {
+      <div class="errors-content">
+        <tn-divider></tn-divider>
+        <p>{{ errorsMessage | translate }}</p>
+        @for (dataset of errorDatasets; track dataset) {
+          <div class="row">
+            <strong>{{ dataset.name }}</strong>
+            <div>
+              <a tnTestIdType="link" [tnTestId]="'unlock-summary-details'" (click)="showError(dataset)">
+                <u>{{ 'details' | translate }}</u>
+              </a>
+              <tn-icon name="close-circle" library="mdi" class="red-icon"></tn-icon>
+            </div>
+          </div>
+        }
+      </div>
+    }
+    @if (skippedDatasets.length > 0) {
+      <div class="skipped-content">
+        <tn-divider></tn-divider>
+        <p>{{ skippedMessage | translate }}</p>
+        @for (dataset of skippedDatasets; track dataset) {
+          <div class="row">
+            <strong>{{ dataset.name }}</strong>
+            <tn-icon name="close-circle" library="mdi" class="red-icon"></tn-icon>
+          </div>
+        }
+      </div>
+    }
+    @if (unlockDatasets.length > 0) {
+      <div class="unlock-content">
+        <tn-divider></tn-divider>
+        <p>{{ unlockMessage | translate }}</p>
+        @for (dataset of unlockDatasets; track dataset) {
+          <div class="row">
+            <strong>{{ dataset.name }}</strong>
+            <tn-icon name="check-circle" library="mdi" class="green-icon"></tn-icon>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="close"
+    [label]="cancelMessage | translate"
+    (onClick)="cancel()"
+  ></tn-button>
+  @if (!final) {
+    <tn-button
+      color="primary"
+      testId="continue"
+      [label]="buttonMessage | translate"
+      (onClick)="submit()"
+    ></tn-button>
+  }
+</ix-form-actions>
+</tn-dialog-shell>

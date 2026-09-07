@@ -1,0 +1,19 @@
+<tn-dialog-shell testId="create-storj-bucket" [title]="'Add bucket' | translate">
+<form [formGroup]="form" (submit)="onSubmit()">
+  <div>
+    <p>{{ 'Add a new bucket to your Storj account.' | translate }}</p>
+    <tn-form-field [label]="'Bucket Name' | translate">
+      <tn-input
+        testId="bucket"
+        formControlName="bucket"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+  </div>
+</form>
+
+<ix-form-actions tnDialogAction class="form-actions">
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close(false)"></tn-button>
+  <tn-button *ixRequiresRoles="requiredRoles" color="primary" testId="save" [label]="'Save' | translate" [disabled]="form.invalid" (onClick)="onSubmit()"></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

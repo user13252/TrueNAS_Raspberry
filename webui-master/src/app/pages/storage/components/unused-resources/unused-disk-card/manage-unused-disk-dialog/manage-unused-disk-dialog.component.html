@@ -1,0 +1,65 @@
+<tn-dialog-shell testId="manage-unused-disk" [title]="'Add To Pool' | translate">
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <div>
+    @if (noPoolsDisks.length) {
+      <h4>{{ 'Unassigned Disks' | translate }}</h4>
+      <ul class="unused-disks">
+        @for (disk of noPoolsDisks; track disk.formattedDisk) {
+          <li>
+            {{ disk.formattedDisk }}
+          </li>
+        }
+      </ul>
+    }
+
+    @if (exportedPoolsDisks.length) {
+      <h4>{{ 'Disks with exported pools' | translate }}</h4>
+      <ul class="unused-disks">
+        @for (disk of exportedPoolsDisks; track disk.formattedDisk) {
+          <li>
+            {{ disk.formattedDisk }}
+            @if (disk.exportedPool) {
+              <ix-warning
+                class="inline-warning"
+                [message]="getWarningText(disk.exportedPool)"
+              ></ix-warning>
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    <tn-form-section>
+      <tn-form-field [label]="'Add Disks To:' | translate">
+        <!-- Options are projected, not passed as `[options]`, so each `<tn-radio>` can pin the
+             legacy `radio-button-*` id — see the radio-group test-id recipe in the tn playbook. -->
+        <tn-radio-group formControlName="toPool">
+          @for (option of toPoolOptions; track option.value) {
+            <tn-radio
+              [label]="option.label"
+              [value]="option.value"
+              [testId]="['radio-button', 'to-pool', option.label]"
+            ></tn-radio>
+          }
+        </tn-radio-group>
+      </tn-form-field>
+
+      @if (isExistingMode) {
+        <tn-form-field [label]="'Existing Pool' | translate" [required]="true">
+          <tn-select
+            testId="pool"
+            formControlName="pool"
+            [options]="(poolOptions$ | async) ?? []"
+          ></tn-select>
+        </tn-form-field>
+      }
+    </tn-form-section>
+  </div>
+</form>
+
+<div tnDialogAction>
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close(false)"></tn-button>
+
+  <tn-button *ixRequiresRoles="requiredRoles" color="primary" testId="add-disks" [label]="'Add Disks' | translate" [disabled]="form.invalid" (onClick)="onSubmit()"></tn-button>
+</div>
+</tn-dialog-shell>

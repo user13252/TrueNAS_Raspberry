@@ -1,0 +1,172 @@
+@import 'scss-imports/variables';
+
+.card {
+  height: 100%;
+
+  .header {
+    padding-bottom: 0;
+  }
+
+  .container {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+
+    &.full {
+      justify-content: space-between;
+      padding-left: 21px;
+
+      .lines {
+        padding: 16px 0;
+        row-gap: 24px;
+
+        @media (max-width: $breakpoint-tablet) {
+          row-gap: 12px;
+        }
+      }
+
+      .open-source {
+        padding: 1rem 0.5rem;
+      }
+    }
+
+    &.half,
+    &.quarter {
+      @extend %half-and-quarter-size;
+    }
+
+    &.half {
+      padding-bottom: 8px;
+    }
+
+    &.quarter {
+      padding: 8px;
+
+      @media (max-width: $breakpoint-tablet) {
+        padding-bottom: 0;
+      }
+
+      &.enterprise {
+        padding: 16px 16px 0;
+      }
+
+      @media (max-width: 767px) {
+        .line-item .icon-wrapper a > span {
+          display: none;
+        }
+      }
+    }
+  }
+
+  .card-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    justify-content: space-between;
+  }
+
+  .copyright {
+    font-size: 11px;
+    padding-top: 0;
+    text-align: center;
+  }
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.line-item {
+  display: flex;
+  flex-direction: row;
+  margin: 0 20px;
+
+  @media #{$media-lt-sm} {
+    margin: 0;
+  }
+
+  div {
+    align-items: center;
+  }
+
+  .icon-wrapper {
+    flex: 1 1 100%;
+    max-width: 10%;
+
+    a {
+      align-items: center;
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .tn-icon {
+      color: var(--fg1);
+      height: 4rem;
+      width: 4rem;
+    }
+  }
+
+  .helptext {
+    flex: 1 1 100%;
+    font-size: 1rem;
+    margin-left: 10px;
+    margin-right: 15px;
+    max-width: 90%;
+    text-align: left;
+
+    @media (max-width: $breakpoint-xs) {
+      font-size: 12px;
+      margin-left: 15px;
+    }
+  }
+}
+
+.open-source {
+  font-size: 0.75rem;
+  text-align: center;
+
+  @media (max-width: $breakpoint-xs) {
+    display: none;
+  }
+}
+
+%half-and-quarter-size {
+  gap: 8px;
+  justify-content: space-around;
+
+  .lines {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+
+  .line-item {
+    gap: 10px;
+    margin: 0;
+  }
+
+  .icon-wrapper {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 100%;
+    text-align: center;
+
+    a span {
+      display: block;
+      width: 100%;
+    }
+  }
+
+  .helptext {
+    display: none;
+  }
+}
+
+// Replicates the legacy global "mat-card-content > div" padding from _material-reduction.scss.
+.card-content > div {
+  padding: 16px;
+}

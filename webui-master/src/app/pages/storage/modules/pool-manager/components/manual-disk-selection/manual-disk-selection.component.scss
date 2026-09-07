@@ -1,0 +1,105 @@
+@import 'scss-imports/variables';
+
+::ng-deep {
+  .manual-disk-selection-ref {
+    @media (max-width: $breakpoint-tablet) {
+      min-width: 95%;
+    }
+  }
+}
+
+:host {
+  .container {
+    border: none;
+    border-radius: 0;
+    height: 100%;
+    margin: 0;
+
+    .inner-container {
+      display: flex;
+      flex-direction: row;
+      height: 100%;
+      padding: 0;
+
+      @media (max-width: $breakpoint-tablet) {
+        display: block;
+      }
+
+      .left-pane {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        flex-shrink: 0;
+        max-width: 400px;
+        min-width: 370px;
+
+        @media (max-width: $breakpoint-tablet) {
+          max-width: 100%;
+          min-width: 100%;
+        }
+      }
+
+      .right-pane {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+      }
+    }
+  }
+}
+
+.no-vdevs {
+  color: var(--fg2);
+  font-size: 13px;
+}
+
+.header {
+  height: 36px;
+  margin: 12px 23px 10px;
+}
+
+.label {
+  height: auto;
+  margin-top: 0;
+}
+
+.vdevs-header {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+
+  h3 {
+    display: inline-block;
+    font-weight: 500;
+  }
+
+  .header-actions {
+    display: flex;
+    flex-direction: row-reverse;
+    flex-grow: 1;
+  }
+}
+
+.header-divider {
+  margin-bottom: 16px;
+}
+
+.dialog-header {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+
+  h3 {
+    font-weight: 500;
+  }
+}
+
+.vdevs-container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: auto;
+  padding: 0 24px;
+  padding-bottom: 16px;
+  row-gap: 8px;
+}

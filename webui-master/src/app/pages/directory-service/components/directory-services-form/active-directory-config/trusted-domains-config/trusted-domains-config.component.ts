@@ -1,0 +1,312 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, input, output, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl,
+  FormArray,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup } from '@ngneat/reactive-forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  InputType,
+  TnCheckboxComponent, TnFormFieldComponent, TnFormListComponent, TnFormListItemComponent,
+  TnFormSectionComponent, TnInputComponent, TnSelectComponent, TnSelectOption,
+} from '@truenas/ui-components';
+import { ActiveDirectorySchemaMode, IdmapBackend } from 'app/enums/directory-services.enum';
+import { helptextActiveDirectory } from 'app/helptext/directory-service/active-directory';
+import { helptextIdmap } from 'app/helptext/directory-service/idmap';
+import { helptextLdap } from 'app/helptext/directory-service/ldap';
+import {
+  ActiveDirectoryIdmap, DomainIdmap, domainIdmapTypeOptions, LdapIdmap, Rfc2307Idmap, RidIdmap,
+} from 'app/interfaces/active-directory-config.interface';
+import { normalizeTestIdString } from 'app/modules/test-id/normalize-test-id.utils';
+import { translateOptions } from 'app/modules/translate/translate.helper';
+
+type Controls<T> = {
+  [K in keyof T]: FormControl<T[K]>;
+};
+
+interface AllTrustedDomainsIdmapFieldsInterface {
+  name: string | null;
+  range_low: number;
+  range_high: number;
+  idmap_backend: IdmapBackend;
+  schema_mode: ActiveDirectorySchemaMode;
+  unix_primary_group: boolean;
+  unix_nss_info: boolean;
+  ldap_base_dn: string;
+  readonly: boolean;
+  ldap_url: string;
+  ldap_user_dn: string;
+  ldap_user_dn_password: string;
+  bind_path_user: string;
+  bind_path_group: string;
+  user_cn: boolean;
+  ldap_realm: boolean;
+  validate_certificates: boolean;
+  sssd_compat: boolean;
+}
+
+@Component({
+  selector: 'ix-trusted-domains-config',
+  templateUrl: './trusted-domains-config.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [
+    ReactiveFormsModule,
+    TranslateModule,
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnCheckboxComponent,
+    TnInputComponent,
+    TnSelectComponent,
+    TnFormListComponent,
+    TnFormListItemComponent,
+  ],
+})
+export class TrustedDomainsConfigComponent implements OnInit {
+  private fb = inject(FormBuilder);
+  private destroyRef = inject(DestroyRef);
+  private translate = inject(TranslateService);
+
+  protected readonly helptextAd = helptextActiveDirectory;
+  protected readonly helptext = helptextIdmap.idmap;
+  protected readonly helptextLdap = helptextLdap;
+
+  readonly enableTrustedDomains = input.required<boolean>();
+  trustedDomainsChanged = output<[enableTrustedDomains: boolean, trustedDomains: DomainIdmap[]]>();
+  readonly isValid = output<boolean>();
+  readonly trustedDomains = input.required<DomainIdmap[]>();
+
+  protected readonly IdmapBackend = IdmapBackend;
+  protected readonly InputType = InputType;
+
+  // Labels are the enum values themselves, so there is nothing to translate.
+  protected readonly schemaModeOptions: TnSelectOption<ActiveDirectorySchemaMode>[] = [
+    { label: ActiveDirectorySchemaMode.Rfc2307, value: ActiveDirectorySchemaMode.Rfc2307 },
+    { label: ActiveDirectorySchemaMode.Sfu, value: ActiveDirectorySchemaMode.Sfu },
+    { label: ActiveDirectorySchemaMode.Sfu20, value: ActiveDirectorySchemaMode.Sfu20 },
+  ];
+
+  protected readonly form = this.fb.group({
+    enable_trusted_domains: [false],
+    trustedDomains: this.fb.array<AllTrustedDomainsIdmapFieldsInterface>([]),
+  });
+
+  protected readonly trustedDomainIdmapOptions = translateOptions(this.translate, domainIdmapTypeOptions);
+
+  private readonly rawIdmapBackendLabels = new Map(
+    domainIdmapTypeOptions.map((option) => [option.value, option.label]),
+  );
+
+  /**
+   * `ix-select` keyed an option's `data-test` off the RAW (untranslated) label, while the template
+   * rendered a translated one. `tn-select` derives the id from the label it is given, so keying it
+   * off the pre-translated list would make every option id follow the UI language. Map back to the
+   * raw marker — through lodash kebab, which the library's own normalizer does not reproduce at a
+   * letter/digit boundary (`RFC2307` → `rfc-2307`) — to keep the ids byte-identical.
+   */
+  protected readonly idmapBackendOptionTestId = (option: TnSelectOption<IdmapBackend>): string => {
+    return normalizeTestIdString(this.rawIdmapBackendLabels.get(option.value) ?? option.label);
+  };
+
+  /** Same letter/digit kebab gap as {@link idmapBackendOptionTestId}: `SFU20` → `sfu-20`. */
+  protected readonly schemaModeOptionTestId = (option: TnSelectOption<ActiveDirectorySchemaMode>): string => {
+    return normalizeTestIdString(option.label);
+  };
+
+  protected get trustedDomainsArray(): FormArray {
+    return this.form.controls.trustedDomains;
+  }
+
+  ngOnInit(): void {
+    this.initializeFormOnEdit();
+
+    this.watchForFormChanges();
+  }
+
+  private initializeFormOnEdit(): void {
+    this.form.controls.enable_trusted_domains.setValue(this.enableTrustedDomains());
+    const initialDomains = this.trustedDomains() ?? [];
+    if (initialDomains?.length > 0) {
+      initialDomains.forEach((domain) => this.addTrustedDomain(domain));
+    }
+  }
+
+  private watchForFormChanges(): void {
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        const trustedDomains = value.trustedDomains;
+        const builtCustomDomains: DomainIdmap[] = [];
+        for (const domain of trustedDomains) {
+          if (domain.idmap_backend === IdmapBackend.Ad) {
+            const adIdmap: ActiveDirectoryIdmap = {
+              idmap_backend: IdmapBackend.Ad,
+              name: domain.name,
+              range_high: domain.range_high,
+              range_low: domain.range_low,
+              schema_mode: domain.schema_mode,
+              unix_nss_info: domain.unix_nss_info,
+              unix_primary_group: domain.unix_primary_group,
+            };
+            builtCustomDomains.push(adIdmap);
+          }
+          if (domain.idmap_backend === IdmapBackend.Ldap) {
+            const ldapIdmap: LdapIdmap = {
+              idmap_backend: IdmapBackend.Ldap,
+              name: domain.name,
+              range_high: domain.range_high,
+              range_low: domain.range_low,
+              ldap_base_dn: domain.ldap_base_dn,
+              ldap_url: domain.ldap_url,
+              ldap_user_dn: domain.ldap_user_dn,
+              ldap_user_dn_password: domain.ldap_user_dn_password,
+              readonly: domain.readonly,
+              validate_certificates: domain.validate_certificates,
+            };
+            builtCustomDomains.push(ldapIdmap);
+          }
+          if (domain.idmap_backend === IdmapBackend.Rfc2307) {
+            const rfc2307Idmap: Rfc2307Idmap = {
+              idmap_backend: IdmapBackend.Rfc2307,
+              name: domain.name,
+              range_high: domain.range_high,
+              range_low: domain.range_low,
+              ldap_url: domain.ldap_url,
+              ldap_user_dn: domain.ldap_user_dn,
+              ldap_user_dn_password: domain.ldap_user_dn_password,
+              bind_path_user: domain.bind_path_user,
+              bind_path_group: domain.bind_path_group,
+              user_cn: domain.user_cn,
+              ldap_realm: domain.ldap_realm,
+              validate_certificates: domain.validate_certificates,
+            };
+            builtCustomDomains.push(rfc2307Idmap);
+          }
+          if (domain.idmap_backend === IdmapBackend.Rid) {
+            const ridIdmap: RidIdmap = {
+              idmap_backend: IdmapBackend.Rid,
+              name: domain.name,
+              range_high: domain.range_high,
+              range_low: domain.range_low,
+              sssd_compat: domain.sssd_compat,
+            };
+            builtCustomDomains.push(ridIdmap);
+          }
+        }
+        this.trustedDomainsChanged.emit([value.enable_trusted_domains, builtCustomDomains]);
+        this.isValid.emit(this.form.valid);
+      });
+  }
+
+  protected addTrustedDomain(existingDomain?: DomainIdmap): void {
+    const trustedDomainFg = this.fb.group({
+      idmap_backend: this.fb.control(existingDomain?.idmap_backend ?? null, Validators.required),
+      name: this.fb.control(existingDomain?.name ?? null as string, Validators.required),
+      range_high: this.fb.control<number>(existingDomain?.range_high ?? null, Validators.required),
+      range_low: this.fb.control<number>(existingDomain?.range_low ?? null, Validators.required),
+      sssd_compat: this.fb.control<boolean>(
+        (existingDomain as RidIdmap)?.sssd_compat ?? false,
+      ),
+      schema_mode: new FormControl<ActiveDirectorySchemaMode>(
+        (existingDomain as ActiveDirectoryIdmap)?.schema_mode ?? null,
+      ),
+      unix_primary_group: this.fb.control<boolean>(
+        (existingDomain as ActiveDirectoryIdmap)?.unix_primary_group ?? false,
+      ),
+      unix_nss_info: this.fb.control<boolean>(
+        (existingDomain as ActiveDirectoryIdmap)?.unix_nss_info ?? false,
+      ),
+      ldap_url: this.fb.control<string>(
+        (existingDomain as LdapIdmap)?.ldap_url ?? null,
+      ),
+      ldap_user_dn: this.fb.control<string>(
+        (existingDomain as LdapIdmap)?.ldap_user_dn ?? null,
+      ),
+      ldap_base_dn: this.fb.control<string>(
+        (existingDomain as LdapIdmap)?.ldap_base_dn ?? null,
+      ),
+      ldap_user_dn_password: this.fb.control<string>(
+        (existingDomain as LdapIdmap)?.ldap_user_dn_password ?? null,
+      ),
+      readonly: this.fb.control<boolean>(
+        (existingDomain as LdapIdmap)?.readonly ?? false,
+      ),
+      validate_certificates: this.fb.control<boolean>(
+        (existingDomain as LdapIdmap)?.validate_certificates ?? false,
+      ),
+      bind_path_user: this.fb.control<string>(
+        (existingDomain as Rfc2307Idmap)?.bind_path_user ?? null,
+      ),
+      bind_path_group: this.fb.control<string>(
+        (existingDomain as Rfc2307Idmap)?.bind_path_group ?? null,
+      ),
+      user_cn: this.fb.control<boolean>(
+        (existingDomain as Rfc2307Idmap)?.user_cn ?? false,
+      ),
+      ldap_realm: this.fb.control<boolean>(
+        (existingDomain as Rfc2307Idmap)?.ldap_realm ?? false,
+      ),
+    });
+
+    this.setupBackendValidators(trustedDomainFg, existingDomain?.idmap_backend);
+    this.watchBackendChanges(trustedDomainFg);
+
+    this.form.controls.trustedDomains.push(trustedDomainFg);
+  }
+
+  private setupBackendValidators(
+    formGroup: FormGroup<Controls<AllTrustedDomainsIdmapFieldsInterface>>,
+    backend: IdmapBackend | null | undefined,
+  ): void {
+    const controls = formGroup.controls;
+
+    controls.schema_mode.clearValidators();
+    controls.ldap_url.clearValidators();
+    controls.ldap_user_dn.clearValidators();
+    controls.ldap_base_dn.clearValidators();
+    controls.ldap_user_dn_password.clearValidators();
+    controls.bind_path_user.clearValidators();
+    controls.bind_path_group.clearValidators();
+
+    if (backend === IdmapBackend.Ad) {
+      controls.schema_mode.setValidators(Validators.required);
+    } else if (backend === IdmapBackend.Ldap) {
+      controls.ldap_url.setValidators(Validators.required);
+      controls.ldap_user_dn.setValidators(Validators.required);
+      controls.ldap_base_dn.setValidators(Validators.required);
+      controls.ldap_user_dn_password.setValidators(Validators.required);
+    } else if (backend === IdmapBackend.Rfc2307) {
+      controls.ldap_url.setValidators(Validators.required);
+      controls.ldap_user_dn.setValidators(Validators.required);
+      controls.ldap_user_dn_password.setValidators(Validators.required);
+      controls.bind_path_user.setValidators(Validators.required);
+      controls.bind_path_group.setValidators(Validators.required);
+    }
+
+    Object.values(controls).forEach((control) => control.updateValueAndValidity({ emitEvent: false }));
+    formGroup.updateValueAndValidity();
+  }
+
+  private watchBackendChanges(
+    formGroup: FormGroup<Controls<AllTrustedDomainsIdmapFieldsInterface>>,
+  ): void {
+    formGroup.controls.idmap_backend.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((backend) => {
+        this.setupBackendValidators(formGroup, backend);
+      });
+  }
+
+  protected removeTrustedDomain(index: number): void {
+    this.form.controls.trustedDomains.removeAt(index);
+  }
+
+  protected getIdmapTypeForItem(index: number): IdmapBackend {
+    return (
+      this.form.controls.trustedDomains.at(index) as FormGroup<Record<string, AbstractControl>>
+    ).controls.idmap_backend.value as IdmapBackend;
+  }
+}

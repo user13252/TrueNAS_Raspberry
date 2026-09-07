@@ -1,0 +1,51 @@
+<tn-card
+  padding="small"
+  [title]="'Global Two Factor Authentication' | translate"
+  [ixUiSearch]="searchableElements.elements.globalTwoFA"
+>
+  <div class="details" [ixUiSearch]="searchableElements.elements.globallyEnabled">
+    <div class="details-item">
+      <span class="label">{{ 'Global 2FA' | translate }}:</span>
+      <span *ixWithLoadingState="twoFactorConfig$ as twoFactorAuthConfig" class="value">
+        {{ twoFactorAuthConfig?.enabled ? ('Enabled' | translate) : ('Disabled' | translate) }}
+      </span>
+    </div>
+
+    <div
+      class="details-item"
+      [ixUiSearch]="searchableElements.elements.toleranceWindow"
+    >
+      <span class="label">
+        {{ 'Tolerance Window' | translate }}:
+        <ix-tooltip
+          class="tooltip"
+          [header]="'Tolerance Window' | translate"
+          [message]="helpText.card.toleranceWindowTooltip | translate"
+        ></ix-tooltip>
+      </span>
+      <span *ixWithLoadingState="twoFactorConfig$ as twoFactorAuthConfig" class="value">
+        {{ twoFactorAuthConfig?.window }}
+      </span>
+    </div>
+
+    <div class="details-item" [ixUiSearch]="searchableElements.elements.enableForSsh">
+      <span class="label">{{ 'Two Factor Authentication for SSH' | translate }}:</span>
+      <span *ixWithLoadingState="twoFactorConfig$ as twoFactorAuthConfig" class="value">
+        {{ twoFactorAuthConfig?.services?.ssh ? ('Enabled' | translate) : ('Disabled' | translate) }}
+      </span>
+    </div>
+  </div>
+
+  <ng-template tnCardFooterActions>
+    <ng-container *ixWithLoadingState="twoFactorConfig$ as twoFactorAuthConfig">
+      <tn-button
+        *ixRequiresRoles="requiredRoles"
+        color="primary"
+        [testId]="['two-factor-auth', 'configure']"
+        [ixUiSearch]="searchableElements.elements.configure"
+        [label]="'Configure' | translate"
+        (onClick)="onConfigurePressed(twoFactorAuthConfig)"
+      ></tn-button>
+    </ng-container>
+  </ng-template>
+</tn-card>

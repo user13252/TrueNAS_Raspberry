@@ -1,0 +1,109 @@
+<ix-form
+  [formGroup]="form"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field
+      [label]="'Preferred Trains' | translate"
+      [tooltip]="tooltips.preferred_trains | translate"
+    >
+      <tn-checkbox-group
+        formControlName="preferred_trains"
+        [inline]="true"
+        [options]="(allTrains$ | async) ?? []"
+      ></tn-checkbox-group>
+    </tn-form-field>
+
+    <tn-form-list
+      formArrayName="address_pools"
+      class="address-pools"
+      [control]="form.controls.address_pools"
+      [label]="'Address Pools' | translate"
+      [addLabel]="'Add' | translate"
+      [emptyMessage]="'No items have been added yet.' | translate"
+      (add)="addAddressPool()"
+    >
+      @for (network of form.controls.address_pools.controls; track network; let i = $index) {
+        <tn-form-list-item
+          [formGroupName]="i"
+          [label]="'Address Pool' | translate"
+          [removeAriaLabel]="'Remove {label} item' | translate: { label: 'Address Pool' | translate }"
+          (delete)="removeAddressPool(i)"
+        >
+          <div class="address-pool">
+            <tn-form-field
+              class="base"
+              [label]="'Base' | translate"
+              [required]="true"
+              [tooltip]="helptext.dockerSettings.addressPoolsBase | translate"
+            >
+              <ix-ip-input-with-netmask
+                formControlName="base"
+                [required]="true"
+              ></ix-ip-input-with-netmask>
+            </tn-form-field>
+
+            <tn-form-field
+              class="size"
+              [label]="'Size' | translate"
+              [required]="true"
+              [tooltip]="helptext.dockerSettings.addressPoolsSize | translate"
+            >
+              <tn-input formControlName="size" [inputType]="InputType.Number"></tn-input>
+            </tn-form-field>
+          </div>
+        </tn-form-list-item>
+      }
+    </tn-form-list>
+
+    <tn-form-list
+      formArrayName="registry_mirrors"
+      class="registry-mirrors"
+      [control]="form.controls.registry_mirrors"
+      [label]="'Registry Mirrors' | translate"
+      [tooltip]="tooltips.registry_mirrors | translate"
+      [addLabel]="'Add' | translate"
+      [emptyMessage]="'No items have been added yet.' | translate"
+      (add)="addRegistryMirror()"
+    >
+      @for (mirror of form.controls.registry_mirrors.controls; track mirror; let i = $index) {
+        <tn-form-list-item
+          [formGroupName]="i"
+          [label]="'Registry Mirror' | translate"
+          [removeAriaLabel]="'Remove {label} item' | translate: { label: 'Registry Mirror' | translate }"
+          (delete)="removeRegistryMirror(i)"
+        >
+          <div class="registry-mirror">
+            <tn-form-field class="url" [label]="'Mirror URL' | translate" [required]="true">
+              <tn-input formControlName="url"></tn-input>
+            </tn-form-field>
+
+            <tn-form-field class="insecure">
+              <tn-checkbox formControlName="insecure" [label]="'Insecure' | translate"></tn-checkbox>
+            </tn-form-field>
+          </div>
+        </tn-form-list-item>
+      }
+    </tn-form-list>
+
+    @if (showNvidiaCheckbox()) {
+      <tn-form-field [tooltip]="tooltips.install_nvidia_driver | translate">
+        <tn-checkbox
+          testId="nvidia"
+          formControlName="nvidia"
+          [label]="'Enable NVIDIA GPU Support' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+
+    <tn-form-field>
+      <tn-checkbox
+        testId="enable-image-updates"
+        formControlName="enable_image_updates"
+        [label]="'Check for docker image updates' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

@@ -1,0 +1,39 @@
+<h2 #errorTitle id="err-title" class="err-title">
+  <tn-icon class="error-warning-icon" library="mdi" name="alert-circle"></tn-icon>
+  {{ title() | translate }}
+</h2>
+<div #errorMdContent id="err-md-content">
+  <div #errorMessageWrapper id="err-message-wrapper"><span [innerHTML]="message()"></span></div>
+  @if (stackTrace()) {
+    <div
+      class="more-info"
+      (click)="toggleOpen()"
+    >
+      @if (isCloseMoreInfo) {
+        <tn-icon name="plus-circle-outline" library="mdi"></tn-icon>
+      } @else {
+        <tn-icon name="minus-circle-outline" library="mdi"></tn-icon>
+      }
+      <span>{{ 'More info...' | translate }}</span>
+    </div>
+  }
+  @if (stackTrace()) {
+    <div
+      #errorBtPanel
+      id="err-bt-panel"
+      class="stack-trace-panel"
+      [class.open]="!isCloseMoreInfo"
+    >
+      <div #errorBtText class="textarea scrolled-down" id="err-bt-text" readonly>
+        {{ 'Error' | translate }}: {{ stackTrace() }}
+      </div>
+    </div>
+  }
+</div>
+@if (logs()) {
+  <tn-button
+    testId="download-logs"
+    [label]="'Download Logs' | translate"
+    (onClick)="downloadLogs()"
+  ></tn-button>
+}

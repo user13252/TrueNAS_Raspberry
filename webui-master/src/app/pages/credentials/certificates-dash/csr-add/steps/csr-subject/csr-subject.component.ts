@@ -1,0 +1,99 @@
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { TranslateService, TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnFormFieldComponent, TnFormSectionComponent, TnInputComponent, TnSelectComponent,
+  TnStepperNextDirective, TnStepperPreviousDirective,
+} from '@truenas/ui-components';
+import { pickBy } from 'lodash-es';
+import { map, startWith } from 'rxjs/operators';
+import { choicesToOptions } from 'app/helpers/operators/options.operators';
+import { helptextSystemCertificates } from 'app/helptext/system/certificates';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { IxChipsComponent } from 'app/modules/forms/ix-forms/components/ix-chips/ix-chips.component';
+import { emailValidator } from 'app/modules/forms/ix-forms/validators/email-validation/email-validation';
+import { SummaryProvider, SummarySection } from 'app/modules/summary/summary.interface';
+import { SystemGeneralService } from 'app/services/system-general.service';
+
+@Component({
+  selector: 'ix-csr-subject',
+  templateUrl: './csr-subject.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    ReactiveFormsModule,
+    TnSelectComponent,
+    TnFormFieldComponent,
+    TnFormSectionComponent,
+    TnInputComponent,
+    IxChipsComponent,
+    FormActionsComponent,
+    TnButtonComponent,
+    TnStepperPreviousDirective,
+    TnStepperNextDirective,
+    TranslateModule,
+  ],
+})
+export class CsrSubjectComponent implements SummaryProvider {
+  private formBuilder = inject(FormBuilder);
+  private systemGeneralService = inject(SystemGeneralService);
+  private translate = inject(TranslateService);
+
+  form = this.formBuilder.nonNullable.group({
+    country: ['US', Validators.required],
+    state: ['', Validators.required],
+    city: ['', Validators.required],
+    organization: ['', Validators.required],
+    organizational_unit: [''],
+    email: ['', [Validators.required, emailValidator()]],
+    common: [''],
+    san: [[] as string[], Validators.required],
+  });
+
+  // Drives the stepper's linear gating (replaces mat's [stepControl]).
+  readonly completed = toSignal(
+    this.form.statusChanges.pipe(startWith(this.form.status), map(() => this.form.valid)),
+    { initialValue: this.form.valid },
+  );
+
+  readonly helptext = helptextSystemCertificates;
+
+  readonly countries$ = this.systemGeneralService.getCertificateCountryChoices()
+    .pipe(choicesToOptions());
+
+  getSummary(): SummarySection {
+    const values = this.form.value;
+    const summary = [
+      {
+        label: this.translate.instant('SAN'),
+        value: this.form.value.san?.join(', ') || '',
+      },
+    ];
+
+    if (values.common) {
+      summary.push({ label: this.translate.instant('Common Name'), value: values.common });
+    }
+
+    summary.push({ label: this.translate.instant('Email'), value: values.email || '' });
+
+    // Dept of Connections, Cisco, New York, NY, United States
+    const subjectFields = [
+      'organizational_unit',
+      'organization',
+      'city',
+      'state',
+      'country',
+    ] as const;
+    const subject = subjectFields.map((field) => values[field]).filter(Boolean).join(', ');
+    summary.push({ label: this.translate.instant('Subject'), value: subject });
+
+    return summary;
+  }
+
+  getPayload(): CsrSubjectComponent['form']['value'] {
+    // Filter out empty values
+    return pickBy(this.form.value, Boolean);
+  }
+}

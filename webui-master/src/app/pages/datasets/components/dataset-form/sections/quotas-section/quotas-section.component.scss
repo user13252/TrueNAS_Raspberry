@@ -1,0 +1,37 @@
+@import 'scss-imports/variables';
+
+.columns {
+  column-gap: 15px;
+  display: flex;
+  flex-direction: row;
+
+  @media (max-width: $breakpoint-tablet) {
+    display: block;
+  }
+
+  > * {
+    flex: 1;
+
+    @media (max-width: $breakpoint-tablet) {
+      width: 100%;
+    }
+  }
+}
+
+.with-inherit-field {
+  // Align the "Inherit" checkbox with the input on the left. The input field carries a label
+  // above it, the checkbox field does not — aligning to the bottom of the row lines the checkbox
+  // up with the input box regardless of the label's height.
+  align-items: flex-end;
+  column-gap: 15px;
+  display: flex;
+  flex-direction: row;
+
+  > * {
+    flex: 1;
+  }
+
+  .inherit-field {
+    margin-bottom: 8px;
+  }
+}

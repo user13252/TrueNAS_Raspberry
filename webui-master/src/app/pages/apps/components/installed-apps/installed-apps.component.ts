@@ -1,0 +1,64 @@
+import {
+  Component,
+  ChangeDetectionStrategy,
+  viewChild,
+} from '@angular/core';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnIconComponent } from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { App } from 'app/interfaces/app.interface';
+import { MasterDetailViewComponent } from 'app/modules/master-detail-view/master-detail-view.component';
+import { PageHeaderComponent } from 'app/modules/page-header/page-title-header/page-header.component';
+import { AppDetailsPanelComponent } from 'app/pages/apps/components/installed-apps/app-details-panel/app-details-panel.component';
+import { AppSettingsButtonComponent } from 'app/pages/apps/components/installed-apps/app-settings-button/app-settings-button.component';
+import { DockerStatusComponent } from 'app/pages/apps/components/installed-apps/docker-status/docker-status.component';
+import { InstalledAppsListComponent } from 'app/pages/apps/components/installed-apps/installed-apps-list/installed-apps-list.component';
+
+@Component({
+  selector: 'ix-installed-apps',
+  templateUrl: './installed-apps.component.html',
+  styleUrls: ['./installed-apps.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TranslateModule,
+    PageHeaderComponent,
+    DockerStatusComponent,
+    TnButtonComponent,
+    TnIconComponent,
+    RequiresRolesDirective,
+    AppSettingsButtonComponent,
+    AppDetailsPanelComponent,
+    MasterDetailViewComponent,
+    InstalledAppsListComponent,
+  ],
+})
+export class InstalledAppsComponent {
+  readonly installedAppsList = viewChild.required(InstalledAppsListComponent);
+
+  protected get selectedApp(): App | undefined {
+    return this.installedAppsList().selectedApp;
+  }
+
+  protected get appsUpdateAvailable(): number {
+    return this.installedAppsList().appsUpdateAvailable;
+  }
+
+  protected get hasUpdates(): boolean {
+    return this.installedAppsList().hasUpdates;
+  }
+
+  protected readonly requiredRoles = [Role.AppsWrite];
+
+  start(name: string): void {
+    this.installedAppsList().start(name);
+  }
+
+  stop(name: string): void {
+    this.installedAppsList().stop(name);
+  }
+
+  protected onBulkUpdate(updateAll = false): void {
+    this.installedAppsList().onBulkUpdate(updateAll);
+  }
+}

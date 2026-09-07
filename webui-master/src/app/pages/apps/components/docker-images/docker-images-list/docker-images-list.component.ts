@@ -1,0 +1,112 @@
+import { AsyncPipe } from '@angular/common';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnDialog, TnTablePagerComponent,
+  TnButtonComponent, TnCellDefDirective, TnHeaderCellDefDirective, TnIconButtonComponent,
+  TnSortEvent, TnTableColumnDirective, TnTableComponent } from '@truenas/ui-components';
+import { filter, take } from 'rxjs/operators';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import { ContainerImage } from 'app/interfaces/container-image.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { EmptyService } from 'app/modules/empty/empty.service';
+import { BasicSearchComponent } from 'app/modules/forms/search-input/components/basic-search/basic-search.component';
+import { PageHeaderComponent } from 'app/modules/page-header/page-title-header/page-header.component';
+import { FileSizePipe } from 'app/modules/pipes/file-size/file-size.pipe';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { AsyncDataProvider } from 'app/modules/tn-table/classes/async-data-provider/async-data-provider';
+import { mapTnSortToProviderSorting } from 'app/modules/tn-table/utils';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { DockerImageDeleteDialog } from 'app/pages/apps/components/docker-images/docker-image-delete-dialog/docker-image-delete-dialog.component';
+import { dockerImagesListElements } from 'app/pages/apps/components/docker-images/docker-images-list/docker-images-list.elements';
+import { getPullImageFormConfig } from 'app/pages/apps/components/docker-images/pull-image-form/pull-image.form-config';
+
+@Component({
+  selector: 'ix-docker-images-list',
+  templateUrl: './docker-images-list.component.html',
+  styleUrls: ['./docker-images-list.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TranslateModule,
+    PageHeaderComponent,
+    BasicSearchComponent,
+    TnButtonComponent,
+    RequiresRolesDirective,
+    TnTableComponent,
+    TnTableColumnDirective,
+    TnHeaderCellDefDirective,
+    TnCellDefDirective,
+    TnIconButtonComponent,
+    TnTablePagerComponent,
+    FileSizePipe,
+    AsyncPipe,
+  ],
+})
+export class DockerImagesListComponent implements OnInit {
+  protected emptyService = inject(EmptyService);
+  private api = inject(ApiService);
+  private tnDialog = inject(TnDialog);
+  private dialogService = inject(DialogService);
+  private formPanel = inject(FormSidePanelService);
+  private translate = inject(TranslateService);
+  private destroyRef = inject(DestroyRef);
+
+  protected readonly requiredRoles = [Role.AppsWrite];
+  protected readonly searchableElements = dockerImagesListElements;
+
+  dataProvider: AsyncDataProvider<ContainerImage>;
+  searchQuery = signal('');
+  protected selectedImages = signal<ContainerImage[]>([]);
+
+  protected readonly displayedColumns = ['id', 'repo_tags', 'size', 'actions'];
+
+  private readonly tnTable = viewChild(TnTableComponent);
+
+  ngOnInit(): void {
+    this.dataProvider = new AsyncDataProvider(this.api.call('app.image.query'));
+    this.refresh();
+    this.dataProvider.emptyType$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.onListFiltered(this.searchQuery());
+    });
+  }
+
+  doAdd(): void {
+    this.formPanel.openForm(getPullImageFormConfig(this.api, this.translate, this.dialogService), {
+      title: this.translate.instant('Pull Image'),
+    }).onSuccess(() => this.refresh(), this.destroyRef);
+  }
+
+  doDelete(images: ContainerImage[]): void {
+    this.tnDialog.open(DockerImageDeleteDialog, { data: images })
+      .closed
+      .pipe(filter(Boolean), take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refresh());
+  }
+
+  protected onListFiltered(query: string): void {
+    this.searchQuery.set(query);
+    this.dataProvider.setFilter({
+      query,
+      columnKeys: ['repo_tags'],
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      preprocessMap: { repo_tags: (tags: string[]) => tags.join(', ') },
+    });
+  }
+
+  protected onSelectionChange(images: ContainerImage[]): void {
+    this.selectedImages.set(images);
+  }
+
+  protected onSortChange(event: TnSortEvent): void {
+    this.dataProvider.setSorting(mapTnSortToProviderSorting<ContainerImage>(event));
+  }
+
+  private refresh(): void {
+    this.tnTable()?.selection.clear();
+    this.selectedImages.set([]);
+    this.dataProvider.load();
+  }
+}

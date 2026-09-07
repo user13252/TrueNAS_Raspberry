@@ -1,0 +1,36 @@
+<tn-dialog-shell testId="manage-disk-sed" [title]="'Manage SED Password' | translate">
+<form class="ix-form-container" (submit)="onSubmit($event)">
+  <tn-form-field [label]="'SED Password' | translate" [tooltip]="helptext.passwordTooltip | translate">
+    <tn-input
+      testId="sed-password"
+      [inputType]="InputType.Password"
+      [formControl]="passwordControl"
+    ></tn-input>
+  </tn-form-field>
+
+</form>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+  @if (disk?.passwd) {
+    <tn-button
+      variant="outline"
+      testId="clear-sed-password"
+      [label]="'Clear SED Password' | translate"
+      (onClick)="onClearPassword()"
+    ></tn-button>
+  }
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="primary"
+    testId="save"
+    [label]="'Save' | translate"
+    [disabled]="passwordControl.invalid"
+    (onClick)="onSubmit()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

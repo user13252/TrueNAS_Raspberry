@@ -1,0 +1,55 @@
+<tn-dialog-shell testId="delete-vm" [title]="'Delete Virtual Machine' | translate">
+<div>
+  <form [formGroup]="form">
+    <tn-form-field [tooltip]="helptext.delete_dialog.zvolsTooltip | translate">
+      <tn-checkbox
+        testId="zvols"
+        formControlName="zvols"
+        [label]="'Delete Virtual Machine Data?' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    @if (form.value.zvols && devices().length) {
+      <div class="devices-section" role="region" aria-labelledby="devices-heading" aria-live="polite">
+        <h3 id="devices-heading">{{ helptext.delete_dialog.devicesListHeader | translate }}</h3>
+        <ul class="devices-list">
+          @for (device of devices(); track device.id) {
+            <li>{{ getDeviceLabel(device) }}</li>
+          }
+        </ul>
+      </div>
+    }
+
+    <tn-form-field [tooltip]="helptext.delete_dialog.forceTooltip | translate">
+      <tn-checkbox
+        testId="force"
+        formControlName="force"
+        [label]="'Force Delete?' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+    <tn-form-field [label]="'Enter **{value}** below to confirm.' | translate: { value: vm.name }">
+      <tn-input
+        testId="confirm-name"
+        formControlName="confirmName"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+  </form>
+</div>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close(false)"
+  ></tn-button>
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    color="warn"
+    testId="delete"
+    [label]="'Delete' | translate"
+    [disabled]="form.invalid"
+    (onClick)="onDelete()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

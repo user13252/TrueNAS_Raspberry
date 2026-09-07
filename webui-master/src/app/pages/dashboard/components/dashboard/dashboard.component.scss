@@ -1,0 +1,122 @@
+@import 'scss-imports/cssvars';
+@import 'mixins/text';
+@import '../../dashboard-variables';
+
+:host ::ng-deep {
+  ix-breadcrumb {
+    display: none;
+  }
+
+  ix-page-header {
+    @media(max-width: 767px) {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.edit-mode-buttons {
+  background: var(--bg1);
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  position: fixed;
+  right: 19px;
+  top: 64px;
+  z-index: 2;
+
+  @media(max-width: 767px) {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+    margin-left: auto;
+    position: sticky;
+    right: 0;
+    top: -17px;
+    width: fit-content;
+  }
+}
+
+.groups {
+  display: grid;
+  gap: $widget-gap;
+  grid-auto-rows: $widget-group-height;
+  grid-template-columns: repeat(auto-fit, $widget-group-width);
+  justify-content: center;
+
+  @media (max-width: $widget-group-width) {
+    grid-template-columns: 1fr;
+    padding: 0 5px;
+  }
+}
+
+.group-container.editing {
+  outline: 1px dashed var(--alt-fg1);
+
+  .group {
+    transform: scale(0.85) translate(0, 10px);
+  }
+
+  .controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.group-slot {
+  height: 100%;
+
+  &.group-remove {
+    animation: group-remove 200ms ease-in-out forwards;
+  }
+}
+
+@keyframes group-remove {
+  to {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+.group-container {
+  background-color: var(--bg1);
+  height: 100%;
+  outline: 1px dashed transparent;
+  position: relative;
+  transition: outline $animation-duration;
+}
+
+.group {
+  height: 100%;
+  overflow: hidden;
+  transition: transform $animation-duration;
+}
+
+.add-button {
+  margin-right: 5px;
+}
+
+:host ::ng-deep {
+  .cdk-drag-placeholder {
+    filter: alpha(opacity=33);
+    opacity: 0.33;
+    pointer-events: none;
+  }
+
+  tn-card .header h3,
+  .slot .wrapper h3 {
+    @media(max-width: 767px) {
+      @include line-clamp(1);
+      font-size: 20px;
+    }
+  }
+
+  .cdk-drag-animating {
+    transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+  }
+
+  .groups.loading .loader {
+    height: $widget-group-height;
+    width: $widget-group-width;
+  }
+}

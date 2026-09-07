@@ -1,0 +1,44 @@
+<div class="acl-label">
+  {{ 'Access Control List' | translate }}
+</div>
+<div class="acl-list">
+  @if (!acl().acl.length) {
+    <div class="empty-message">
+      {{ 'The list is empty.' | translate }}
+    </div>
+  } @else {
+    @for (ace of aces; track ace; let i = $index) {
+      <div
+        class="ace"
+        [class.ace-selected]="i === selectedAceIndex()"
+        [class.fn-theme-red]="acesWithError().includes(i)"
+        (click)="onAceSelected(i)"
+      >
+        @if (permissionItems[i]) {
+          <ix-permissions-item
+            class="permission-item"
+            [item]="permissionItems[i]"
+          ></ix-permissions-item>
+        }
+        @if (acesWithError().includes(i)) {
+          <span
+            class="warning"
+            [tnTooltip]="'Ace has errors.' | translate"
+            (click)="onRemoveAcePressed(i)"
+          >
+            <tn-icon name="alert" library="mdi"></tn-icon>
+          </span>
+        }
+        @if (canBeRemoved(ace)) {
+          <span
+            class="remove"
+            [attr.title]="'Close' | translate"
+            (click)="onRemoveAcePressed(i)"
+          >
+            <tn-icon name="close-circle" library="mdi"></tn-icon>
+          </span>
+        }
+      </div>
+    }
+  }
+</div>

@@ -1,0 +1,40 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, input, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent } from '@truenas/ui-components';
+import { VDevType } from 'app/enums/v-dev-type.enum';
+import { helptextPoolCreation } from 'app/helptext/storage/volumes/pool-creation/pool-creation';
+import { DetailsDisk } from 'app/interfaces/disk.interface';
+import { PoolManagerStore } from 'app/pages/storage/modules/pool-manager/store/pool-manager.store';
+
+@Component({
+  selector: 'ix-custom-layout-applied',
+  templateUrl: './custom-layout-applied.component.html',
+  styleUrls: ['./custom-layout-applied.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+export class CustomLayoutAppliedComponent {
+  protected poolManagerStore = inject(PoolManagerStore);
+  private destroyRef = inject(DestroyRef);
+
+  readonly type = input.required<VDevType>();
+  readonly vdevs = input.required<DetailsDisk[][]>();
+
+  readonly manualDiskSelectionMessage = helptextPoolCreation.diskSelectionMessage;
+
+  constructor() {
+    this.poolManagerStore.resetStep$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((vdevType: VDevType) => {
+      if (vdevType === this.type()) {
+        this.resetLayout();
+      }
+    });
+  }
+
+  private resetLayout(): void {
+    this.poolManagerStore.resetTopologyCategory(this.type());
+  }
+}

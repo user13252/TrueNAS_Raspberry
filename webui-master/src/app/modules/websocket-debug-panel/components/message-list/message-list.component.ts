@@ -1,0 +1,216 @@
+import { JsonPipe } from '@angular/common';
+import {
+  ChangeDetectionStrategy, Component, AfterViewInit, ChangeDetectorRef, ViewChild, ElementRef, inject, DestroyRef,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
+import { Store } from '@ngrx/store';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnIconComponent, TnIconButtonComponent, TnCheckboxComponent, TnInputComponent, TnTooltipDirective,
+} from '@truenas/ui-components';
+import { Observable } from 'rxjs';
+import { map, shareReplay } from 'rxjs/operators';
+import { CodeEditorLanguage } from 'app/enums/code-editor-language.enum';
+import { IxCodeEditorComponent } from 'app/modules/forms/ix-forms/components/ix-code-editor/ix-code-editor.component';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { scrollToBottomDelayMs } from 'app/modules/websocket-debug-panel/constants';
+import { WebSocketDebugMessage } from 'app/modules/websocket-debug-panel/interfaces/websocket-debug.interface';
+import { clearMessages, createMockFromResponse, toggleDuplicateNotifications, toggleMessageExpansion } from 'app/modules/websocket-debug-panel/store/websocket-debug.actions';
+import { selectDuplicateNotificationsEnabled, selectMessages } from 'app/modules/websocket-debug-panel/store/websocket-debug.selectors';
+
+interface FormattedWebSocketDebugMessage extends WebSocketDebugMessage {
+  formattedTime: string;
+  methodName: string;
+  messagePreview: string;
+}
+
+interface JsonRpcSuccessResponse {
+  result: unknown;
+}
+
+@Component({
+  selector: 'ix-message-list',
+  standalone: true,
+  imports: [
+    JsonPipe,
+    FormsModule,
+    TnCheckboxComponent,
+    TnInputComponent,
+    TnTooltipDirective,
+    TranslateModule,
+    TnIconComponent,
+    TnIconButtonComponent,
+    IxCodeEditorComponent,
+  ],
+  templateUrl: './message-list.component.html',
+  styleUrls: ['./message-list.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class MessageListComponent implements AfterViewInit {
+  private store$ = inject(Store);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+  private snackbar = inject(SnackbarService);
+  private translate = inject(TranslateService);
+
+  @ViewChild('messageViewport', { read: ElementRef }) protected messageViewport?: ElementRef<HTMLDivElement>;
+  protected messages$: Observable<WebSocketDebugMessage[]> = this.store$.select(selectMessages);
+  protected readonly duplicateNotificationsEnabled = toSignal(
+    this.store$.select(selectDuplicateNotificationsEnabled),
+    { initialValue: false },
+  );
+
+  autoScroll = true;
+  protected hasMessages = false;
+  protected readonly CodeEditorLanguage = CodeEditorLanguage;
+  protected formattedMessagesArray: FormattedWebSocketDebugMessage[] = [];
+  protected filteredMessagesArray: FormattedWebSocketDebugMessage[] = [];
+  protected filterText = '';
+
+  formattedMessages$: Observable<FormattedWebSocketDebugMessage[]> = this.messages$.pipe(
+    map((messages) => messages.map((msg) => ({
+      ...msg,
+      formattedTime: this.formatTime(msg.timestamp),
+      methodName: this.getMethodName(msg),
+      messagePreview: this.getMessagePreview(msg),
+    }))),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+
+  ngAfterViewInit(): void {
+    // Subscribe to messages for both empty state check and auto-scroll
+    this.formattedMessages$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((messages) => {
+      this.formattedMessagesArray = messages;
+      this.applyFilter();
+      // Auto-scroll logic
+      if (this.autoScroll && messages.length > 0 && this.messageViewport) {
+        // Use setTimeout to ensure the DOM has updated
+        setTimeout(() => {
+          const element = this.messageViewport?.nativeElement;
+          if (element) {
+            element.scrollTop = element.scrollHeight;
+          }
+        }, scrollToBottomDelayMs);
+      }
+    });
+  }
+
+  protected clearMessages(): void {
+    this.store$.dispatch(clearMessages());
+  }
+
+  protected toggleDuplicateNotifications(): void {
+    this.store$.dispatch(toggleDuplicateNotifications());
+  }
+
+  protected copyMessage(message: WebSocketDebugMessage): void {
+    const messageContent = JSON.stringify(message.message, null, 2);
+    navigator.clipboard.writeText(messageContent)
+      .then(() => {
+        this.snackbar.success(this.translate.instant('Message copied to clipboard'));
+      })
+      .catch(() => {
+        this.snackbar.error(this.translate.instant('Failed to copy message to clipboard'));
+      });
+  }
+
+  protected toggleMessage(messageId: string): void {
+    // Create a new action to toggle message expansion
+    this.store$.dispatch(toggleMessageExpansion({ messageId }));
+  }
+
+  protected createMockFromMessage(message: FormattedWebSocketDebugMessage): void {
+    const methodName = message.methodName;
+    let responseResult: unknown = null;
+
+    if (this.isJsonRpcSuccessResponse(message.message)) {
+      responseResult = message.message.result;
+    }
+
+    this.store$.dispatch(createMockFromResponse({ methodName, responseResult }));
+  }
+
+  protected canCreateMock(message: FormattedWebSocketDebugMessage): boolean {
+    // Show icon for incoming responses that have a result and a known method name
+    return message.direction === 'in'
+      && this.isJsonRpcSuccessResponse(message.message)
+      && !!message.methodName
+      && message.methodName !== 'Unknown'
+      && message.methodName !== 'Response';
+  }
+
+  private isJsonRpcSuccessResponse(msg: unknown): msg is JsonRpcSuccessResponse {
+    return msg != null && typeof msg === 'object' && 'result' in msg;
+  }
+
+  protected applyFilter(): void {
+    if (!this.filterText.trim()) {
+      this.filteredMessagesArray = this.formattedMessagesArray;
+    } else {
+      const filterLower = this.filterText.trim().toLowerCase();
+      this.filteredMessagesArray = this.formattedMessagesArray.filter(
+        (message) => message.methodName.toLowerCase().includes(filterLower),
+      );
+    }
+    this.hasMessages = this.filteredMessagesArray.length > 0;
+    this.cdr.markForCheck();
+  }
+
+  private formatTime(timestamp: string): string {
+    const now = new Date();
+    const diff = now.getTime() - new Date(timestamp).getTime();
+
+    if (diff < 1000) return 'just now';
+    if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+
+    return new Date(timestamp).toLocaleTimeString();
+  }
+
+  private getMethodName(message: WebSocketDebugMessage): string {
+    // First check if we have a cached method name
+    if (message.methodName) {
+      return message.methodName;
+    }
+
+    // Fallback to extracting from message content
+    if (message.direction === 'out' && 'method' in message.message) {
+      return message.message.method;
+    }
+    if (message.direction === 'in' && 'method' in message.message && message.message.method) {
+      return message.message.method;
+    }
+    if (message.direction === 'in' && 'msg' in message.message) {
+      if (message.message.msg === 'method') {
+        return 'Response';
+      }
+      return String(message.message.msg);
+    }
+    return 'Unknown';
+  }
+
+  private getMessagePreview(message: WebSocketDebugMessage): string {
+    const content = message.message;
+    let data: unknown;
+
+    if ('params' in content && content.params) {
+      data = content.params;
+    } else if ('result' in content) {
+      data = content.result;
+    } else {
+      data = content;
+    }
+
+    // Create a compact single-line preview
+    const preview = JSON.stringify(data);
+    const maxLength = 150;
+
+    if (preview.length > maxLength) {
+      return preview.substring(0, maxLength) + '...';
+    }
+    return preview;
+  }
+}

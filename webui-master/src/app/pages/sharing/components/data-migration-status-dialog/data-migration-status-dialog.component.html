@@ -1,0 +1,94 @@
+<tn-dialog-shell testId="data-migration-status" [title]="'Data Migration' | translate">
+<div class="status-row">
+  <span
+    class="status-badge"
+    [ngClass]="statusClass()"
+  >
+    {{ statusLabel() }}
+  </span>
+</div>
+
+<div>
+  <div class="dataset-name">
+    <strong>{{ 'Dataset' | translate }}:</strong> {{ job().dataset_name }}
+  </div>
+
+  <div class="migration-direction">
+    <span class="tier-label">{{ sourceTier() }}</span>
+    <span aria-hidden="true" class="arrow">&rarr;</span>
+    <span class="tier-label">{{ targetTierLabel() }}</span>
+  </div>
+
+  <div class="time-info">
+    @if (startTime(); as start) {
+      <span>{{ 'Started' | translate }}: {{ start | formatDateTime }}</span>
+    }
+    @if (endTime(); as ended) {
+      <span>{{ endTimeLabel() }}: {{ ended | formatDateTime }}</span>
+    } @else if (estimatedCompletion(); as eta) {
+      @if (isRunning()) {
+        <span>{{ 'Est. completion' | translate }}: {{ eta | formatDateTime }}</span>
+      }
+    }
+  </div>
+
+  @if (job().stats; as stats) {
+    @if (hasIndeterminateProgress()) {
+      <tn-progress-bar mode="indeterminate" />
+    } @else {
+      <tn-progress-bar
+        mode="determinate"
+        [value]="progressPercent()"
+      />
+    }
+
+    <div class="stats-cards">
+      <div class="stat-card">
+        <div class="stat-label">{{ 'Data Scanned' | translate }}</div>
+        <div class="stat-value">
+          <span class="stat-part">{{ stats.count_bytes | ixFileSize }} /</span>&ngsp;
+          <span class="stat-part">{{ stats.total_bytes | ixFileSize }}</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">{{ 'Items Succeeded' | translate }}</div>
+        <div class="stat-value">
+          <span class="stat-part">{{ stats.success }} /</span>&ngsp;
+          <span class="stat-part">{{ stats.total_items }}</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">{{ 'Failures' | translate }}</div>
+        <div class="stat-value">
+          <span class="stat-part">{{ stats.failures }}</span>
+        </div>
+      </div>
+    </div>
+  } @else if (isRunning()) {
+    <tn-progress-bar mode="indeterminate" />
+
+    <div class="stats-placeholder">
+      {{ 'Gathering statistics…' | translate }}
+    </div>
+  }
+</div>
+
+<div tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="close"
+    [label]="'Close' | translate"
+    (onClick)="dialogRef.close()"
+  ></tn-button>
+  @if (isRunning()) {
+    <tn-button
+      color="warn"
+      testId="cancel"
+      [label]="'Cancel' | translate"
+      (onClick)="onCancel()"
+    ></tn-button>
+  }
+</div>
+</tn-dialog-shell>

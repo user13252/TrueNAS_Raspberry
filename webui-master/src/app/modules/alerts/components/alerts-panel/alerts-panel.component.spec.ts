@@ -1,0 +1,435 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { EffectsModule } from '@ngrx/effects';
+import { Store, StoreModule } from '@ngrx/store';
+import { TnIconButtonHarness, TnMenuHarness, TnMenuTesting } from '@truenas/ui-components';
+import { MockComponent } from 'ng-mocks';
+import { MockApiService } from 'app/core/testing/classes/mock-api.service';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { AlertClassName } from 'app/enums/alert-class-name.enum';
+import { AlertLevel } from 'app/enums/alert-level.enum';
+import { CollectionChangeType } from 'app/enums/api.enum';
+import { ProductType } from 'app/enums/product-type.enum';
+import { Alert } from 'app/interfaces/alert.interface';
+import { SmartAlertCategory } from 'app/interfaces/smart-alert.interface';
+import { AlertComponent } from 'app/modules/alerts/components/alert/alert.component';
+import { AlertsPanelComponent } from 'app/modules/alerts/components/alerts-panel/alerts-panel.component';
+import { AlertsPanelPageObject } from 'app/modules/alerts/components/alerts-panel/alerts-panel.page-object';
+import { alertsLoaded } from 'app/modules/alerts/store/alert.actions';
+import { AlertEffects } from 'app/modules/alerts/store/alert.effects';
+import { adapter, alertReducer, alertsInitialState } from 'app/modules/alerts/store/alert.reducer';
+import { alertStateKey } from 'app/modules/alerts/store/alert.selectors';
+import { FormSidePanelService } from 'app/modules/slide-ins/form-side-panel/form-side-panel.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { EmailFormComponent } from 'app/pages/system/general-settings/email/email-form/email-form.component';
+import { SystemGeneralService } from 'app/services/system-general.service';
+import { adminUiInitialized } from 'app/store/admin-panel/admin.actions';
+import { haInfoReducer } from 'app/store/ha-info/ha-info.reducer';
+import { haInfoStateKey } from 'app/store/ha-info/ha-info.selectors';
+import { systemInfoReducer } from 'app/store/system-info/system-info.reducer';
+import { systemInfoStateKey } from 'app/store/system-info/system-info.selectors';
+import { alertIndicatorPressed } from 'app/store/topbar/topbar.actions';
+
+const unreadAlerts = [
+  {
+    id: '1',
+    key: 'unread-key-1',
+    dismissed: false,
+    formatted: 'Unread 1',
+    datetime: { $date: 1641811015 },
+    level: AlertLevel.Critical,
+  },
+  {
+    id: '2',
+    key: 'unread-key-2',
+    dismissed: false,
+    formatted: 'Unread 2',
+    datetime: { $date: 1641810015 },
+    level: AlertLevel.Alert,
+  },
+] as Alert[];
+
+const dismissedAlerts = [
+  {
+    id: '3',
+    key: 'dismissed-key-3',
+    dismissed: true,
+    formatted: 'Dismissed 3',
+    datetime: { $date: 1641790015 },
+  },
+  {
+    id: '4',
+    key: 'dismissed-key-4',
+    dismissed: true,
+    formatted: 'Dismissed 4',
+    datetime: { $date: 1641780015 },
+  },
+] as Alert[];
+
+describe('AlertsPanelComponent', () => {
+  let spectator: Spectator<AlertsPanelComponent>;
+  let api: ApiService;
+  let alertPanel: AlertsPanelPageObject;
+
+  const createComponent = createComponentFactory({
+    component: AlertsPanelComponent,
+    imports: [
+      StoreModule.forRoot({
+        [alertStateKey]: alertReducer,
+        [haInfoStateKey]: haInfoReducer,
+        [systemInfoStateKey]: systemInfoReducer,
+      }, {
+        initialState: {
+          [alertStateKey]: adapter.setAll([...unreadAlerts, ...dismissedAlerts], alertsInitialState),
+          [haInfoStateKey]: {
+            haStatus: {
+              hasHa: true,
+              reasons: [],
+            },
+            isHaLicensed: true,
+          },
+          [systemInfoStateKey]: {
+            systemInfo: null,
+            productType: ProductType.Enterprise,
+            isIxHardware: false,
+            buildYear: 2024,
+          },
+        },
+      }),
+      EffectsModule.forRoot([AlertEffects]),
+    ],
+    declarations: [
+      MockComponent(AlertComponent),
+    ],
+    providers: [
+      mockAuth(),
+      mockApi([
+        mockCall('alert.list', [...unreadAlerts, ...dismissedAlerts]),
+        mockCall('alert.dismiss'),
+        mockCall('alert.restore'),
+      ]),
+      mockProvider(SystemGeneralService),
+      mockProvider(FormSidePanelService),
+    ],
+    componentProviders: [
+      // The component provides AlertPanelOverlayContainer as a second OverlayContainer for
+      // z-index stacking in production. In CDK's test environment, containers are mutually
+      // exclusive (each _createContainer() removes other platform="test" containers), so the
+      // menu overlay would end up in a detached element. Reuse the root container instead.
+      { provide: OverlayContainer, useFactory: () => inject(OverlayContainer, { skipSelf: true }) },
+    ],
+  });
+
+  async function openSettingsMenu(): Promise<TnMenuHarness> {
+    const settingsButton = await TestbedHarnessEnvironment.loader(spectator.fixture)
+      .getHarness(TnIconButtonHarness.with({ name: 'cog' }));
+    await settingsButton.click();
+
+    return TnMenuTesting.rootLoader(spectator.fixture).getHarness(TnMenuHarness);
+  }
+
+  beforeEach(() => {
+    spectator = createComponent();
+
+    api = spectator.inject(ApiService);
+    alertPanel = new AlertsPanelPageObject(spectator);
+
+    spectator.detectChanges();
+  });
+
+  it('loads alerts when adminUiInitialized is dispatched', () => {
+    spectator.inject(Store).dispatch(adminUiInitialized());
+
+    expect(api.call).toHaveBeenCalledWith('alert.list');
+  });
+
+  it('selects HA status from store and passes it to the ix-alert', () => {
+    expect(alertPanel.unreadAlertComponents[0].isHaLicensed).toBe(true);
+
+    // Switch to dismissed view to check dismissed alerts
+    spectator.component.setSeverityFilter('dismissed');
+    spectator.detectChanges();
+
+    expect(alertPanel.dismissedAlertComponents[0].isHaLicensed).toBe(true);
+  });
+
+  it('shows a list of unread alerts', () => {
+    const unreadAlertComponents = alertPanel.unreadAlertComponents;
+
+    expect(unreadAlertComponents).toHaveLength(2);
+    expect(unreadAlertComponents[0].alert).toEqual({
+      ...unreadAlerts[1],
+      duplicateCount: 1,
+      objectCount: 1,
+      allIds: [unreadAlerts[1].id],
+      category: SmartAlertCategory.System,
+    });
+    expect(unreadAlertComponents[1].alert).toEqual({
+      ...unreadAlerts[0],
+      duplicateCount: 1,
+      objectCount: 1,
+      allIds: [unreadAlerts[0].id],
+      category: SmartAlertCategory.System,
+    });
+  });
+
+  it('shows a list of dismissed alerts', () => {
+    // Switch to dismissed view
+    spectator.component.setSeverityFilter('dismissed');
+    spectator.detectChanges();
+
+    const dismissedAlertComponents = alertPanel.dismissedAlertComponents;
+
+    expect(dismissedAlertComponents).toHaveLength(2);
+    expect(dismissedAlertComponents[0].alert).toEqual({
+      ...dismissedAlerts[0],
+      duplicateCount: 1,
+      objectCount: 1,
+      allIds: [dismissedAlerts[0].id],
+      category: SmartAlertCategory.System,
+    });
+    expect(dismissedAlertComponents[1].alert).toEqual({
+      ...dismissedAlerts[1],
+      duplicateCount: 1,
+      objectCount: 1,
+      allIds: [dismissedAlerts[1].id],
+      category: SmartAlertCategory.System,
+    });
+  });
+
+  // Regression for NAS-140768: duplicates must be dismissible as a group. They are now
+  // consolidated into a single rendered alert that carries every duplicate id (allIds), so a
+  // dismiss click acts on the whole group. The dispatch -> server-call wiring is covered in
+  // alert.effects.spec.ts and alert.component.spec.ts.
+  it('renders duplicates as one alert carrying every duplicate id', () => {
+    const duplicates = [
+      {
+        id: 'dup-a',
+        key: 'duplicate-key',
+        klass: AlertClassName.PoolUpgraded,
+        dismissed: false,
+        datetime: { $date: 1641811015 },
+        level: AlertLevel.Warning,
+      },
+      {
+        id: 'dup-b',
+        key: 'duplicate-key',
+        klass: AlertClassName.PoolUpgraded,
+        dismissed: false,
+        datetime: { $date: 1641811020 },
+        level: AlertLevel.Warning,
+      },
+    ] as Alert[];
+    spectator.inject(Store).dispatch(alertsLoaded({ alerts: duplicates }));
+    spectator.detectChanges();
+
+    expect(alertPanel.unreadAlertComponents).toHaveLength(1);
+
+    const rendered = alertPanel.getAlertData(alertPanel.unreadAlertComponents[0]);
+    expect([...(rendered?.allIds || [])].sort((a, b) => a.localeCompare(b))).toEqual(['dup-a', 'dup-b']);
+  });
+
+  it('consolidates alerts of the same class even when their messages differ', () => {
+    const perPoolAlerts = ['a', 'b', 'c'].map((pool, index) => ({
+      id: `pool-${pool}`,
+      key: `pool-${pool}-key`,
+      klass: AlertClassName.PoolUpgraded,
+      dismissed: false,
+      formatted: `Pool '${pool}' can be upgraded`,
+      datetime: { $date: 1641811015 + index },
+      level: AlertLevel.Warning,
+    })) as Alert[];
+    spectator.inject(Store).dispatch(alertsLoaded({ alerts: perPoolAlerts }));
+    spectator.detectChanges();
+
+    expect(alertPanel.unreadAlertComponents).toHaveLength(1);
+    expect(alertPanel.getAlertData(alertPanel.unreadAlertComponents[0])?.duplicateCount).toBe(3);
+    // The filter counts stay per alert instance so they still match the nav badges.
+    expect(spectator.queryAll('.filter-button .count')[0]).toHaveText('3');
+  });
+
+  it('keeps the same row when a newer alert joins its group', () => {
+    const poolAlert = {
+      id: 'pool-a',
+      key: 'pool-a-key',
+      klass: AlertClassName.PoolUpgraded,
+      dismissed: false,
+      formatted: "Pool 'a' can be upgraded",
+      datetime: { $date: 1641811015 },
+      level: AlertLevel.Warning,
+    } as Alert;
+    spectator.inject(Store).dispatch(alertsLoaded({ alerts: [poolAlert] }));
+    spectator.detectChanges();
+    const before = alertPanel.unreadAlertComponents[0];
+
+    // Consolidation makes the newer alert the representative, changing the entry's id.
+    // Rows track the consolidation key so Angular reuses the component instead of
+    // rebuilding it and resetting whether the user had expanded it.
+    spectator.inject(Store).dispatch(alertsLoaded({
+      alerts: [poolAlert, {
+        ...poolAlert, id: 'pool-b', key: 'pool-b-key', datetime: { $date: 1641811020 },
+      }],
+    }));
+    spectator.detectChanges();
+
+    expect(alertPanel.unreadAlertComponents).toHaveLength(1);
+    expect(alertPanel.unreadAlertComponents[0]).toBe(before);
+  });
+
+  // Regression for NAS-142267: middleware builds `key` from the alert arguments alone, so
+  // TierSpecialVdevWarning and TierSpecialVdevCritical for the same pool share a key. They are
+  // separate alerts and must not be counted as duplicates of one another (nor dismissed together).
+  it('does not treat different alert classes sharing a key as duplicates', () => {
+    const sameKeyAlerts = [
+      {
+        id: 'tier-warning',
+        klass: AlertClassName.TierSpecialVdevWarning,
+        key: '"hddpool"',
+        dismissed: false,
+        datetime: { $date: 1641811015 },
+        level: AlertLevel.Warning,
+      },
+      {
+        id: 'tier-critical',
+        klass: AlertClassName.TierSpecialVdevCritical,
+        key: '"hddpool"',
+        dismissed: false,
+        datetime: { $date: 1641811020 },
+        level: AlertLevel.Critical,
+      },
+    ] as Alert[];
+    spectator.inject(Store).dispatch(alertsLoaded({ alerts: sameKeyAlerts }));
+    spectator.detectChanges();
+
+    const rendered = alertPanel.unreadAlertComponents.map(
+      (component) => alertPanel.getAlertData(component),
+    );
+
+    expect(rendered.map((alert) => alert?.allIds)).toEqual([['tier-critical'], ['tier-warning']]);
+    expect(rendered.map((alert) => alert?.duplicateCount)).toEqual([1, 1]);
+  });
+
+  it('dismisses all alerts when Dismiss All Alerts is pressed', () => {
+    spectator.click(alertPanel.dismissAllButton!);
+
+    expect(api.call).toHaveBeenCalledWith('alert.dismiss', ['1']);
+    expect(api.call).toHaveBeenCalledWith('alert.dismiss', ['2']);
+
+    expect(alertPanel.dismissAllButton).not.toExist();
+
+    // Switch to dismissed view to check all dismissed alerts
+    spectator.component.setSeverityFilter('dismissed');
+    spectator.detectChanges();
+
+    expect(alertPanel.dismissedAlertComponents).toHaveLength(4);
+
+    // Switch back to all view to verify no unread alerts
+    spectator.component.setSeverityFilter('all');
+    spectator.detectChanges();
+
+    expect(alertPanel.unreadAlertsSection).not.toExist();
+  });
+
+  it('reopens all alerts when Reopen All Alerts is pressed', () => {
+    // Switch to dismissed view to see the reopen button
+    spectator.component.setSeverityFilter('dismissed');
+    spectator.detectChanges();
+
+    spectator.click(alertPanel.reopenAllButton!);
+
+    expect(api.call).toHaveBeenCalledWith('alert.restore', ['3']);
+    expect(api.call).toHaveBeenCalledWith('alert.restore', ['4']);
+
+    expect(alertPanel.reopenAllButton).not.toExist();
+
+    // Switch back to all view to check unread alerts
+    spectator.component.setSeverityFilter('all');
+    spectator.detectChanges();
+
+    expect(alertPanel.unreadAlertComponents).toHaveLength(4);
+
+    // Switch to dismissed view to verify no dismissed alerts
+    spectator.component.setSeverityFilter('dismissed');
+    spectator.detectChanges();
+
+    expect(alertPanel.dismissedAlertsSection).not.toExist();
+  });
+
+  it('adds an alert when websocket alert.list subscription sends an "add" event', () => {
+    spectator.inject(Store).dispatch(adminUiInitialized());
+
+    const websocketMock = spectator.inject(MockApiService);
+    websocketMock.emitSubscribeEvent({
+      id: 'test-id-1',
+      msg: CollectionChangeType.Added,
+      collection: 'alert.list',
+      fields: {
+        id: 'new',
+        key: 'new-alert-key',
+        dismissed: false,
+        formatted: 'New Alert',
+        datetime: { $date: 1641819015 },
+      } as Alert,
+    });
+    spectator.detectChanges();
+
+    expect(alertPanel.unreadAlertComponents).toHaveLength(3);
+  });
+
+  it('updates an alert when websocket alert.list subscription sends a "change" event', () => {
+    spectator.inject(Store).dispatch(adminUiInitialized());
+
+    const websocketMock = spectator.inject(MockApiService);
+    websocketMock.emitSubscribeEvent({
+      id: 'test-id-2',
+      msg: CollectionChangeType.Changed,
+      collection: 'alert.list',
+      fields: {
+        id: '1',
+        key: 'unread-key-1',
+        dismissed: true,
+        formatted: 'Unread 1',
+        datetime: { $date: 1641811015 },
+      } as Alert,
+    });
+    spectator.detectChanges();
+
+    expect(alertPanel.unreadAlertComponents).toHaveLength(1);
+
+    // Switch to dismissed view to check dismissed alerts
+    spectator.component.setSeverityFilter('dismissed');
+    spectator.detectChanges();
+
+    expect(alertPanel.dismissedAlertComponents).toHaveLength(3);
+  });
+
+  it('calls alert.list when alerts panel is open', () => {
+    spectator.inject(Store).dispatch(alertIndicatorPressed());
+    expect(api.call).toHaveBeenCalledWith('alert.list');
+  });
+
+  it('navigates to alert settings when Alert Settings menu item is selected', async () => {
+    const router = spectator.inject(Router);
+    jest.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    const menu = await openSettingsMenu();
+    expect(await menu.getItemLabels()).toEqual(['Alert Settings', 'Email']);
+
+    await menu.clickItem({ label: 'Alert Settings' });
+
+    expect(router.navigate).toHaveBeenCalledWith(['/system', 'alert-settings'], undefined);
+  });
+
+  it('opens email form when Email menu item is selected', async () => {
+    const menu = await openSettingsMenu();
+    await menu.clickItem({ label: 'Email' });
+
+    expect(spectator.inject(FormSidePanelService).open).toHaveBeenCalledWith(EmailFormComponent, {
+      title: 'Email Options',
+    });
+  });
+});

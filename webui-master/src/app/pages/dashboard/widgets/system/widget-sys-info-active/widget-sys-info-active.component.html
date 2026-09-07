@@ -1,0 +1,199 @@
+<tn-card [class]="['card', size()]" [padContent]="false">
+  <div class="card-content">
+    <div [class]="['container', size()]">
+      <div class="content-left fn-theme-contrast-lighter">
+        <div class="product-logo-container">
+          <tn-icon [name]="isIxHardware() ? tnIconMarker('truenas-logo', 'custom') : tnIconMarker('truenas-logo-type', 'custom')" [fullSize]="true"></tn-icon>
+        </div>
+
+        <ix-product-image
+          class="product-image"
+          [systemProduct]="systemInfo()?.platform"
+          [hasEnclosureSupport]="!!hasEnclosureSupport()"
+          [isHaLicensed]="!!isHaLicensed()"
+          [isEnterprise]="!!isEnterprise()"
+          [isIxHardware]="!!isIxHardware()"
+        >
+          <span>{{ 'Active' | translate }}</span>
+        </ix-product-image>
+
+        @if (systemInfo()?.system_serial && isIxHardware()) {
+          <div class="hostname">
+            @if (isLoaded()) {
+              <span [tnTooltip]="'Hostname: {hostname}' | translate: { hostname: systemInfo()?.hostname }">
+                {{ systemInfo()?.hostname }}
+              </span>
+            }
+          </div>
+        }
+
+        <div class="card-action-container">
+          @if (isUpdateRunning()) {
+            <tn-button
+              color="primary"
+              [testId]="['widget-sysinfo', 'update-running']"
+              [label]="'Update in Progress' | translate"
+              [disabled]="true"
+            ></tn-button>
+          } @else if (updateAvailable()) {
+            <tn-button
+              color="primary"
+              [testId]="['widget-sysinfo', 'update']"
+              [label]="'Updates Available' | translate"
+              [routerLink]="['/system', 'update']"
+            ></tn-button>
+          } @else {
+            <tn-button
+              color="primary"
+              [testId]="['widget-sysinfo', 'update']"
+              [label]="'Check for Updates' | translate"
+              [routerLink]="['/system', 'update']"
+            ></tn-button>
+          }
+        </div>
+      </div>
+
+      <div class="content-right">
+        <div class="header">
+          <h3>{{ 'System Information' | translate }}</h3>
+
+          <tn-icon-button
+            name="chart-box"
+            library="mdi"
+            size="lg"
+            testId="system-go-to-reports"
+            [ariaLabel]="'System Reports' | translate"
+            [tooltip]="'System Reports' | translate"
+            (onClick)="goToReports()"
+          ></tn-icon-button>
+        </div>
+
+        <tn-list>
+          <tn-list-item>
+            <strong>{{ 'Platform' | translate }}:</strong>
+            @if (isLoaded()) {
+              <span>
+                @if (systemInfo()?.platform && isIxHardware()) {
+                  {{ systemInfo()?.platform }}
+                } @else {
+                  {{ 'Generic' }}
+                }
+              </span>
+            } @else {
+              <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+            }
+          </tn-list-item>
+
+          <tn-list-item>
+            <strong>{{ 'Edition' | translate }}:</strong>
+            @if (isLoaded()) {
+              <span>
+                @if (isEnterprise()) {
+                  {{ 'Enterprise' | translate }}
+                } @else {
+                  {{ 'Community' | translate }}
+                }
+              </span>
+            } @else {
+              <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+            }
+          </tn-list-item>
+
+          <tn-list-item>
+            <strong>{{ 'Version' | translate }}:</strong>
+            @if (isLoaded()) {
+              <div class="copy-version">
+                <div class="copy-version-text" [tnTooltip]="version()">
+                  <span>
+                    {{ version() }}
+                    {{ rendered() }}
+                  </span>
+                </div>
+                <ix-copy-button [text]="version()"></ix-copy-button>
+              </div>
+            } @else {
+              <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+            }
+          </tn-list-item>
+
+          @if (systemInfo()?.license) {
+            <tn-list-item>
+              <div class="license-info">
+                <div class="title">{{ 'Support License' | translate }}:</div>
+                <div class="info">
+                  @if (systemInfo()?.license?.contract_type) {
+                    <div>
+                      {{
+                        '{license} Contract' | translate:
+                        {
+                          license: getLabelForContractType(systemInfo()?.license?.contract_type),
+                        }
+                      }}
+                    </div>
+                  }
+                  @if (licenseExpirationDate()) {
+                    <div>
+                      {{
+                        'Expires on {date}' | translate: { date: licenseExpirationDate() }
+                      }}
+                    </div>
+                  }
+                </div>
+              </div>
+            </tn-list-item>
+          }
+
+          @if (systemInfo()?.system_serial && isIxHardware()) {
+            <tn-list-item>
+              <strong>{{ 'System Serial' | translate }}:</strong>
+              <span>
+                {{ systemInfo()?.system_serial }}
+              </span>
+            </tn-list-item>
+          } @else {
+            <tn-list-item>
+              <strong>{{ 'Hostname' | translate }}:</strong>
+              @if (isLoaded()) {
+                <span>
+                  {{ systemInfo()?.hostname }}
+                </span>
+              } @else {
+                <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+              }
+            </tn-list-item>
+          }
+
+          <tn-list-item>
+            <strong>{{ 'Uptime' | translate }}:</strong>
+            @if (isLoaded()) {
+              <span>
+                {{ uptime() | uptime: datetime() }}
+              </span>
+            } @else {
+              <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+            }
+          </tn-list-item>
+
+          @if (!isEnterprise()) {
+            <!-- The marketing message is a sentence, not a label: let it wrap instead of ellipsizing. -->
+            <tn-list-item class="use-enterprise" [wrap]="true">
+              <ix-use-enterprise-marketing-link></ix-use-enterprise-marketing-link>
+            </tn-list-item>
+          }
+        </tn-list>
+      </div>
+    </div>
+  </div>
+</tn-card>
+
+<ng-template #skeletonLoader>
+  <ngx-skeleton-loader
+    class="inline-loader"
+    [theme]="{
+      height: '20px',
+      background: 'var(--alt-bg2)',
+      opacity: 0.25,
+      margin: 0,
+    }"
+  ></ngx-skeleton-loader>
+</ng-template>

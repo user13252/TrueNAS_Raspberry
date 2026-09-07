@@ -1,0 +1,53 @@
+<ix-form
+  [formGroup]="form"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field
+      [label]="'Base Name' | translate"
+      [tooltip]="tooltips.basename | translate"
+      [required]="true"
+    >
+      <tn-input formControlName="basename"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'ISNS Servers' | translate"
+      [tooltip]="tooltips.isns_servers | translate"
+    >
+      <tn-chip-input testId="isns-servers" formControlName="isns_servers" [allowCustomValue]="true"></tn-chip-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'Pool Available Space Threshold (%)' | translate"
+      [tooltip]="tooltips.pool_avail_threshold | translate"
+    >
+      <tn-input formControlName="pool_avail_threshold" [inputType]="InputType.Number"></tn-input>
+    </tn-form-field>
+
+    <tn-form-field
+      [label]="'iSCSI listen port' | translate"
+      [required]="true"
+    >
+      <tn-input formControlName="listen_port" [inputType]="InputType.Number"></tn-input>
+    </tn-form-field>
+
+    @if (isHaSystem()) {
+      <tn-form-field [tooltip]="tooltips.alua | translate">
+        <tn-checkbox
+          formControlName="alua"
+          [label]="'Asymmetric Logical Unit Access (ALUA)' | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    }
+
+    <tn-form-field [tooltip]="tooltips.iser | translate">
+      <tn-checkbox
+        formControlName="iser"
+        [label]="'Enable iSCSI Extensions for RDMA (iSER)' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

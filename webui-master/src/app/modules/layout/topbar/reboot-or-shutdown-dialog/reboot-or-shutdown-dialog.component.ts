@@ -1,0 +1,143 @@
+import { DialogRef, DIALOG_DATA } from '@angular/cdk/dialog';
+import { AsyncPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder } from '@ngneat/reactive-forms';
+import { Store } from '@ngrx/store';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import {
+  TnButtonComponent,
+  TnCheckboxComponent,
+  TnDialogShellComponent,
+  TnFormFieldComponent,
+  TnInputComponent,
+  TnSelectComponent,
+} from '@truenas/ui-components';
+import { Observable, of } from 'rxjs';
+import { SelectOption } from 'app/interfaces/option.interface';
+import { FormActionsComponent } from 'app/modules/forms/ix-forms/components/form-actions/form-actions.component';
+import { AppState } from 'app/store';
+import { selectIsEnterprise } from 'app/store/system-info/system-info.selectors';
+
+const customReasonValue = 'CUSTOM_REASON_VALUE';
+
+@Component({
+  selector: 'ix-reboot-or-shutdown-dialog',
+  templateUrl: './reboot-or-shutdown-dialog.component.html',
+  styleUrls: ['./reboot-or-shutdown-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    AsyncPipe,
+    TnDialogShellComponent,
+    TnButtonComponent,
+    TranslateModule,
+    ReactiveFormsModule,
+    TnCheckboxComponent,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    TnInputComponent,
+    FormActionsComponent,
+  ],
+})
+export class RebootOrShutdownDialog {
+  protected dialogRef = inject<DialogRef<string, RebootOrShutdownDialog>>(DialogRef);
+  private fb = inject(FormBuilder);
+  private translate = inject(TranslateService);
+  private store$ = inject<Store<AppState>>(Store);
+  isShutdown = inject<boolean>(DIALOG_DATA) ?? false;
+  private destroyRef = inject(DestroyRef);
+
+  form = this.fb.group({
+    confirm: [null as boolean | null, Validators.requiredTrue],
+    reason: ['', Validators.required],
+    customReason: ['', Validators.required],
+  });
+
+  readonly reasonOptions$: Observable<SelectOption[]> = of([
+    {
+      label: this.translate.instant('Custom Reason'),
+      value: customReasonValue,
+    },
+    {
+      label: this.translate.instant('System Update'),
+      hoverTooltip: this.translate.instant('Applying important system or security updates.'),
+      value: 'System Update',
+    },
+    {
+      label: this.translate.instant('Hardware Change'),
+      hoverTooltip: this.translate.instant('Adding, removing, or changing hardware components.'),
+      value: 'Hardware Change',
+    },
+    {
+      label: this.translate.instant('Troubleshooting Issues'),
+      hoverTooltip: this.translate.instant('Required reset to fix system operation issues.'),
+      value: 'Troubleshooting Issues',
+    },
+    {
+      label: this.translate.instant('Power Outage'),
+      hoverTooltip: this.translate.instant('Unexpected power loss necessitating a restart.'),
+      value: 'Power Outage',
+    },
+    {
+      label: this.translate.instant('Maintenance Window'),
+      hoverTooltip: this.translate.instant('Regularly scheduled system checks and updates.'),
+      value: 'Maintenance Window',
+    },
+    {
+      label: this.translate.instant('System Overload'),
+      hoverTooltip: this.translate.instant('High usage necessitating a system reset.'),
+      value: 'System Overload',
+    },
+    {
+      label: this.translate.instant('Software Installation'),
+      hoverTooltip: this.translate.instant('Required restart after new software installation.'),
+      value: 'Software Installation',
+    },
+    {
+      label: this.translate.instant('Performance Optimization'),
+      hoverTooltip: this.translate.instant('Restart to improve system performance speed.'),
+      value: 'Performance Optimization',
+    },
+    {
+      label: this.translate.instant('Network Reset'),
+      hoverTooltip: this.translate.instant('Restart to re-establish network connections.'),
+      value: 'Network Reset',
+    },
+    {
+      label: this.translate.instant('System Freeze'),
+      hoverTooltip: this.translate.instant('Unresponsive system necessitating a forced restart.'),
+      value: 'System Freeze',
+    },
+  ]);
+
+  readonly isEnterprise = toSignal(this.store$.select(selectIsEnterprise));
+
+  get title(): string {
+    return this.isShutdown
+      ? this.translate.instant('Shutdown')
+      : this.translate.instant('Restart');
+  }
+
+  get buttonText(): string {
+    return this.isShutdown
+      ? this.translate.instant('Shut Down')
+      : this.translate.instant('Restart');
+  }
+
+  constructor() {
+    this.form.controls.reason.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((reason) => {
+      if (reason === customReasonValue) {
+        this.form.controls.customReason.enable();
+      } else {
+        this.form.controls.customReason.disable();
+      }
+    });
+  }
+
+  onSubmit(): void {
+    const formValue = this.form.value;
+    const reason = formValue.reason === customReasonValue ? formValue.customReason : formValue.reason;
+    this.dialogRef.close(reason || this.translate.instant('Unspecified'));
+  }
+}

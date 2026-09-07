@@ -1,0 +1,104 @@
+<ng-container [formGroup]="form()">
+  <tn-form-field
+    [label]="helptextSharingIscsi.nameLabel | translate"
+    [tooltip]="helptextSharingIscsi.nameTooltip | translate"
+  >
+    <tn-input
+      formControlName="name"
+      [required]="true"
+    ></tn-input>
+  </tn-form-field>
+  <tn-form-field
+    [label]="helptextSharingIscsi.extent.typeLabel | translate"
+    [tooltip]="helptextSharingIscsi.extent.typeTooltip | translate"
+    [required]="true"
+  >
+    <tn-select
+      formControlName="type"
+      [options]="(typeOptions$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+  @if (isDevice) {
+    <tn-form-field
+      [label]="helptextSharingIscsi.diskName | translate"
+      [tooltip]="helptextSharingIscsi.diskTooltip | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="disk"
+        [options]="(diskOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (isSnapshot) {
+      <div class="snapshot-info-box" role="status">
+        <div class="info-header">
+          <tn-icon name="information-outline" library="mdi"></tn-icon>
+          <span>{{ 'Snapshot Selected' | translate }}</span>
+        </div>
+        <p class="info-message">
+          {{ 'Snapshots preserve data at a specific point in time and cannot be changed. Clients can only read from this extent.' | translate }}
+        </p>
+      </div>
+    }
+  }
+  @if (isNewZvol) {
+    <ix-explorer
+      formControlName="dataset"
+      [label]="helptextSharingIscsi.datasetLabel | translate"
+      [tooltip]="helptextSharingIscsi.datasetTooltip | translate"
+      [required]="true"
+      [nodeProvider]="fileNodeProvider"
+    >
+      <ix-explorer-create-dataset></ix-explorer-create-dataset>
+    </ix-explorer>
+
+    <tn-form-field
+      [label]="helptextSharingIscsi.sizeLabel | translate"
+      [tooltip]="helptextSharingIscsi.sizeTooltip | translate"
+      [required]="true"
+    >
+      <tn-input
+        formControlName="volsize"
+        sizeDefaultUnit="MiB"
+        [inputType]="InputType.Size"
+      ></tn-input>
+    </tn-form-field>
+  }
+  @if (!isDevice) {
+    <ix-explorer
+      formControlName="path"
+      [label]="helptextSharingIscsi.extent.pathLabel | translate"
+      [required]="true"
+      [nodeProvider]="fileNodeProvider"
+    ></ix-explorer>
+
+    <tn-form-field
+      [label]="helptextSharingIscsi.extent.filesizeLabel | translate"
+      [tooltip]="helptextSharingIscsi.extent.filesizeTooltip | translate"
+      [required]="true"
+    >
+      <tn-input
+        formControlName="filesize"
+        sizeDefaultUnit="MiB"
+        [inputType]="InputType.Size"
+      ></tn-input>
+    </tn-form-field>
+  }
+  <tn-form-field [tooltip]="helptextSharingIscsi.extent.readOnlyTooltip | translate">
+    <tn-checkbox
+      formControlName="ro"
+      [label]="helptextSharingIscsi.extent.readOnlyLabel | translate"
+    ></tn-checkbox>
+  </tn-form-field>
+  <tn-form-field
+    [label]="helptextSharingIscsi.useforLabel | translate"
+    [tooltip]="helptextSharingIscsi.useforTooltip | translate"
+    [required]="true"
+  >
+    <tn-select
+      formControlName="usefor"
+      [options]="(useforOptions$ | async) ?? []"
+    ></tn-select>
+  </tn-form-field>
+</ng-container>

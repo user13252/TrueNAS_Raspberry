@@ -1,0 +1,77 @@
+<ix-audit-search [dataProvider]="dataProvider()"></ix-audit-search>
+
+@let emptyType = dataProvider().emptyType$ | async;
+<tn-table
+  class="audit-table"
+  [ixUiSearch]="searchableElements.elements.audit"
+  [dataSource]="(dataProvider().currentPage$ | async) ?? []"
+  [displayedColumns]="displayedColumns"
+  [trackBy]="trackByAuditId"
+  [clickable]="true"
+  [fixedLayout]="true"
+  [activeRow]="dataProvider().expandedRow"
+  [loading]="(dataProvider().isLoading$ | async) ?? false"
+  [loadingMessage]="emptyService.loadingMessage()"
+  [emptyMessage]="emptyService.titleForType(emptyType)"
+  [emptyDescription]="emptyService.descriptionForType(emptyType)"
+  [emptyIcon]="emptyIconFor(emptyType)"
+  (sortChange)="onSortChange($event)"
+  (rowClick)="onRowClick($event)"
+>
+  <ng-container [tnColumnDef]="'service'" [sortable]="true">
+    <ng-template tnHeaderCellDef>{{ 'Service' | translate }}</ng-template>
+    <ng-template let-row tnCellDef>
+      <span class="cell-clamp">{{ row.service | auditServiceLabel | translate }}</span>
+    </ng-template>
+  </ng-container>
+
+  <ng-container [tnColumnDef]="'username'" [sortable]="true">
+    <ng-template tnHeaderCellDef>{{ 'User' | translate }}</ng-template>
+    <ng-template let-row tnCellDef>
+      <div class="user-avatar" [tnTooltip]="row.username">
+        <!-- Decorative identicon; the username is shown as text alongside it. -->
+        <div aria-hidden="true" [innerHTML]="row.username | userAvatar"></div>
+        <span class="cell-clamp">{{ row.username || '-' }}</span>
+      </div>
+    </ng-template>
+  </ng-container>
+
+  <ng-container [tnColumnDef]="'message_timestamp'" [sortable]="true">
+    <ng-template tnHeaderCellDef>{{ 'Timestamp' | translate }}</ng-template>
+    <ng-template let-row tnCellDef>
+      <span class="cell-clamp">
+        <ix-date [date]="row.message_timestamp * 1000"></ix-date>
+      </span>
+    </ng-template>
+  </ng-container>
+
+  <ng-container [tnColumnDef]="'event'" [sortable]="true">
+    <ng-template tnHeaderCellDef>{{ 'Event' | translate }}</ng-template>
+    <ng-template let-row tnCellDef>
+      <!--
+        Show the raw event token verbatim (e.g. SET_ACL) rather than a friendly label.
+        This is the exact value recorded in the audit database and forwarded to remote
+        syslog, so users see the same string here that they search for remotely.
+      -->
+      <span class="cell-clamp">{{ row.event || '-' }}</span>
+    </ng-template>
+  </ng-container>
+
+  <ng-container [tnColumnDef]="'event_data'">
+    <ng-template tnHeaderCellDef>{{ 'Event Data' | translate }}</ng-template>
+    <ng-template let-row tnCellDef>
+      @let importantData = row | getLogImportantData | translate;
+      <div class="event-data" [tnTooltip]="importantData">
+        @if (row.success) {
+          <tn-icon class="status-icon" name="check-circle" library="mdi"></tn-icon>
+        } @else {
+          <tn-icon class="status-icon error-color" name="close-circle" library="mdi"></tn-icon>
+        }
+        <span class="cell-clamp">{{ importantData }}</span>
+      </div>
+    </ng-template>
+  </ng-container>
+</tn-table>
+
+<tn-table-pager [dataProvider]="dataProvider()"></tn-table-pager>
+

@@ -1,0 +1,25 @@
+@if (!!allCount()) {
+  {{ 'Backup' | translate }}
+  <a
+    *ixRequiresRoles="[Role.CloudSyncWrite]"
+    class="backup-action"
+    tnTestIdType="link"
+    [tnTestId]="'cloud'"
+    (click)="addCloudSyncTask.emit()"
+  >
+    {{ 'to cloud' | translate }}
+  </a>
+  {{ 'or' | translate }}
+  <a
+    *ixRequiresRoles="[Role.ReplicationTaskWrite, Role.ReplicationTaskWritePull]"
+    class="backup-action"
+    tnTestIdType="link"
+    [tnTestId]="'another-TrueNAS'"
+    (click)="addReplicationTask.emit()"
+  >
+    {{ 'to another TrueNAS' | translate }}
+  </a>
+} @else {
+  {{ 'Backup to Cloud or another TrueNAS via links below' | translate }}
+}
+

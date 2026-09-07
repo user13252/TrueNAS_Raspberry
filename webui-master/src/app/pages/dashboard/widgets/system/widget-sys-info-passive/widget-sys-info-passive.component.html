@@ -1,0 +1,209 @@
+<tn-card [class]="['card', size()]" [padContent]="false">
+  <div class="card-content">
+    <div [class]="['container', size()]">
+      <div class="content-left fn-theme-contrast-lighter">
+        <div class="product-logo-container">
+          <tn-icon [name]="isIxHardware() ? tnIconMarker('truenas-logo', 'custom') : tnIconMarker('truenas-logo-type', 'custom')" [fullSize]="true"></tn-icon>
+        </div>
+
+        <ix-product-image
+          class="passive product-image"
+          [systemProduct]="systemInfo()?.platform"
+          [hasEnclosureSupport]="!!hasEnclosureSupport()"
+          [isHaLicensed]="!!isHaLicensed()"
+          [isEnterprise]="!!isEnterprise()"
+          [isIxHardware]="!!isIxHardware()"
+        >
+          <span>{{ 'Standby' | translate }}</span>
+        </ix-product-image>
+
+        @if (systemInfo()?.system_serial && isIxHardware()) {
+          <div class="hostname">
+            @if (isLoaded()) {
+              <span [tnTooltip]="'Hostname: {hostname}' | translate: { hostname: systemInfo()?.hostname }">
+                {{ systemInfo()?.hostname }}
+              </span>
+            }
+          </div>
+        }
+
+        <div class="card-action-container">
+          @if (isUpdateRunning()) {
+            <tn-button
+              color="primary"
+              [testId]="['widget-sysinfo', 'update-running']"
+              [label]="'Update in Progress' | translate"
+              [disabled]="true"
+            ></tn-button>
+          }
+
+          @if (isHaLicensed() && !isUpdateRunning()) {
+            <ng-container *ixRequiresRoles="requiredRoles">
+              @if (!isHaEnabled()) {
+                <tn-icon
+                  class="failover-warning-icon"
+                  name="alert"
+                  library="mdi"
+                  [ariaLabel]="'HA is Disabled' | translate"
+                ></tn-icon>
+              }
+              <tn-button
+                tnTooltipPosition="above"
+                color="primary"
+                class="simple-failover-btn"
+                [testId]="'initiate-failover'"
+                [label]="'Initiate Failover' | translate"
+                [ariaLabel]="isHaEnabled() ? undefined : ('Initiate Failover — HA is Disabled' | translate)"
+                [tnTooltip]="'HA is Disabled' | translate"
+                [tnTooltipDisabled]="isHaEnabled()"
+                [disabled]="!canFailover()"
+                (onClick)="openDialog()"
+              ></tn-button>
+            </ng-container>
+          }
+        </div>
+      </div>
+
+      <div class="content-right">
+        <div class="header">
+          <h3>{{ 'System Information' | translate }} <small>{{ 'standby' | translate }}</small></h3>
+        </div>
+
+        <tn-list>
+          <tn-list-item>
+            <strong>{{ 'Platform' | translate }}:</strong>
+            @if (isLoaded()) {
+              <span>
+                @if (systemInfo()?.platform && isIxHardware()) {
+                  {{ systemInfo().platform }}
+                } @else {
+                  {{ 'Generic' }}
+                }
+              </span>
+            } @else {
+              <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+            }
+          </tn-list-item>
+
+          <tn-list-item>
+            <strong>{{ 'Edition' | translate }}:</strong>
+            @if (isLoaded()) {
+              <span>
+                @if (isEnterprise()) {
+                  {{ 'Enterprise' | translate }}
+                } @else {
+                  {{ 'Community' | translate }}
+                }
+              </span>
+            } @else {
+              <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+            }
+          </tn-list-item>
+
+          <tn-list-item>
+            <strong>{{ 'Version' | translate }}:</strong>
+            @if (isLoaded()) {
+              <div class="copy-version">
+                <div class="copy-version-text" [tnTooltip]="version()">
+                  <span>
+                    {{ version() }}
+                  </span>
+                </div>
+                <ix-copy-button [text]="version()"></ix-copy-button>
+              </div>
+            } @else {
+              <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+            }
+          </tn-list-item>
+
+          @if (systemInfo()?.license) {
+            <tn-list-item>
+              <div class="license-info">
+                <div class="title">{{ 'Support License' | translate }}:</div>
+                <div class="info">
+                  @if (systemInfo()?.license?.contract_type) {
+                    <div>
+                      {{
+                        '{license} Contract' | translate:
+                        {
+                          license: getLabelForContractType(systemInfo()?.license?.contract_type),
+                        }
+                      }}
+                    </div>
+                  }
+                  @if (licenseExpirationDate()) {
+                    <div>
+                      {{
+                        'Expires on {date}' | translate: { date: licenseExpirationDate() }
+                      }}
+                    </div>
+                  }
+                </div>
+              </div>
+            </tn-list-item>
+          }
+
+          @if (systemInfo()?.system_serial && isIxHardware()) {
+            <tn-list-item>
+              <strong>{{ 'System Serial' | translate }}:</strong>
+              <span>
+                {{ systemInfo().system_serial }}
+              </span>
+            </tn-list-item>
+          } @else {
+            <tn-list-item>
+              <strong>{{ 'Hostname' | translate }}:</strong>
+              @if (isLoaded()) {
+                <span>
+                  {{ systemInfo()?.hostname }}
+                </span>
+              } @else {
+                <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+              }
+            </tn-list-item>
+          }
+
+          <tn-list-item>
+            <strong>{{ 'Uptime' | translate }}:</strong>
+            @if (isLoaded()) {
+              <span>
+                {{ uptime() | uptime: datetime() }}
+              </span>
+            } @else {
+              <ng-container *ngTemplateOutlet="skeletonLoader"></ng-container>
+            }
+          </tn-list-item>
+        </tn-list>
+     </div>
+    </div>
+
+    @if (!isHaLicensed()) {
+      <div [class]="['empty', 'container', size()]">
+        <tn-icon class="icon" name="widgets" library="mdi"></tn-icon>
+        <h3>
+          <div>{{ 'This system is not licensed for HA.' | translate }}</div>
+          <small>{{ 'Configure dashboard to edit this card.' | translate }}</small>
+        </h3>
+      </div>
+    }
+
+    @if (isWaitingForEnabledHa()) {
+      <div [class]="['empty', 'container', size()]">
+        <tn-icon class="icon" name="timer-cog-outline" library="mdi"></tn-icon>
+        <h3>{{ 'Waiting for standby controller' | translate }}</h3>
+      </div>
+    }
+  </div>
+</tn-card>
+
+<ng-template #skeletonLoader>
+  <ngx-skeleton-loader
+    class="inline-loader"
+    [theme]="{
+      height: '20px',
+      background: 'var(--alt-bg2)',
+      opacity: 0.25,
+      margin: 0,
+    }"
+  ></ngx-skeleton-loader>
+</ng-template>

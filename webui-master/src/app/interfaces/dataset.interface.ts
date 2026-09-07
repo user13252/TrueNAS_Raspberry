@@ -1,0 +1,227 @@
+import { AclMode } from 'app/enums/acl-type.enum';
+import {
+  DatasetAclType,
+  DatasetCaseSensitivity,
+  DatasetChecksum,
+  DatasetPreset,
+  DatasetRecordSize,
+  DatasetSnapdev,
+  DatasetSnapdir,
+  DatasetSync,
+  DatasetType,
+  DatasetVolumeBlockSize,
+} from 'app/enums/dataset.enum';
+import { DeduplicationSetting } from 'app/enums/deduplication-setting.enum';
+import { EncryptionKeyFormat } from 'app/enums/encryption-key-format.enum';
+import { IscsiExtentType } from 'app/enums/iscsi.enum';
+import { OnOff } from 'app/enums/on-off.enum';
+import { WithInherit } from 'app/enums/with-inherit.enum';
+import { YesNo } from 'app/enums/yes-no.enum';
+import { ZfsProperty } from 'app/interfaces/zfs-property.interface';
+import { SharingTierInfo } from 'app/interfaces/zfs-tier.interface';
+
+/** Base interface for dataset share summaries from middleware */
+export interface DatasetShareSummary {
+  enabled: boolean;
+  path: string;
+}
+
+/** Named share summary (SMB, WebShare) */
+export interface NamedDatasetShareSummary extends DatasetShareSummary {
+  share_name: string;
+}
+
+export interface Dataset {
+  available: ZfsProperty<string, number>;
+  compression: ZfsProperty<string, string>;
+  compressratio: ZfsProperty<string, string>;
+  deduplication: ZfsProperty<DeduplicationSetting, string>;
+  encrypted: boolean;
+  encryption_algorithm: ZfsProperty<string | null>;
+  encryption_root: string;
+  id: string;
+  key_format: ZfsProperty<EncryptionKeyFormat | null>;
+  key_loaded: boolean;
+  locked: boolean;
+  mountpoint: string;
+  mounted: ZfsProperty<YesNo, boolean>;
+  name: string;
+  pool: string;
+  readonly: ZfsProperty<OnOff, boolean>;
+  used: ZfsProperty<string, number>;
+  usedbychildren: ZfsProperty<string, number>;
+  usedbydataset: ZfsProperty<string, number>;
+  usedbyrefreservation: ZfsProperty<string, number>;
+  usedbysnapshots: ZfsProperty<string, number>;
+  type: DatasetType;
+  aclmode: ZfsProperty<AclMode, string>;
+  acltype: ZfsProperty<DatasetAclType, string>;
+  atime: ZfsProperty<OnOff, boolean>;
+  casesensitivity: ZfsProperty<DatasetCaseSensitivity, string>;
+  copies: ZfsProperty<string, number>;
+  exec: ZfsProperty<OnOff, boolean>;
+  origin: ZfsProperty<string>;
+  pbkdf2iters: ZfsProperty<string, string>;
+  quota: ZfsProperty<number>;
+  recordsize: ZfsProperty<string, number>;
+  refquota: ZfsProperty<number>;
+  refreservation: ZfsProperty<number>;
+  reservation: ZfsProperty<string, number>;
+  snapdev: ZfsProperty<DatasetSnapdev, string>;
+  snapdir: ZfsProperty<DatasetSnapdir, string>;
+  share_type: ZfsProperty<DatasetPreset, string>;
+  special_small_block_size: ZfsProperty<string>;
+  sync: ZfsProperty<DatasetSync, string>;
+  checksum: ZfsProperty<DatasetChecksum>;
+
+  // Absent if extra.retrieve_children is false
+  children?: Dataset[];
+
+  user_properties?: Record<string, ZfsProperty<string, string | number>>;
+
+  // Present for type === DatasetType.Volume
+  volsize?: ZfsProperty<string, number>;
+  volblocksize?: ZfsProperty<string, number>;
+}
+
+export interface ExtraDatasetQueryOptions {
+  extra?: {
+    retrieve_children?: boolean;
+    flat?: boolean;
+    properties?: string[];
+  };
+}
+
+export interface DatasetCreate {
+  name: string;
+  type?: DatasetType;
+  volsize?: number;
+  volblocksize?: DatasetVolumeBlockSize;
+  sparse?: boolean;
+  force_size?: boolean;
+  comments?: string;
+  sync?: WithInherit<DatasetSync>;
+  compression?: string;
+  atime?: OnOff;
+  exec?: WithInherit<OnOff>;
+  managedby?: string;
+  quota?: number;
+  quota_warning?: WithInherit<number>;
+  quota_critical?: WithInherit<number>;
+  refquota?: WithInherit<number>;
+  refquota_warning?: WithInherit<number>;
+  refquota_critical?: WithInherit<number>;
+  reservation?: number;
+  refreservation?: number;
+  special_small_block_size?: WithInherit<number>;
+  copies?: WithInherit<number>;
+  snapdir?: WithInherit<DatasetSnapdir>;
+  snapdev?: WithInherit<DatasetSnapdev>;
+  deduplication?: string;
+  checksum?: DatasetChecksum;
+  readonly?: WithInherit<OnOff>;
+  recordsize?: WithInherit<string>;
+  casesensitivity?: DatasetCaseSensitivity;
+  aclmode?: AclMode;
+  acltype?: DatasetAclType;
+  share_type?: DatasetPreset;
+  encryption_options?: {
+    generate_key?: boolean;
+    pbkdf2iters?: number;
+    passphrase?: string;
+    key?: string;
+  };
+  encryption?: boolean;
+  inherit_encryption?: boolean;
+  user_properties?: { key: string; value: string }[];
+  create_ancestors?: boolean;
+}
+
+export interface DatasetUpdate {
+  volsize?: number;
+  force_size?: boolean;
+  comments?: WithInherit<string>;
+  sync?: WithInherit<DatasetSync>;
+  compression?: WithInherit<string>;
+  atime?: WithInherit<OnOff>;
+  exec?: WithInherit<OnOff>;
+  managedby?: WithInherit<string>;
+  quota?: number;
+  quota_warning?: WithInherit<number>;
+  quota_critical?: WithInherit<number>;
+  refquota?: WithInherit<number>;
+  refquota_warning?: WithInherit<number>;
+  refquota_critical?: WithInherit<number>;
+  reservation?: number;
+  refreservation?: number;
+  special_small_block_size?: WithInherit<number>;
+  copies?: WithInherit<number>;
+  snapdir?: WithInherit<DatasetSnapdir>;
+  snapdev?: WithInherit<DatasetSnapdev>;
+  deduplication?: DeduplicationSetting;
+  checksum?: WithInherit<DatasetChecksum>;
+  readonly?: WithInherit<OnOff>;
+  recordsize?: WithInherit<DatasetRecordSize>;
+  aclmode?: AclMode;
+  acltype?: DatasetAclType;
+  user_properties?: Record<string, string>;
+  create_ancestors?: boolean;
+  user_properties_update?: { key: string; value: string; remove?: boolean }[];
+}
+
+export interface DatasetDetails {
+  id: string;
+  encrypted: boolean;
+  available: ZfsProperty<string, number>;
+  encryption_algorithm: ZfsProperty<string | null>;
+  encryption_root: string;
+  key_format: ZfsProperty<EncryptionKeyFormat>;
+  key_loaded: boolean;
+  locked: boolean;
+  readonly: ZfsProperty<OnOff, boolean>;
+  mountpoint: string;
+  mounted: ZfsProperty<YesNo, boolean>;
+  name: string;
+  pool: string;
+  type: DatasetType;
+  used: ZfsProperty<string, number>;
+  usedbychildren: ZfsProperty<string, number>;
+  usedbydataset: ZfsProperty<string, number>;
+  usedbysnapshots: ZfsProperty<string, number>;
+  quota: ZfsProperty<string, number>;
+  refquota: ZfsProperty<string, number>;
+  refreservation: ZfsProperty<string, number>;
+  reservation: ZfsProperty<string, number>;
+  snapshot_count?: number;
+  replication_tasks_count?: number;
+  snapshot_tasks_count?: number;
+  cloudsync_tasks_count?: number;
+  rsync_tasks_count?: number;
+  smb_shares?: NamedDatasetShareSummary[];
+  nfs_shares?: DatasetShareSummary[];
+  iscsi_shares?: (DatasetShareSummary & { type: IscsiExtentType })[];
+  nvmet_shares?: DatasetShareSummary[];
+  vms?: { name: string; path: string }[];
+  apps?: { name: string; path: string }[];
+  containers?: { name: string; path: string }[];
+  webshare_shares?: NamedDatasetShareSummary[];
+  children?: DatasetDetails[];
+  volsize?: ZfsProperty<string, number>; // Present for type === DatasetType.Volume
+  thick_provisioned?: boolean; // Present for type === DatasetType.Volume
+  atime: ZfsProperty<OnOff, boolean>;
+  casesensitivity: ZfsProperty<DatasetCaseSensitivity, string>;
+  origin: ZfsProperty<string>;
+  sync: ZfsProperty<string>;
+  compression: ZfsProperty<string>;
+  compressratio: ZfsProperty<string>;
+  deduplication: ZfsProperty<string>;
+  tier?: SharingTierInfo | null;
+  user_properties?: Record<string, ZfsProperty<string, string | number>>;
+}
+
+export enum DiskSpaceKey {
+  UsedByDataset = 'usedbydataset',
+  UsedByChildren = 'usedbychildren',
+}
+export type DiskSpace = Partial<Record<DiskSpaceKey, number>>;
+export type SwatchColors = Partial<Record<DiskSpaceKey, { backgroundColor: string }>>;

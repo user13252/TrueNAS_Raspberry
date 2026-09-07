@@ -1,0 +1,402 @@
+/*
+ *
+ *   EGRET - Angular Material Design Admin Template
+ *   version 1.0.0
+ *   Supported Angular material 5 - Updated by Lola
+ *
+*/
+
+/*---- Globals -----*/
+html {
+  font-size: 87.5%; /* 14px */
+  overflow: hidden;
+}
+
+html,
+body {
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+  min-height: 100%;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+  -webkit-touch-callout: none;
+  width: 100%;
+}
+
+body.safari-platform {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--bg1);
+  color: var(--fg1);
+  font-family: var(--font-family-body);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.65;
+  margin: 0;
+  padding: 0;
+}
+
+div {
+  box-sizing: border-box;
+}
+
+.mat-mdc-card {
+  font-size: 0.875rem;
+
+  .mat-mdc-card-subtitle,
+  .mat-mdc-card-content {
+    font-size: 14px;
+  }
+}
+
+a,
+a:focus,
+a:hover {
+  text-decoration: none;
+}
+
+a:focus-visible,
+button.mat-mdc-button.mat-accent:focus-visible,
+.ix-dark button:focus-visible,
+button:focus-visible {
+  border-color: transparent !important;
+  box-shadow: 0 0 0 1.5px var(--focus-brd) inset;
+  outline-width: 0;
+}
+
+.mdc-button--outlined:focus-visible {
+  outline: 1.5px solid var(--primary);
+}
+
+a:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alt-bg2) inset;
+}
+
+// Focus indicator for tn-tree rows focused at the treeitem host level — routerLink
+// hosts (tabindex 0) and the CDK tree key manager both focus the wrapper element,
+// where the library's .tn-*-node__content:focus-within rules can never match (the
+// content div is a descendant of the focused host, not an ancestor). Replaces the
+// .ix-tree-node:focus rules removed from _material-reduction.scss; mirrors the
+// library's own content focus treatment.
+// TEMP: until @truenas/ui-components styles host-level treeitem focus.
+.tn-tree-node-wrapper:focus > .tn-tree-node,
+.tn-tree-node-wrapper:focus-visible > .tn-tree-node,
+.tn-nested-tree-node-wrapper:focus > .tn-nested-tree-node__content,
+.tn-nested-tree-node-wrapper:focus-visible > .tn-nested-tree-node__content {
+  background-color: var(--tn-alt-bg2, var(--hover-bg));
+  outline: 2px solid var(--tn-primary, var(--primary));
+  outline-offset: -2px;
+}
+
+a {
+  color: inherit;
+}
+
+.h1,
+.h2,
+.h3,
+.h4,
+.h5,
+.h6,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: inherit;
+  font-weight: 400;
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+}
+
+.h1,
+h1 {
+  font-size: 2rem;
+}
+
+.h2,
+h2 {
+  font-size: 1.75rem;
+}
+
+.h3,
+h3 {
+  font-size: 1.5rem;
+}
+
+.h4,
+h4 {
+  font-size: 1.25rem;
+}
+
+.h5,
+h5 {
+  font-size: 1rem;
+}
+
+.h6,
+h6 {
+  font-size: 0.875rem;
+}
+
+code {
+  background: rgba(0, 0, 0, 0.08);
+  font-family: var(--font-family-monospace) !important;
+  padding: 8px;
+}
+
+samp {
+  background: rgba(180, 180, 180, 0.5);
+  font-family: var(--font-family-monospace) !important;
+  padding: 2px;
+}
+
+/*---- Common -----*/
+.mat-mdc-card {
+  margin: 0.333333rem;
+}
+
+.mat-mdc-card .mat-mdc-card-title .mat-divider,
+.mat-divider.full-width {
+  margin-left: -24px;
+  margin-right: -24px;
+}
+
+.mat-mdc-button,
+.mat-raised-button {
+  font-weight: 400 !important;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.mat-mdc-card-header .mat-mdc-card-title {
+  font-family: var(--font-family-header);
+  font-size: 1rem;
+}
+
+.mat-chip:not(.mat-basic-chip) {
+  border-radius: 24px;
+  display: inline-block;
+  font-size: 13px;
+  line-height: 16px;
+  padding: 8px 12px;
+}
+
+.ix-form-container .mat-chip.mat-standard-chip.mat-mdc-chip-disabled {
+  opacity: 1;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+}
+
+/*---- Third party adjust -----*/
+/*--------- Material ---------*/
+mat-list a[mat-list-item] .mat-mdc-list-item-unscoped-content,
+mat-list mat-list-item .mat-mdc-list-item-unscoped-content,
+.nav-list .sidebar-list-item,
+.slide-in-nav-item,
+[mat-menu-item],
+.mat-mdc-option,
+body .mat-mdc-select-trigger {
+  font-size: 0.875rem !important;
+  overflow: visible;
+}
+
+.mat-mdc-option {
+  height: inherit !important;
+  white-space: pre-line !important;
+}
+
+.mat-mdc-option-text {
+  word-break: break-all;
+}
+
+[mat-menu-item] tn-icon {
+  margin-right: 16px;
+}
+
+/*-------- Scrollbar ---------*/
+body * {
+  scrollbar-color: var(--scrollbar-thumb) var(--contrast-lightest);
+  scrollbar-width: auto;
+}
+
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 10px var(--scrollbar-thumb), inset 1px 0 0 0 rgba(250, 250, 250, 0.05);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  box-shadow: inset 0 0 0 10px var(--scrollbar-thumb-hover), inset 1px 0 0 0 rgba(250, 250, 250, 0.05);
+}
+
+::-webkit-scrollbar-track:hover,
+::-webkit-scrollbar-track {
+  background-color: var(--contrast-lightest);
+}
+
+::-webkit-scrollbar-corner {
+  background-color: var(--contrast-lightest);
+}
+
+::-webkit-resizer {
+  background-color: var(--contrast-lightest);
+}
+
+/*-------- Chart js ---------*/
+.chart {
+  margin-left: -10px;
+}
+
+/*---- Main Sidenav -----*/
+// Width is driven by tn-drawer's [width] input; only the elevation lives here.
+.sidebar-panel {
+  box-shadow: 0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12);
+}
+
+// NOTE: in mobile 'over' mode tn-drawer portals its panel to document.body, so the
+// projected content is NOT a descendant of .sidebar-panel — sidenav content rules
+// below are rooted on the content's own classes (.navigation-hold, .nav-list).
+.navigation-hold {
+  background: rgba(255, 255, 255, 0.95);
+  height: 100%;
+  padding-top: 48px;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.35, 0, 0.25, 1);
+}
+
+.nav-section-title {
+  display: block;
+  font-size: 12px;
+  padding: 16px 0 0 16px;
+}
+
+.nav-list a,
+.slide-in-nav-item a {
+  align-items: center;
+  box-align: center;
+  box-direction: normal;
+  box-orient: horizontal;
+  display: flex;
+  flex-direction: row;
+  height: 48px;
+  padding: 0 16px 0 0;
+  position: relative;
+  white-space: normal;
+  word-wrap: break-word;
+  z-index: 99;
+}
+
+.nav-list .sidebar-list-item tn-icon:not(.menu-caret) {
+  line-height: 48px;
+  margin-bottom: 2px;
+  margin-left: 12px;
+  // margin-right: 20px;
+  text-align: center;
+  z-index: 1;
+}
+
+.nav-list .sidebar-list-item>a,
+.slide-in-nav-item a {
+  align-items: center;
+  box-direction: normal;
+  box-orient: horizontal;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  min-height: 48px;
+  width: 100%;
+}
+
+.slide-in-nav-item a:focus-visible {
+  box-shadow: none !important;
+}
+
+/*------- Collapsed Sidenav -------*/
+.collapsed-menu {
+  .sidebar-panel {
+    overflow: visible !important;
+
+    .sidebar-list-item {
+      border-left: 0 solid rgba(0, 0, 0, 0) !important;
+      width: 100% !important;
+    }
+
+    .sidebar-list-item>a {
+      padding: 0;
+      position: relative;
+    }
+
+    .navigation-hold {
+      overflow: visible !important;
+    }
+
+    .menu-text,
+    .menu-caret {
+      display: none;
+    }
+
+    .icon-menu {
+      padding: 0;
+
+      .icon-menu-item button {
+        margin: 0 0 4px;
+        padding: 0 12px;
+      }
+    }
+
+    ix-truenas-logo {
+      max-width: 48px;
+    }
+
+  }
+}
+
+/*---- Chrome autocomplete Forms -----*/
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:focus-visible,
+input:-webkit-autofill:active {
+  box-shadow: 0 0 0 30px var(--bg1) inset !important;
+}
+
+input:-webkit-autofill {
+  -webkit-text-fill-color: var(--fg1);
+}
+
+.mat-mdc-menu-panel.mat-mdc-menu-after.mat-mdc-menu-below {
+  min-width: 140px !important;
+}
+
+/*---- Media queries -----*/
+@media (max-width: 767px) {
+  .mat-mdc-card-title .mat-divider {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+.has-tooltip mat-form-field.full-width,
+.has-tooltip mat-select.full-width {
+  width: 100%;
+}
+
+.has-tooltip .tooltip .material-icons {
+  vertical-align: middle;
+}

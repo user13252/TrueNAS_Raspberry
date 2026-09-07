@@ -1,0 +1,43 @@
+@import '../../components/tn-table-in-card';
+@import '../../components/experimental-badge';
+
+@include tn-table-in-card;
+@include experimental-badge;
+
+:host {
+  display: block;
+  max-width: 1080px;
+}
+
+.header-title {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+tn-banner {
+  display: block;
+  margin-bottom: 16px;
+
+  &.clickable {
+    cursor: pointer;
+  }
+}
+
+.webshare-name-container {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+
+  .home-icon {
+    flex-shrink: 0;
+  }
+}

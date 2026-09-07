@@ -1,0 +1,153 @@
+@let license = licenseInfo();
+<tn-list>
+  @if (hasLicense() && license) {
+    @if (license.contractType) {
+      <tn-list-item>
+        <span class="label">{{ 'Contract Type' | translate }}:</span>
+        <span class="value">{{ getLabelForContractType(license.contractType) }}</span>
+      </tn-list-item>
+    }
+    @if (license.expirationDateDisplay) {
+      <tn-list-item>
+        <span class="label">{{ 'Expiration Date' | translate }}:</span>
+        <span class="value">
+          {{ license.expirationDateDisplay }}
+          @if (license.daysLeftInContract !== null) {
+            @if (license.daysLeftInContract > 0) {
+              ({{ 'expires in {n, plural, one {# day} other {# days} }' | translate: { n: license.daysLeftInContract } }})
+            }
+            @if (license.daysLeftInContract === 0) {
+              ({{ 'EXPIRES TODAY' | translate }})
+            }
+            @if (license.daysLeftInContract < 0) {
+              ({{ 'EXPIRED' | translate }})
+            }
+          }
+        </span>
+      </tn-list-item>
+    }
+    @if (isProactiveSupportEnabled() || !isProactiveSupportAvailable()) {
+      <tn-list-item class="proactive-status">
+        <span class="label">{{ 'Proactive Support' | translate }}:</span>
+        @if (isProactiveSupportEnabled()) {
+          <span class="value">{{ 'Enabled' | translate }}</span>
+        } @else {
+          <span class="value">{{ 'Not Available' | translate }}</span>
+        }
+        <span
+          class="edit-contacts-wrapper"
+          [tnTooltip]="isProactiveSupportAvailable() ? '' : (helptext.proactive.unavailableMessage | translate)"
+        >
+          <tn-button
+            *ixRequiresRoles="manageProactiveRoles"
+            class="edit-contacts-btn"
+            testId="manage-contacts"
+            [label]="'Manage' | translate"
+            [disabled]="!isProactiveSupportAvailable()"
+            (onClick)="editContacts.emit()"
+          ></tn-button>
+        </span>
+      </tn-list-item>
+    }
+    <tn-list-item class="model-row">
+      <div class="row-with-action">
+        <span class="label">{{ 'Model' | translate }}:</span>
+        <span class="value">{{ license.model || systemInfo().model }}</span>
+        @if (productionControl()) {
+          <tn-slide-toggle
+            *ixRequiresRoles="productionToggleRoles"
+            class="production-toggle"
+            color="primary"
+            testId="production"
+            [formControl]="productionControl()"
+            [label]="'This is a production system' | translate"
+          ></tn-slide-toggle>
+        }
+      </div>
+    </tn-list-item>
+    @if (systemInfo().system_serial) {
+      <tn-list-item>
+        <span class="label">{{ 'System Serial' | translate }}:</span>
+        <span class="value">{{ systemInfo().system_serial }}</span>
+      </tn-list-item>
+    }
+    @if (license.serials.length) {
+      <tn-list-item>
+        <span class="label">{{ 'Licensed Serials' | translate }}:</span>
+        <span class="value">{{ license.serials.join(' / ') }}</span>
+      </tn-list-item>
+    }
+    <tn-list-item>
+      <span class="label">{{ 'Features' | translate }}:</span>
+      <span class="value">
+        @if (license.featureNames.length) {
+          {{ license.featureNames.join(', ') }}
+        } @else {
+          {{ 'NONE' | translate }}
+        }
+      </span>
+    </tn-list-item>
+    @if (license.additionalHardware) {
+      <tn-list-item>
+        <span class="label">{{ 'Additional Hardware' | translate }}:</span>
+        <span class="value">{{ license.additionalHardware }}</span>
+      </tn-list-item>
+    }
+  } @else {
+    <tn-list-item>
+      <span class="label">{{ 'OS Version' | translate }}:</span>
+      <span class="value">{{ systemInfo().version }}</span>
+    </tn-list-item>
+    <tn-list-item>
+      <span class="label">{{ 'Product' | translate }}:</span>
+      <span class="value">{{ systemInfo().system_product }}</span>
+    </tn-list-item>
+    @if (systemInfo().model) {
+      <tn-list-item>
+        <span class="label">{{ 'Model' | translate }}:</span>
+        <span class="value">{{ systemInfo().model }}</span>
+      </tn-list-item>
+    }
+    @if (systemInfo().memory) {
+      <tn-list-item>
+        <span class="label">{{ 'Memory' | translate }}:</span>
+        <span class="value">{{ systemInfo().memory }}</span>
+      </tn-list-item>
+    }
+    @if (systemInfo().system_serial) {
+      <tn-list-item>
+        <span class="label">{{ 'System Serial' | translate }}:</span>
+        <span class="value">{{ systemInfo().system_serial }}</span>
+      </tn-list-item>
+    }
+  }
+
+  @if (!isEnterprise()) {
+    <tn-list-item class="fingerprint-row">
+      <div class="row-with-action">
+        <span class="label">{{ 'System Thumbprint' | translate }}:</span>
+        <span class="value fingerprint-actions">
+          <tn-icon-button
+            name="eye"
+            library="mdi"
+            size="md"
+            [testId]="'view-fingerprint'"
+            [ariaLabel]="'View System Thumbprint' | translate"
+            [tooltip]="'View Thumbprint' | translate"
+            (onClick)="openFingerprintDialog()"
+          ></tn-icon-button>
+          <tn-icon-button
+            name="content-copy"
+            library="mdi"
+            size="md"
+            [testId]="'copy-fingerprint'"
+            [ariaLabel]="'Copy System Thumbprint' | translate"
+            [disabled]="isFingerprintBusy()"
+            [tooltip]="'Copy to Clipboard' | translate"
+            (onClick)="copyFingerprint()"
+          ></tn-icon-button>
+        </span>
+      </div>
+    </tn-list-item>
+  }
+</tn-list>

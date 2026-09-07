@@ -1,0 +1,39 @@
+import { DialogRef } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnInputHarness } from '@truenas/ui-components';
+import { LogsDetailsDialog } from 'app/pages/apps/components/logs-details-dialog/logs-details-dialog.component';
+
+describe('LogsDetailsDialogComponent', () => {
+  let loader: HarnessLoader;
+  let spectator: Spectator<LogsDetailsDialog>;
+  const createComponent = createComponentFactory({
+    component: LogsDetailsDialog,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    providers: [
+      mockProvider(DialogRef),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  it('dialog should be closed when Reconnect is pressed', async () => {
+    const tailLinesInput = await loader.getHarness(TnInputHarness);
+    await tailLinesInput.setValue('600');
+
+    expect(await tailLinesInput.getValue()).toBe('600');
+
+    const connectButton = await loader.getHarness(TnButtonHarness.with({ label: 'Connect' }));
+    await connectButton.click();
+    expect(spectator.inject(DialogRef).close).toHaveBeenCalledWith({
+      tail_lines: 600,
+    });
+  });
+});

@@ -1,0 +1,56 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, input, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnButtonComponent, TnDialog } from '@truenas/ui-components';
+import { RequiresRolesDirective } from 'app/directives/requires-roles/requires-roles.directive';
+import { Role } from 'app/enums/role.enum';
+import {
+  SetEnclosureLabelDialog,
+  SetEnclosureLabelDialogData,
+} from 'app/pages/system/enclosure/components/set-enclosure-label-dialog/set-enclosure-label-dialog.component';
+import { EnclosureStore } from 'app/pages/system/enclosure/services/enclosure.store';
+
+@Component({
+  selector: 'ix-enclosure-header',
+  templateUrl: './enclosure-header.component.html',
+  styleUrls: ['./enclosure-header.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    RequiresRolesDirective,
+    TnButtonComponent,
+    TranslateModule,
+  ],
+})
+export class EnclosureHeaderComponent {
+  private enclosureStore = inject(EnclosureStore);
+  private tnDialog = inject(TnDialog);
+  private destroyRef = inject(DestroyRef);
+
+  readonly title = input.required<string>();
+
+  protected readonly requiredRoles = [Role.EnclosureWrite];
+
+  protected onEditLabel(): void {
+    const enclosure = this.enclosureStore.selectedEnclosure();
+    if (!enclosure) {
+      return;
+    }
+
+    const dialogConfig: SetEnclosureLabelDialogData = {
+      currentLabel: this.enclosureStore.enclosureLabel(),
+      defaultLabel: enclosure.name,
+      enclosureId: enclosure.id,
+    };
+
+    this.tnDialog.open(SetEnclosureLabelDialog, { data: dialogConfig })
+      .closed
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((newLabel: string) => {
+        if (!newLabel) {
+          return;
+        }
+
+        this.enclosureStore.renameSelectedEnclosure(newLabel);
+      });
+  }
+}

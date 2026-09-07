@@ -1,0 +1,426 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import { TranslateService } from '@ngx-translate/core';
+import { TnInputHarness } from '@truenas/ui-components';
+import { of, throwError } from 'rxjs';
+import { mockCall, mockApi } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { WebShare } from 'app/interfaces/webshare-config.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { ixFormTestingProviders } from 'app/modules/forms/ix-forms/testing/ix-form-testing.helpers';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { WebShareValidatorService } from 'app/pages/sharing/webshare/webshare-validator.service';
+import { WebShareFormData, WebShareSharesFormComponent } from './webshare-shares-form.component';
+
+describe('WebShareSharesFormComponent', () => {
+  let spectator: Spectator<WebShareSharesFormComponent>;
+  let loader: HarnessLoader;
+  let api: ApiService;
+
+  beforeEach(() => {
+    // Suppress benign warnings: reactive-form disabled-state notices, the <ix-form> wrapper's
+    // dev-mode advisory, and Angular's HTML-sanitizer notice for the home-share tooltip.
+    jest.spyOn(console, 'warn').mockImplementation();
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
+
+  const mockWebShares: WebShare[] = [
+    { id: 1, name: 'documents', path: '/mnt/tank/documents' },
+    { id: 2, name: 'media', path: '/mnt/tank/media' },
+    {
+      id: 3, name: 'home', path: '/mnt/tank/home', is_home_base: true,
+    },
+  ];
+
+  const getTnInput = (name: string): Promise<TnInputHarness> => loader.getHarness(
+    TnInputHarness.with({ selector: `[formControlName="${name}"]` }),
+  );
+
+  const createComponent = createComponentFactory({
+    component: WebShareSharesFormComponent,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    providers: [
+      WebShareValidatorService,
+      mockAuth(),
+      mockApi([
+        mockCall('sharing.webshare.query', mockWebShares),
+        mockCall('sharing.webshare.create', mockWebShares[0]),
+        mockCall('sharing.webshare.update', mockWebShares[0]),
+        mockCall('filesystem.stat'),
+      ]),
+      // Mocks the services `<ix-form>` injects, and zeroes the min-feedback hold so a
+      // successful close stays synchronous.
+      ...ixFormTestingProviders(),
+      mockProvider(DialogService),
+      mockProvider(TranslateService, {
+        instant: jest.fn((key: string) => key),
+        get: jest.fn((key: string) => of(key)),
+        stream: jest.fn((key: string) => of(key)),
+        onLangChange: of({ lang: 'en' }),
+        onTranslationChange: of({}),
+        onDefaultLangChange: of({}),
+      }),
+      provideMockStore({
+        selectors: [],
+      }),
+    ],
+  });
+
+  describe('Add new WebShare', () => {
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          webShareData: {
+            isNew: true,
+            name: '',
+            path: '',
+          } as WebShareFormData,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+      spectator.detectChanges();
+    });
+
+    it('should initialize form with default values for new share', () => {
+      const form = spectator.component.form;
+      // Use getRawValue() to include disabled fields (is_home_base is disabled when another home share exists)
+      expect(form.getRawValue()).toEqual({
+        name: '',
+        path: '',
+        is_home_base: false,
+      });
+      expect(form.controls.name.enabled).toBe(true);
+    });
+
+    it('should validate required fields', () => {
+      const form = spectator.component.form;
+      form.controls.name.setValue('');
+      form.controls.path.setValue('');
+      form.controls.name.markAsTouched();
+      form.controls.path.markAsTouched();
+
+      expect(form.controls.name.hasError('required')).toBe(true);
+      expect(form.controls.path.hasError('required')).toBe(true);
+    });
+
+    it('should validate name pattern', () => {
+      const form = spectator.component.form;
+      form.controls.name.setValue('invalid name!');
+      expect(form.controls.name.hasError('pattern')).toBe(true);
+
+      form.controls.name.setValue('valid_name');
+      expect(form.controls.name.hasError('pattern')).toBe(false);
+    });
+
+    it('should create new WebShare on submit', async () => {
+      const closed = jest.fn();
+      spectator.component.closed.subscribe(closed);
+
+      await (await getTnInput('name')).setValue('new_share');
+      const form = spectator.component.form;
+      form.controls.path.setValue('/mnt/tank/new_share');
+      await spectator.fixture.whenStable();
+      spectator.detectChanges();
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('sharing.webshare.create', [{
+        name: 'new_share',
+        path: '/mnt/tank/new_share',
+        is_home_base: false,
+      }]);
+
+      // The form declares no `closeWith`, so the panel host is handed a plain "saved".
+      expect(closed).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('Edit existing WebShare', () => {
+    const editData: WebShareFormData = {
+      id: 1,
+      isNew: false,
+      name: 'documents',
+      path: '/mnt/tank/documents',
+      isHomeBase: false,
+    };
+
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          webShareData: editData,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+      spectator.detectChanges();
+    });
+
+    it('should populate form with existing share data', () => {
+      const form = spectator.component.form;
+      // Use getRawValue() to get disabled fields
+      expect(form.getRawValue()).toEqual({
+        name: 'documents',
+        path: '/mnt/tank/documents',
+        is_home_base: false,
+      });
+    });
+
+    it('should allow editing name field when editing', () => {
+      expect(spectator.component.form.controls.name.disabled).toBe(false);
+      expect(spectator.component.form.controls.name.enabled).toBe(true);
+    });
+
+    it('should update existing WebShare on submit', async () => {
+      const form = spectator.component.form;
+      form.controls.path.setValue('/mnt/tank/docs');
+      await spectator.fixture.whenStable();
+      spectator.detectChanges();
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('sharing.webshare.update', [1, {
+        name: 'documents',
+        path: '/mnt/tank/docs',
+        is_home_base: false,
+      }]);
+    });
+
+    it('should allow updating the name when editing', async () => {
+      const form = spectator.component.form;
+      await (await getTnInput('name')).setValue('updated_documents');
+      form.controls.path.setValue('/mnt/tank/docs');
+      await spectator.fixture.whenStable();
+      spectator.detectChanges();
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('sharing.webshare.update', [1, {
+        name: 'updated_documents',
+        path: '/mnt/tank/docs',
+        is_home_base: false,
+      }]);
+    });
+
+    it('should disable home share checkbox when another share is already home', async () => {
+      const form = spectator.component.form;
+      await spectator.fixture.whenStable();
+
+      // The checkbox should be disabled because 'home' share already has is_home_base enabled
+      expect(form.controls.is_home_base.disabled).toBe(true);
+    });
+
+    it('should prevent renaming to an existing share name', async () => {
+      const form = spectator.component.form;
+      // Try to rename to 'media' which already exists
+      form.controls.name.setValue('media');
+      form.controls.name.markAsTouched();
+      spectator.detectChanges();
+
+      await spectator.fixture.whenStable();
+
+      // The form should be invalid due to name conflict
+      expect(form.controls.name.hasError('nameExists')).toBe(true);
+    });
+  });
+
+  describe('Edit existing home share', () => {
+    const homeShareEditData: WebShareFormData = {
+      id: 3,
+      isNew: false,
+      name: 'home',
+      path: '/mnt/tank/home',
+      isHomeBase: true,
+    };
+
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          webShareData: homeShareEditData,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      api = spectator.inject(ApiService);
+      spectator.detectChanges();
+    });
+
+    it('should allow editing the existing home share while keeping it as home', async () => {
+      const form = spectator.component.form;
+      await spectator.fixture.whenStable();
+
+      // The checkbox should be enabled because we're editing the share that is already home
+      expect(form.controls.is_home_base.value).toBe(true);
+      expect(form.controls.is_home_base.disabled).toBe(false);
+
+      // Update path and submit
+      form.controls.path.setValue('/mnt/tank/new_home');
+      await spectator.fixture.whenStable();
+      spectator.detectChanges();
+
+      spectator.component.submit();
+
+      expect(api.call).toHaveBeenCalledWith('sharing.webshare.update', [3, {
+        name: 'home',
+        path: '/mnt/tank/new_home',
+        is_home_base: true,
+      }]);
+    });
+  });
+
+  describe('Path auto-population', () => {
+    beforeEach(() => {
+      spectator = createComponent({
+        props: {
+          webShareData: {
+            isNew: true,
+            name: '',
+            path: '',
+          } as WebShareFormData,
+        },
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+      spectator.detectChanges();
+    });
+
+    it('should auto-populate name from path when name is empty', () => {
+      const form = spectator.component.form;
+
+      // Simulate path change
+      form.controls.path.setValue('/mnt/tank/my_share');
+      spectator.detectChanges();
+
+      expect(form.controls.name.value).toBe('my_share');
+    });
+
+    it('should not auto-populate name if already filled', () => {
+      const form = spectator.component.form;
+
+      form.controls.name.setValue('custom_name');
+      form.controls.path.setValue('/mnt/tank/my_share');
+      spectator.detectChanges();
+
+      expect(form.controls.name.value).toBe('custom_name');
+    });
+  });
+
+  describe('Error handling', () => {
+    it('should handle error when loading WebShares fails', () => {
+      const mockApiCall = jest.fn().mockReturnValue(throwError(() => new Error('Failed to load shares')));
+
+      spectator = createComponent({
+        detectChanges: false,
+        props: {
+          webShareData: {
+            isNew: true,
+            name: '',
+            path: '',
+          } as WebShareFormData,
+        },
+        providers: [
+          mockProvider(ApiService, { call: mockApiCall }),
+        ],
+      });
+
+      const closedSpy = jest.fn();
+      spectator.component.closed.subscribe(closedSpy);
+
+      const dialogService = spectator.inject(DialogService);
+      jest.spyOn(dialogService, 'error');
+
+      spectator.detectChanges();
+
+      expect(dialogService.error).toHaveBeenCalledWith({
+        title: 'Error Loading WebShares',
+        message: 'Could not retrieve existing WebShare configurations. Please check your connection and try again.',
+        stackTrace: 'Failed to load shares',
+      });
+      expect(closedSpy).toHaveBeenCalledWith(false);
+    });
+
+    it('should handle update API errors gracefully', async () => {
+      const mockApiCall = jest.fn((method: string) => {
+        if (method === 'sharing.webshare.query') {
+          return of(mockWebShares);
+        }
+        if (method === 'sharing.webshare.update') {
+          return throwError(() => new Error('Update failed'));
+        }
+        // For other methods like filesystem.stat, return success
+        return of({});
+      });
+
+      spectator = createComponent({
+        props: {
+          webShareData: {
+            id: 1,
+            isNew: false,
+            name: 'documents',
+            path: '/mnt/tank/documents',
+          } as WebShareFormData,
+        },
+        providers: [
+          mockProvider(ApiService, { call: mockApiCall }),
+        ],
+      });
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+
+      const errorHandler = spectator.inject(FormErrorHandlerService);
+      const handleErrorSpy = jest.spyOn(errorHandler, 'handleValidationErrors');
+      spectator.detectChanges();
+
+      const form = spectator.component.form;
+      form.controls.path.setValue('/mnt/tank/docs_updated');
+      await spectator.fixture.whenStable();
+      spectator.detectChanges();
+
+      spectator.component.submit();
+
+      expect(handleErrorSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('Pre-filled data', () => {
+    it('should initialize with pre-filled path when creating from dataset', () => {
+      spectator = createComponent({
+        props: {
+          webShareData: {
+            isNew: true,
+            name: '',
+            path: '/mnt/tank/predefined',
+          } as WebShareFormData,
+        },
+      });
+      spectator.detectChanges();
+
+      const form = spectator.component.form;
+      expect(form.controls.path.value).toBe('/mnt/tank/predefined');
+      expect(form.controls.name.value).toBe('');
+    });
+
+    it('should initialize with both name and path pre-filled', () => {
+      spectator = createComponent({
+        props: {
+          webShareData: {
+            isNew: true,
+            name: 'prefilled_name',
+            path: '/mnt/tank/prefilled',
+          } as WebShareFormData,
+        },
+      });
+      spectator.detectChanges();
+
+      const form = spectator.component.form;
+      expect(form.controls.name.value).toBe('prefilled_name');
+      expect(form.controls.path.value).toBe('/mnt/tank/prefilled');
+    });
+  });
+});

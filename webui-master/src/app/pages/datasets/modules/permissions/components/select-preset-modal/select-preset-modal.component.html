@@ -1,0 +1,52 @@
+<tn-dialog-shell testId="select-preset" [title]="helptext.selectPreset | translate">
+<div>
+  <p>{{ helptext.selectPresetTooltip | translate }}</p>
+
+  @if (!data.allowCustom) {
+    <p [innerHTML]="helptext.message | translate"></p>
+  }
+
+  <form [formGroup]="form">
+    @if (data.allowCustom) {
+      <div role="radiogroup" [attr.aria-label]="helptext.selectPreset | translate">
+      @for (option of usePresetOptions; track option.value) {
+        <tn-radio
+          name="usePreset"
+          formControlName="usePreset"
+          [value]="option.value"
+          [label]="option.label | translate"
+          [tnTooltip]="option.tooltip ? (option.tooltip | translate) : ''"
+          [testId]="['use-preset', option.value ? 'true' : 'false']"
+        ></tn-radio>
+      }
+      </div>
+    }
+    <!-- TODO: Add [required]="true" once FormsModule is removed -->
+    @if (form.value.usePreset) {
+      <tn-form-field [label]="'Preset' | translate">
+        <tn-select
+          testId="preset-name"
+          formControlName="presetName"
+          [ariaLabel]="'Preset' | translate"
+          [options]="presetOptions()"
+        ></tn-select>
+      </tn-form-field>
+    }
+  </form>
+</div>
+<ix-form-actions tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="cancel"
+    [label]="'Cancel' | translate"
+    (onClick)="dialogRef.close()"
+  ></tn-button>
+  <tn-button
+    color="primary"
+    testId="continue"
+    [label]="'Continue' | translate"
+    [disabled]="form.invalid"
+    (onClick)="onContinuePressed()"
+  ></tn-button>
+</ix-form-actions>
+</tn-dialog-shell>

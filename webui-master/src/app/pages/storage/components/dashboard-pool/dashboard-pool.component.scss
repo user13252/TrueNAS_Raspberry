@@ -1,0 +1,68 @@
+@import 'scss-imports/cssvars';
+
+:host {
+  display: block;
+}
+
+.pool-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 5px;
+  margin-bottom: 5px;
+  margin-left: 5px;
+  margin-right: 5px;
+  border-bottom: 1px solid var(--lines);
+}
+
+.pool-name {
+  color: var(--fg2);
+}
+
+.pool-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.cards {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: calc(50% - 4px) calc(50% - 4px);
+
+  @media #{$media-lt-md} {
+    grid-template-columns: auto;
+  }
+
+  @media #{$media-gt-lg} {
+    grid-template-columns: calc(25% - 6px) calc(25% - 6px) calc(25% - 6px) calc(25% - 6px);
+  }
+}
+
+.skeleton-content {
+  .pool-header {
+    ngx-skeleton-loader {
+      display: inline-block;
+      height: 40px;
+      margin-bottom: 8px;
+      width: 100%;
+    }
+
+    ::ng-deep .loader {
+      height: 40px;
+    }
+  }
+
+  .card {
+    ngx-skeleton-loader {
+      display: inline-block;
+      height: 20px;
+      margin: 8px 0;
+      width: 100%;
+
+      ::ng-deep .loader {
+        margin: 0;
+      }
+    }
+  }
+}

@@ -1,0 +1,141 @@
+<tn-card class="card">
+  <ix-fake-progress-bar [loading]="!!(isLoading$ | async)"></ix-fake-progress-bar>
+  <form (keydown.enter)="$event.preventDefault()">
+    <tn-stepper #stepper orientation="vertical">
+      <tn-step
+        ixStepActivation
+        [label]="'General Info' | translate"
+        [hasError]="isStepErrorVisible(PoolCreationWizardStep.General)"
+        [errorMessage]="getTopLevelErrorForStep(PoolCreationWizardStep.General)"
+        [completed]="!getTopLevelErrorForStep(PoolCreationWizardStep.General)"
+        (activate)="onStepActivated(PoolCreationWizardStep.General)"
+      >
+        <ix-general-wizard-step
+          #generalStep
+          [isAddingVdevs]="!!existingPool"
+          [pool]="existingPool"
+        ></ix-general-wizard-step>
+      </tn-step>
+
+      @if (hasEnclosureStep && !existingPool) {
+        <tn-step
+          ixStepActivation
+          [label]="'Enclosure Options' | translate"
+          [hasError]="isStepErrorVisible(PoolCreationWizardStep.EnclosureOptions)"
+          [errorMessage]="getTopLevelErrorForStep(PoolCreationWizardStep.EnclosureOptions)"
+          [completed]="!getTopLevelErrorForStep(PoolCreationWizardStep.EnclosureOptions)"
+          (activate)="onStepActivated(PoolCreationWizardStep.EnclosureOptions)"
+        >
+          <ix-enclosure-wizard-step
+            #enclosureStep
+            [isStepActive]="activeStep === PoolCreationWizardStep.EnclosureOptions"
+            [stepWarning]="getTopLevelWarningForStep(PoolCreationWizardStep.EnclosureOptions)"
+          ></ix-enclosure-wizard-step>
+        </tn-step>
+      }
+
+      <tn-step
+        ixStepActivation
+        [label]="'Data' | translate"
+        [hasError]="isStepErrorVisible(PoolCreationWizardStep.Data)"
+        [errorMessage]="getTopLevelErrorForStep(PoolCreationWizardStep.Data)"
+        [completed]="!getTopLevelErrorForStep(PoolCreationWizardStep.Data)"
+        (activate)="onStepActivated(PoolCreationWizardStep.Data)"
+      >
+        <ix-data-wizard-step
+          [isStepActive]="activeStep === PoolCreationWizardStep.Data"
+          [stepWarning]="getTopLevelWarningForStep(PoolCreationWizardStep.Data)"
+          (goToLastStep)="goToLastStep()"
+        ></ix-data-wizard-step>
+      </tn-step>
+
+      <tn-step
+        ixStepActivation
+        [label]="('Log' | translate) + ' ' + ('(Optional)' | translate)"
+        [hasError]="isStepErrorVisible(PoolCreationWizardStep.Log)"
+        [errorMessage]="getTopLevelErrorForStep(PoolCreationWizardStep.Log)"
+        [completed]="!getTopLevelErrorForStep(PoolCreationWizardStep.Log)"
+        (activate)="onStepActivated(PoolCreationWizardStep.Log)"
+      >
+        <ix-log-wizard-step
+          [isStepActive]="activeStep === PoolCreationWizardStep.Log"
+          [stepWarning]="getTopLevelWarningForStep(PoolCreationWizardStep.Log)"
+          (goToLastStep)="goToLastStep()"
+        ></ix-log-wizard-step>
+      </tn-step>
+
+      @if (state.topology[PoolCreationWizardStep.Spare]) {
+        <tn-step
+          ixStepActivation
+          [label]="('Spare' | translate) + ' ' + ('(Optional)' | translate)"
+          [hasError]="isStepErrorVisible(PoolCreationWizardStep.Spare)"
+          [errorMessage]="getTopLevelErrorForStep(PoolCreationWizardStep.Spare)"
+          [completed]="!getTopLevelErrorForStep(PoolCreationWizardStep.Spare)"
+          (activate)="onStepActivated(PoolCreationWizardStep.Spare)"
+        >
+          <ix-spare-wizard-step
+            [isStepActive]="activeStep === PoolCreationWizardStep.Spare"
+            [stepWarning]="getTopLevelWarningForStep(PoolCreationWizardStep.Spare)"
+            (goToLastStep)="goToLastStep()"
+          ></ix-spare-wizard-step>
+        </tn-step>
+      }
+
+      <tn-step
+        ixStepActivation
+        [label]="('Cache' | translate) + ' ' + ('(Optional)' | translate)"
+        [hasError]="isStepErrorVisible(PoolCreationWizardStep.Cache)"
+        [errorMessage]="getTopLevelErrorForStep(PoolCreationWizardStep.Cache)"
+        [completed]="!getTopLevelErrorForStep(PoolCreationWizardStep.Cache)"
+        (activate)="onStepActivated(PoolCreationWizardStep.Cache)"
+      >
+        <ix-cache-wizard-step
+          [isStepActive]="activeStep === PoolCreationWizardStep.Cache"
+          [stepWarning]="getTopLevelWarningForStep(PoolCreationWizardStep.Cache)"
+          (goToLastStep)="goToLastStep()"
+        ></ix-cache-wizard-step>
+      </tn-step>
+
+      <tn-step
+        ixStepActivation
+        [label]="('Special' | translate) + ' ' + ('(Optional)' | translate)"
+        [hasError]="isStepErrorVisible(PoolCreationWizardStep.Metadata)"
+        [errorMessage]="getTopLevelErrorForStep(PoolCreationWizardStep.Metadata)"
+        [completed]="!getTopLevelErrorForStep(PoolCreationWizardStep.Metadata)"
+        (activate)="onStepActivated(PoolCreationWizardStep.Metadata)"
+      >
+        <ix-metadata-wizard-step
+          [isStepActive]="activeStep === PoolCreationWizardStep.Metadata"
+          [stepWarning]="getTopLevelWarningForStep(PoolCreationWizardStep.Metadata)"
+          (goToLastStep)="goToLastStep()"
+        ></ix-metadata-wizard-step>
+      </tn-step>
+
+      <tn-step
+        ixStepActivation
+        [label]="('Dedup' | translate) + ' ' + ('(Optional)' | translate)"
+        [hasError]="isStepErrorVisible(PoolCreationWizardStep.Dedup)"
+        [errorMessage]="getTopLevelErrorForStep(PoolCreationWizardStep.Dedup)"
+        [completed]="!getTopLevelErrorForStep(PoolCreationWizardStep.Dedup)"
+        (activate)="onStepActivated(PoolCreationWizardStep.Dedup)"
+      >
+        <ix-dedup-wizard-step
+          [isStepActive]="activeStep === PoolCreationWizardStep.Dedup"
+          [stepWarning]="getTopLevelWarningForStep(PoolCreationWizardStep.Dedup)"
+          (goToLastStep)="goToLastStep()"
+        ></ix-dedup-wizard-step>
+      </tn-step>
+
+      <tn-step
+        ixStepActivation
+        [label]="'Review' | translate"
+        (activate)="onStepActivated(PoolCreationWizardStep.Review)"
+      >
+        <ix-review-wizard-step
+          [isAddingVdevs]="!!existingPool"
+          (createPool)="submit()"
+        ></ix-review-wizard-step>
+      </tn-step>
+    </tn-stepper>
+  </form>
+</tn-card>

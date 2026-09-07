@@ -1,0 +1,28 @@
+.card {
+  display: block;
+  height: 100%;
+}
+
+.wrapper {
+  color: var(--fg2);
+  height: 100%;
+  padding: 0 15px;
+  width: 100%;
+
+  .chart {
+    display: flex;
+    justify-content: center;
+  }
+
+  h3 {
+    font-size: 20px;
+    padding: 12px 0 6px;
+    width: 100%;
+  }
+}
+
+.skeleton,
+.chart {
+  height: 149px;
+  width: 100%;
+}

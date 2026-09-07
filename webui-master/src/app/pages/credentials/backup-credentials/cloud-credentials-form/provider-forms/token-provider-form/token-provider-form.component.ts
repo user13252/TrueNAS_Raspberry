@@ -1,0 +1,87 @@
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, viewChild, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  InputType, TnFormFieldComponent, TnFormSectionComponent, TnInputComponent,
+} from '@truenas/ui-components';
+import { CloudSyncProviderName } from 'app/enums/cloudsync-provider.enum';
+import { helptextSystemCloudcredentials as helptext } from 'app/helptext/system/cloud-credentials';
+import {
+  OauthProviderComponent,
+} from 'app/pages/credentials/backup-credentials/cloud-credentials-form/oauth-provider/oauth-provider.component';
+import {
+  BaseProviderFormComponent,
+} from 'app/pages/credentials/backup-credentials/cloud-credentials-form/provider-forms/base-provider-form';
+
+@Component({
+  selector: 'ix-token-provider-form',
+  templateUrl: './token-provider-form.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    OauthProviderComponent,
+    ReactiveFormsModule,
+    TranslateModule,
+    TnFormSectionComponent,
+    TnFormFieldComponent,
+    TnInputComponent,
+  ],
+})
+export class TokenProviderFormComponent extends BaseProviderFormComponent implements AfterViewInit {
+  protected readonly InputType = InputType;
+
+  private formBuilder = inject(FormBuilder);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+
+  private readonly oauthComponent = viewChild(OauthProviderComponent);
+
+  form = this.formBuilder.nonNullable.group({
+    token: ['', Validators.required],
+  });
+
+  get hasOAuth(): boolean {
+    return Boolean(this.provider.credentials_oauth);
+  }
+
+  get tooltip(): string {
+    switch (this.provider.name) {
+      case CloudSyncProviderName.Box:
+        return helptext.box.token.tooltip;
+      case CloudSyncProviderName.Dropbox:
+        return helptext.dropbox.token.tooltip;
+      case CloudSyncProviderName.Hubic:
+        return helptext.hubic.token.tooltip;
+      case CloudSyncProviderName.Yandex:
+        return helptext.yandex.token.tooltip;
+      default:
+        return '';
+    }
+  }
+
+  ngAfterViewInit(): void {
+    this.formPatcher$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((values) => {
+      this.form.patchValue(values);
+      const oauthComponent = this.oauthComponent();
+      if (this.hasOAuth && oauthComponent) {
+        oauthComponent.form.patchValue(values);
+      }
+      this.cdr.detectChanges();
+    });
+  }
+
+  onOauthAuthenticated(attributes: Record<string, unknown>): void {
+    this.form.patchValue(attributes);
+  }
+
+  override getSubmitAttributes(): OauthProviderComponent['form']['value'] & this['form']['value'] {
+    if (!this.hasOAuth) {
+      return this.form.value;
+    }
+
+    return {
+      ...this.oauthComponent()?.form?.value,
+      ...this.form.value,
+    };
+  }
+}

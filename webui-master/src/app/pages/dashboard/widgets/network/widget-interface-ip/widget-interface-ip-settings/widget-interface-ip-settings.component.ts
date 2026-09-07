@@ -1,0 +1,84 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder } from '@ngneat/reactive-forms';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnFormFieldComponent, TnSelectComponent } from '@truenas/ui-components';
+import { filter, map, startWith } from 'rxjs';
+import { idNameArrayToOptions } from 'app/helpers/operators/options.operators';
+import { getAllFormErrors } from 'app/modules/forms/ix-forms/utils/get-form-errors.utils';
+import { WidgetResourcesService } from 'app/pages/dashboard/services/widget-resources.service';
+import { WidgetSettingsComponent } from 'app/pages/dashboard/types/widget-component.interface';
+import { WidgetSettingsRef } from 'app/pages/dashboard/types/widget-settings-ref.interface';
+import {
+  WidgetInterfaceIpSettings,
+} from 'app/pages/dashboard/widgets/network/widget-interface-ip/widget-interface-ip.definition';
+
+@Component({
+  selector: 'ix-widget-interface-ip-settings',
+  templateUrl: './widget-interface-ip-settings.component.html',
+  styleUrl: './widget-interface-ip-settings.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    TnFormFieldComponent,
+    TnSelectComponent,
+    TranslateModule,
+  ],
+})
+export class WidgetInterfaceIpSettingsComponent implements WidgetSettingsComponent<WidgetInterfaceIpSettings>, OnInit {
+  widgetSettingsRef = inject<WidgetSettingsRef<WidgetInterfaceIpSettings>>(WidgetSettingsRef);
+  private fb = inject(FormBuilder);
+  private resources = inject(WidgetResourcesService);
+  private destroyRef = inject(DestroyRef);
+
+  form = this.fb.nonNullable.group({
+    interface: [null as string | null, [Validators.required]],
+  });
+
+  protected networkInterfaceOptions$ = this.resources.networkInterfaces$.pipe(
+    filter((state) => !!state.value && !state.isLoading),
+    map((state) => state.value),
+    startWith([]),
+    idNameArrayToOptions(),
+  );
+
+  protected networkInterfaceOptions = toSignal(this.networkInterfaceOptions$, { initialValue: [] });
+
+  private firstOption = toSignal(this.networkInterfaceOptions$.pipe(map((opts) => opts[0]?.value)));
+
+  private readonly formFieldNames = ['interface'];
+  constructor() {
+    effect(() => {
+      const firstOption = this.firstOption();
+      if (!this.widgetSettingsRef.getSettings()?.interface && firstOption) {
+        this.form.controls.interface.setValue(firstOption);
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    this.setupSettingsUpdate();
+    this.setCurrentSettings();
+  }
+
+  private setCurrentSettings(): void {
+    const settings = this.widgetSettingsRef.getSettings();
+    if (!settings) return;
+    this.form.controls.interface.setValue(settings.interface);
+  }
+
+  private setupSettingsUpdate(): void {
+    this.widgetSettingsRef.updateValidity(
+      getAllFormErrors(this.form, this.formFieldNames),
+    );
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (settings) => {
+        this.widgetSettingsRef.updateSettings({ interface: settings.interface });
+        this.widgetSettingsRef.updateValidity(
+          getAllFormErrors(this.form, this.formFieldNames),
+        );
+      },
+    });
+  }
+}

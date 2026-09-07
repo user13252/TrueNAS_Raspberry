@@ -1,0 +1,51 @@
+import { DecimalPipe } from '@angular/common';
+import {
+  Component, ChangeDetectionStrategy, input, output,
+} from '@angular/core';
+import { TranslateModule } from '@ngx-translate/core';
+import { TnIconButtonComponent, TnProgressBarComponent, TnTooltipDirective } from '@truenas/ui-components';
+import { JobState } from 'app/enums/job-state.enum';
+import { TaskState } from 'app/enums/task-state.enum';
+import { getCredentialsCreationSource } from 'app/helpers/get-credentials-creation-source.utils';
+import { credentialTypeLabels } from 'app/interfaces/credential-type.interface';
+import { Job } from 'app/interfaces/job.interface';
+import { FormatDateTimePipe } from 'app/modules/dates/pipes/format-date-time/format-datetime.pipe';
+import { JobStateDisplayPipe } from 'app/modules/pipes/job-state-display/job-state-display.pipe';
+import { MapValuePipe } from 'app/modules/pipes/map-value/map-value.pipe';
+
+@Component({
+  selector: 'ix-job-item',
+  templateUrl: './job-item.component.html',
+  styleUrls: ['./job-item.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnTooltipDirective,
+    TnProgressBarComponent,
+    TnIconButtonComponent,
+    TranslateModule,
+    FormatDateTimePipe,
+    JobStateDisplayPipe,
+    MapValuePipe,
+    DecimalPipe,
+  ],
+})
+export class JobItemComponent {
+  readonly job = input.required<Job>();
+  readonly clickable = input(false);
+
+  readonly aborted = output();
+  readonly opened = output();
+
+  readonly JobState = JobState;
+  readonly TaskState = TaskState;
+  readonly credentialTypeLabels = credentialTypeLabels;
+  readonly getCredentialsCreationSource = getCredentialsCreationSource;
+
+  abort(): void {
+    this.aborted.emit();
+  }
+
+  open(): void {
+    this.opened.emit();
+  }
+}

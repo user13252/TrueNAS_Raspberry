@@ -1,0 +1,460 @@
+import {
+  ChangeDetectionStrategy, Component, computed, DestroyRef, input, OnInit, signal, viewChild, inject,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormGroup, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Store } from '@ngrx/store';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TnFormFieldComponent, TnFormSectionComponent, TnInputComponent } from '@truenas/ui-components';
+import {
+  catchError, combineLatest, distinctUntilChanged, filter, map, Observable, of,
+  startWith,
+  switchMap,
+} from 'rxjs';
+import { Role } from 'app/enums/role.enum';
+import {
+  hasShellAccess, hasSshAccess, hasTrueNasAccess, isEmptyHomeDirectory,
+} from 'app/helpers/user.helper';
+import { User, UserUpdate } from 'app/interfaces/user.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { FormErrorHandlerService } from 'app/modules/forms/ix-forms/services/form-error-handler.service';
+import { forbiddenValues } from 'app/modules/forms/ix-forms/validators/forbidden-values-validation/forbidden-values-validation';
+import { SidePanelForm } from 'app/modules/slide-ins/side-panel-form.directive';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { TranslatedString } from 'app/modules/translate/translate.helper';
+import { selectUsers } from 'app/pages/credentials/users/store/user.selectors';
+import { AdditionalDetailsSectionComponent } from 'app/pages/credentials/users/user-form/additional-details-section/additional-details-section.component';
+import { AllowedAccessSectionComponent } from 'app/pages/credentials/users/user-form/allowed-access-section/allowed-access-section.component';
+import { AuthSectionComponent } from 'app/pages/credentials/users/user-form/auth-section/auth-section.component';
+import { defaultHomePath, UserFormStore, UserStigPasswordOption } from 'app/pages/credentials/users/user-form/user.store';
+import { UserService } from 'app/services/user.service';
+import { AppState } from 'app/store';
+
+@Component({
+  selector: 'ix-user-form',
+  templateUrl: './user-form.component.html',
+  styleUrls: ['./user-form.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    TnFormSectionComponent,
+    ReactiveFormsModule,
+    TranslateModule,
+    TnFormFieldComponent,
+    TnInputComponent,
+    AllowedAccessSectionComponent,
+    AuthSectionComponent,
+    AdditionalDetailsSectionComponent,
+  ],
+  providers: [
+    UserFormStore,
+  ],
+})
+export class UserFormComponent extends SidePanelForm<User> implements OnInit {
+  private formBuilder = inject(NonNullableFormBuilder);
+  private userFormStore = inject(UserFormStore);
+  private formErrorHandler = inject(FormErrorHandlerService);
+  private store$ = inject<Store<AppState>>(Store);
+  private dialog = inject(DialogService);
+  private translate = inject(TranslateService);
+  private snackbar = inject(SnackbarService);
+  private destroyRef = inject(DestroyRef);
+
+  /** Record being edited, supplied by the `<tn-side-panel>` host via the `editUser` input. */
+  readonly editUser = input<User | undefined>(undefined);
+
+  protected isStigMode = this.userFormStore.isStigMode;
+  // The host applies the `editUser` input after construction, so the edited record is
+  // resolved in ngOnInit rather than eagerly here.
+  protected editingUser = signal<User | undefined>(undefined);
+
+  protected isFormLoading = signal<boolean>(false);
+
+  protected allowedAccessSection = viewChild.required(AllowedAccessSectionComponent);
+  protected authSection = viewChild.required(AuthSectionComponent);
+  protected additionalDetailsSection = viewChild.required(AdditionalDetailsSectionComponent);
+
+  protected isFormInvalid = signal<boolean>(false);
+
+  // Signals to track home directory and shell for validation
+  protected homeDirectory = signal<string>(defaultHomePath);
+  protected shell = signal<string | null>(null);
+  protected password = signal<string>('');
+  protected passwordDisabled = signal<boolean>(false);
+
+  protected readonly Role = Role;
+  protected readonly requiredRoles = [Role.AccountWrite];
+
+  protected readonly form = this.formBuilder.group({
+    username: ['', [
+      Validators.required,
+      Validators.pattern(UserService.namePattern),
+      Validators.maxLength(32),
+    ]],
+  });
+
+  /**
+   * Drives a host-owned Save action (the `<tn-side-panel>` footer). Validity is tracked across
+   * all four sub-forms via {@link isFormInvalid}, so this can't use the base `trackCanSubmit`.
+   */
+  readonly canSubmit = computed(() => !this.isFormInvalid() && !this.isFormLoading());
+
+  /**
+   * Busy/loading state read by the `<tn-side-panel>` host to show its progress bar, switch Save to
+   * "Saving…", and keep Save disabled mid-submit. Overrides the base (which sources its loading
+   * from `trackCanSubmit`) because this form builds `canSubmit` from its four sub-forms instead.
+   */
+  override isBusy(): boolean {
+    return this.isFormLoading();
+  }
+
+  /**
+   * Whether a save is in flight, read by the host to switch Save to "Saving…". Overrides the base
+   * latch because {@link isFormLoading} is set true *only* by the submit path (never an initial data
+   * load), so busy and submitting coincide here. Tracking it directly also covers the async path
+   * where a save is gated behind a home-dir confirmation dialog — there `isFormLoading` flips true
+   * only after the user confirms, long after `submit()` returns, which the base's synchronous
+   * rising-edge latch can't catch.
+   */
+  override readonly isSubmitting = computed(() => this.isFormLoading());
+
+  protected isNewUser = computed(() => {
+    return !this.editingUser();
+  });
+
+  protected get formValues(): UserUpdate & { stig_password?: UserStigPasswordOption } {
+    return {
+      ...this.form.getRawValue(),
+      ...this.allowedAccessSection().form.getRawValue(),
+      ...this.authSection().form.getRawValue(),
+      ...this.additionalDetailsSection().form.getRawValue(),
+    };
+  }
+
+  /**
+   * Get all form instances for error handling - allows FormErrorHandlerService
+   * to find the correct original form control instead of the combined one
+   */
+  protected get allForms(): FormGroup[] {
+    return [
+      this.form,
+      this.allowedAccessSection().form,
+      this.authSection().form,
+      this.additionalDetailsSection().form,
+    ];
+  }
+
+  protected getHomeCreateWarning(): TranslatedString {
+    const homeCreate = this.formValues.home_create;
+    const home = this.formValues.home;
+    const homeMode = this.formValues.home_mode;
+    const editingUser = this.editingUser();
+    if (editingUser) {
+      if (editingUser.immutable || isEmptyHomeDirectory(home)) {
+        return '';
+      }
+      if (!homeCreate && editingUser.home !== home) {
+        return this.translate.instant(
+          'Operation will change permissions on path: {path}',
+          { path: `'${String(home)}'` },
+        );
+      }
+      if (!homeCreate && !!homeMode && this.userFormStore.homeModeOldValue() !== homeMode) {
+        return this.translate.instant(
+          'Operation will change permissions on path: {path}',
+          { path: `'${String(home)}'` },
+        );
+      }
+    } else if (!homeCreate && home !== defaultHomePath) {
+      return this.translate.instant(
+        'With this configuration, the existing directory {path} will be used as a home directory without creating a new directory for the user.',
+        { path: `'${String(home)}'` },
+      );
+    }
+    return '';
+  }
+
+  constructor() {
+    super();
+    this.setupUsernameUpdate();
+  }
+
+  /** Composite dirty across all four sub-forms; drives both hosts' discard confirmation. */
+  override hasUnsavedChanges(): boolean {
+    return this.form.dirty
+      || this.authSection().form.dirty
+      || this.allowedAccessSection().form.dirty
+      || this.additionalDetailsSection().form.dirty;
+  }
+
+  ngOnInit(): void {
+    // The panel host applies `editUser` after construction; pick it up here.
+    this.editingUser.set(this.editUser());
+    this.setupForm();
+    this.setupAccessWatchers();
+    this.setupHomeAndShellWatchers();
+  }
+
+  private setupForm(): void {
+    this.listenForAllFormsValidity();
+
+    if (this.editingUser()) {
+      this.setupEditUserForm(this.editingUser());
+    }
+  }
+
+  private setupEditUserForm(user: User): void {
+    this.form.patchValue({
+      username: user.username,
+    });
+
+    if (user.immutable) {
+      this.form.controls.username.disable();
+    }
+
+    this.userFormStore.updateUserConfig({
+      username: user.username,
+      email: user.email,
+      full_name: user.full_name,
+      smb: user.smb,
+      webshare: user.webshare,
+      home: user.home,
+      uid: user.uid,
+      group: user.group.id,
+      groups: user.groups,
+      password_disabled: user.password_disabled,
+      sshpubkey: user.sshpubkey,
+      ssh_password_enabled: user.ssh_password_enabled,
+      shell: user.shell,
+      locked: user.locked,
+      sudo_commands: user.sudo_commands,
+      sudo_commands_nopasswd: user.sudo_commands_nopasswd,
+    });
+
+    this.userFormStore.setAllowedAccessConfig({
+      smbAccess: user.smb,
+      webshareAccess: user.webshare,
+      truenasAccess: hasTrueNasAccess(user),
+      shellAccess: hasShellAccess(user),
+      sshAccess: hasSshAccess(user),
+    });
+
+    this.setNamesInUseValidator(user.username);
+  }
+
+  private setNamesInUseValidator(currentName?: string): void {
+    this.store$.select(selectUsers).pipe(takeUntilDestroyed(this.destroyRef)).subscribe((users) => {
+      let forbiddenNames = users.map((user) => user.username);
+      if (currentName) {
+        forbiddenNames = forbiddenNames.filter((name) => name !== currentName);
+      }
+      this.form.controls.username.addValidators(forbiddenValues(forbiddenNames));
+    });
+  }
+
+  private setupUsernameUpdate(): void {
+    this.form.controls.username.valueChanges.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: (username) => {
+        this.userFormStore.updateUserConfig({
+          username,
+        });
+      },
+    });
+
+    this.userFormStore.state$.pipe(
+      map((state) => state?.userConfig?.username),
+      filter(Boolean),
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((username) => {
+      this.form.patchValue({ username });
+    });
+  }
+
+  /**
+   * Setup watchers for all access types to reload form validation when access changes
+   */
+  private setupAccessWatchers(): void {
+    // Watch for changes in all access configurations
+    this.userFormStore.state$.pipe(
+      map((state) => state?.setupDetails?.allowedAccess),
+      distinctUntilChanged((prev, curr) => prev?.shellAccess === curr?.shellAccess
+        && prev?.sshAccess === curr?.sshAccess
+        && prev?.smbAccess === curr?.smbAccess
+        && prev?.webshareAccess === curr?.webshareAccess
+        && prev?.truenasAccess === curr?.truenasAccess),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => {
+      // Force form validation recalculation for all forms
+      this.reloadFormValidationState();
+    });
+  }
+
+  /**
+   * Setup watchers for home directory and shell to update signals for auth validation
+   */
+  private setupHomeAndShellWatchers(): void {
+    this.additionalDetailsSection().form.controls.home.valueChanges.pipe(
+      startWith(this.additionalDetailsSection().form.controls.home.value),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((home) => {
+      this.homeDirectory.set(home || defaultHomePath);
+    });
+
+    this.additionalDetailsSection().form.controls.shell.valueChanges.pipe(
+      startWith(this.additionalDetailsSection().form.controls.shell.value),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((shell) => {
+      this.shell.set(shell);
+    });
+
+    // Watch password and password_disabled for SMB validation
+    this.authSection().form.controls.password.valueChanges.pipe(
+      startWith(this.authSection().form.controls.password.value),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((pwd) => {
+      this.password.set(pwd || '');
+    });
+
+    this.authSection().form.controls.password_disabled.valueChanges.pipe(
+      startWith(this.authSection().form.controls.password_disabled.value),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((disabled) => {
+      this.passwordDisabled.set(disabled || false);
+    });
+  }
+
+  // Field names that need validation clearing based on access type
+  private readonly shellAccessFields = [
+    'shell',
+    'sudo_commands',
+    'sudo_commands_all',
+    'sudo_commands_nopasswd',
+    'sudo_commands_nopasswd_all',
+  ] as const;
+
+  private readonly sshAccessFields = [
+    'sshpubkey',
+    'ssh_password_enabled',
+  ] as const;
+
+  /**
+   * Reload validation state for all forms to ensure proper validation after access changes
+   */
+  private reloadFormValidationState(): void {
+    // Get current access state to determine which fields should be cleared
+    const allowedAccess = this.userFormStore.state()?.setupDetails?.allowedAccess;
+    if (!allowedAccess) return;
+
+    // Collect field names that should have their validation errors cleared based on hidden sections
+    const fieldsToClear: string[] = [];
+
+    // Shell Access controls: shell field and all sudo command fields
+    if (!allowedAccess.shellAccess) {
+      fieldsToClear.push(...this.shellAccessFields);
+    }
+
+    // SSH Access controls: ssh-related fields
+    if (!allowedAccess.sshAccess) {
+      fieldsToClear.push(...this.sshAccessFields);
+    }
+
+    // SMB Access controls: password disable field (shown when SMB is disabled)
+    // Note: password_disabled is shown when smbAccess is FALSE
+
+    // Clear validation errors for fields that are no longer relevant
+    this.formErrorHandler.clearValidationErrorsForHiddenFields(this.allForms, fieldsToClear);
+
+    // Update validation for all forms to recalculate based on current access settings
+    // Use emitEvent: false to prevent unnecessary validation cascades
+    this.allForms.forEach((form) => {
+      form.updateValueAndValidity({ emitEvent: false });
+    });
+  }
+
+  private getHomeCreateConfirmation(): Observable<boolean> {
+    const warning = this.getHomeCreateWarning();
+    if (warning) {
+      return this.dialog.confirm({
+        title: this.translate.instant('Warning!'),
+        message: warning,
+      });
+    }
+    return of(true);
+  }
+
+  private submitUserRequest(payload: UserUpdate): Observable<User> {
+    this.isFormLoading.set(true);
+
+    const editingUser = this.editingUser();
+    return editingUser
+      ? this.userFormStore.updateUser(editingUser.id, payload)
+      : this.userFormStore.createUser();
+  }
+
+  protected onSubmit(): void {
+    const values = { ...this.formValues };
+    let payload = { ...this.userFormStore.userConfig() };
+
+    const disablePassword = this.isStigMode() && this.isNewUser()
+      ? values.stig_password === UserStigPasswordOption.DisablePassword
+      : values.password_disabled;
+
+    payload = {
+      ...payload,
+      locked: disablePassword ? false : payload.locked,
+      password_disabled: disablePassword,
+    };
+
+    if (!payload.password) {
+      delete payload.password;
+    }
+
+    this.getHomeCreateConfirmation().pipe(
+      filter(Boolean),
+      switchMap(() => this.submitUserRequest(payload)),
+      catchError((error: unknown) => {
+        this.isFormLoading.set(false);
+        this.formErrorHandler.handleValidationErrors(error, this.allForms);
+        return of(undefined);
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: (user) => {
+        this.isFormLoading.set(false);
+        if (user) {
+          // Hand the created/updated record back to the opener. Most callers just reload, but
+          // some (e.g. ix-user-picker's "Add New") select the returned User from the response.
+          this.closed.emit(user);
+
+          if (this.isNewUser()) {
+            this.snackbar.success(this.translate.instant('User created'));
+          } else {
+            this.snackbar.success(this.translate.instant('User updated'));
+          }
+        }
+      },
+    });
+  }
+
+  private listenForAllFormsValidity(): void {
+    const forms = [
+      this.form,
+      this.allowedAccessSection().form,
+      this.authSection().form,
+      this.additionalDetailsSection().form,
+    ];
+
+    const statusObservables = forms.map((formGroup) => formGroup.statusChanges.pipe(
+      startWith(formGroup.status),
+      distinctUntilChanged(),
+      map(() => formGroup.invalid),
+    ));
+
+    combineLatest(statusObservables).pipe(
+      map((invalidArray) => invalidArray.some(Boolean)),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((isInvalid) => this.isFormInvalid.set(isInvalid));
+  }
+}

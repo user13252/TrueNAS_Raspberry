@@ -1,0 +1,56 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnButtonHarness } from '@truenas/ui-components';
+import { Subject } from 'rxjs';
+import { VDevType } from 'app/enums/v-dev-type.enum';
+import { DetailsDisk } from 'app/interfaces/disk.interface';
+import {
+  CustomLayoutAppliedComponent,
+} from 'app/pages/storage/modules/pool-manager/components/pool-manager-wizard/components/layout-step/custom-layout-applied/custom-layout-applied.component';
+import { PoolManagerStore } from 'app/pages/storage/modules/pool-manager/store/pool-manager.store';
+
+describe('CustomLayoutAppliedComponent', () => {
+  let spectator: Spectator<CustomLayoutAppliedComponent>;
+  let loader: HarnessLoader;
+  const resetStep$ = new Subject<VDevType>();
+
+  const createComponent = createComponentFactory({
+    component: CustomLayoutAppliedComponent,
+    providers: [
+      mockProvider(PoolManagerStore, {
+        resetStep$,
+        resetTopologyCategory: jest.fn(),
+        openManualSelectionDialog: jest.fn(),
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent({
+      props: {
+        type: VDevType.Data,
+        vdevs: [
+          [{}],
+          [{}],
+        ] as DetailsDisk[][],
+      },
+    });
+
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  it('shows vdevs length', () => {
+    expect(spectator.query('.vdevs-length')).toHaveText('VDEVs: 2');
+  });
+
+  it('calls store.openManualSelectionDialog when button clicked', async () => {
+    const editButton = await loader.getHarness(
+      TnButtonHarness.with({ label: 'Edit Manual Disk Selection' }),
+    );
+
+    await editButton.click();
+
+    expect(spectator.inject(PoolManagerStore).openManualSelectionDialog).toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,14 @@
+:host {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+
+  tn-icon {
+    height: 24px;
+    width: 24px;
+  }
+
+  .tier-badge {
+    margin-right: -6px;
+  }
+}

@@ -1,0 +1,15 @@
+<tn-icon-button
+  class="topbar-button-right"
+  name="tn-truenas-connect-logo"
+  size="lg"
+  testId="tnc-show-status"
+  [dense]="true"
+  [tooltip]="tooltip()"
+  [ariaLabel]="tooltip()"
+  (onClick)="showStatus()"
+>
+  @let currentBadge = badge();
+  @if (currentBadge) {
+    <ix-status-badge [badge]="currentBadge"></ix-status-badge>
+  }
+</tn-icon-button>

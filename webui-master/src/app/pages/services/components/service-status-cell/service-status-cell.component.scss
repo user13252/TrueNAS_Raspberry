@@ -1,0 +1,26 @@
+:host {
+  align-items: center;
+  display: flex;
+  gap: 3px;
+}
+
+.status-pill {
+  border: 1px solid transparent;
+  border-radius: 20px;
+  box-sizing: border-box;
+  display: flex;
+  font-weight: bold;
+  justify-content: center;
+  min-width: 72px;
+  padding: 3px 8px;
+
+  &.running {
+    border-color: var(--status-active);
+    color: var(--status-active);
+  }
+
+  &.stopped {
+    border-color: var(--status-inactive);
+    color: var(--status-inactive);
+  }
+}

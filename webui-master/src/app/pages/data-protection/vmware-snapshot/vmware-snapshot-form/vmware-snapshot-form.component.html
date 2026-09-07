@@ -1,0 +1,67 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [addTitle]="'Add VM Snapshot' | translate"
+  [editTitle]="'Edit VM Snapshot' | translate"
+  [requiredRoles]="requiredRoles"
+  [externalLoading]="isLoading"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <tn-form-field [label]="labels.hostname | translate" [tooltip]="tooltips.hostname | translate" [required]="true">
+      <tn-input
+        name="hostname"
+        testId="hostname"
+        formControlName="hostname"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [label]="labels.username | translate" [tooltip]="tooltips.username | translate" [required]="true">
+      <tn-input
+        name="username"
+        testId="username"
+        formControlName="username"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [label]="labels.password | translate" [tooltip]="tooltips.password | translate" [required]="true">
+      <tn-input
+        name="password"
+        testId="password"
+        formControlName="password"
+        [inputType]="InputType.Password"
+        [showPasswordToggle]="true"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      testId="fetch-datastores"
+      [label]="'Fetch DataStores' | translate"
+      [disabled]="isLoading || disableFetchDatastores"
+      (onClick)="onFetchDataStores()"
+    ></tn-button>
+
+    <tn-form-field [label]="labels.datastore | translate" [tooltip]="tooltips.datastore | translate" [required]="true">
+      <tn-select
+        name="datastore"
+        testId="datastore"
+        formControlName="datastore"
+        [options]="(datastoreOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+
+    <tn-form-field [label]="labels.filesystem | translate" [tooltip]="tooltips.filesystem | translate" [required]="true">
+      <tn-select
+        name="filesystem"
+        testId="filesystem"
+        formControlName="filesystem"
+        [options]="(filesystemOptions$ | async) ?? []"
+      ></tn-select>
+    </tn-form-field>
+  </tn-form-section>
+</ix-form>

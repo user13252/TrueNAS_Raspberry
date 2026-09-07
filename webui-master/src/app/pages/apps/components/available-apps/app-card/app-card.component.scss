@@ -1,0 +1,113 @@
+@import 'mixins/text';
+
+:host {
+  color: var(--fg2);
+  cursor: pointer;
+  display: block;
+  position: relative;
+}
+
+// TEMP (NAS-141021): tn-card uses a preset content padding; restore the original card's
+// padding. Keep tn-card's 14px content base (matches the app's body font), which
+// the projected em-based title/description sizes are tuned against. Remove once
+// tn-card exposes a padding input.
+:host ::ng-deep .tn-card__content {
+  padding: 20px 25px 15px 10px;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: row;
+}
+
+:host-context(a:focus) :host {
+  outline: var(--primary) auto 1px;
+}
+
+// TEMP (NAS-141021): tn-card owns its background, so the hover state must reach the
+// library's inner element. Drop once tn-card exposes a hover/interactive input.
+:host-context(a:hover) ::ng-deep .app-card .tn-card {
+  background-color: var(--contrast-lighter);
+}
+
+.left-column {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  justify-content: space-between;
+  padding-left: 2px;
+
+  .train {
+    background-color: var(--bg1);
+    border: 1px solid var(--lines);
+    color: var(--primary);
+    font-family: var(--font-family-header);
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-top: 15px;
+    padding: 0 10px;
+    text-align: center;
+  }
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  flex-wrap: wrap;
+  margin-left: 16px;
+
+  .header {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: 12px;
+
+    .name {
+      align-items: center;
+      color: var(--fg1);
+      display: flex;
+      font-family: var(--font-family-header);
+      font-size: 1.2em;
+      gap: 8px;
+      line-height: 1.2em;
+      margin-top: 1px;
+      text-transform: capitalize;
+    }
+
+    .popularity-rank {
+      align-items: center;
+      color: var(--fg2);
+      display: flex;
+      font-size: small;
+      gap: 2px;
+    }
+
+    .version {
+      .catalog-version {
+        color: var(--fg2);
+        font-size: 0.85em;
+        margin-left: 4px;
+        opacity: 0.8;
+      }
+    }
+  }
+
+  .description {
+    @include line-clamp(4);
+    font-size: 1.1em;
+    line-height: 1.2em;
+    margin-bottom: 0;
+  }
+
+  .meta {
+    align-items: center;
+    color: var(--fg2);
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2px;
+    margin-top: auto;
+    opacity: 0.7;
+  }
+}

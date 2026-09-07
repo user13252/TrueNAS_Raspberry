@@ -1,0 +1,31 @@
+@let message = currentMessage();
+@let href = currentMessageHref();
+
+@if (href) {
+  <a
+    ixTest="use-enterprise-marketing-link"
+    target="_blank"
+    rel="noopener noreferrer"
+    [href]="href"
+  >
+    <span class="text-above">
+      {{ message.text | translate }}
+    </span>
+
+    <span>
+      {{ message.cta | translate }}
+    </span>
+  </a>
+} @else {
+  <div class="no-link" ixTest="use-enterprise-marketing-link">
+    <span class="text-above">
+      {{ message.text | translate }}
+    </span>
+
+    @if (message.cta) {
+      <span>
+        {{ message.cta | translate }}
+      </span>
+    }
+  </div>
+}

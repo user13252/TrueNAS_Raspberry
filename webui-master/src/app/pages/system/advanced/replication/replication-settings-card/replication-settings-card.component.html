@@ -1,0 +1,25 @@
+<tn-card
+  padding="small"
+  [title]="'Replication' | translate"
+  [ixUiSearch]="searchableElements.elements.replication"
+>
+  <div class="details">
+    <div class="details-item" [ixUiSearch]="searchableElements.elements.replicationTasksLimit">
+      <span class="label">{{ 'Replication Tasks Limit' | translate }}:</span>
+      <span *ixWithLoadingState="taskLimit$ as taskLimit" class="value">
+        {{ taskLimit || '–' }}
+      </span>
+    </div>
+  </div>
+
+  <ng-template tnCardFooterActions>
+    <tn-button
+      *ixRequiresRoles="requiredRoles"
+      color="primary"
+      [testId]="['replication', 'configure']"
+      [ixUiSearch]="searchableElements.elements.configure"
+      [label]="'Configure' | translate"
+      (onClick)="onConfigurePressed()"
+    ></tn-button>
+  </ng-template>
+</tn-card>

@@ -1,0 +1,28 @@
+@if (poolExists) {
+  <tn-card class="card" [padContent]="false">
+    <div class="card-content">
+      <div class="header">
+        <h3>
+          @let name = pool()?.name;
+          @if (!name) {
+            <ngx-skeleton-loader></ngx-skeleton-loader>
+          } @else {
+            {{ name }}
+          }
+        </h3>
+      </div>
+
+      <div [class]="['container', size()]">
+        <ix-pool-status [pool]="pool()"></ix-pool-status>
+      </div>
+    </div>
+  </tn-card>
+}
+
+@if (!poolExists) {
+  <ix-widget-datapoint
+    [size]="size()"
+    [label]="name | translate"
+    [text]="'Pool does not exist' | translate"
+  ></ix-widget-datapoint>
+}

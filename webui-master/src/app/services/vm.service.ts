@@ -1,0 +1,344 @@
+import { DestroyRef, Injectable, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateService } from '@ngx-translate/core';
+import { TnDialog } from '@truenas/ui-components';
+import ipRegex from 'ip-regex';
+import {
+  BehaviorSubject, catchError, filter, map, Observable, of, repeat, Subject, switchMap, take, tap,
+} from 'rxjs';
+import { ApiErrorName } from 'app/enums/api.enum';
+import { VmDisplayType, VmState } from 'app/enums/vm.enum';
+import { extractApiErrorDetails } from 'app/helpers/api.helper';
+import { WINDOW } from 'app/helpers/window.helper';
+import { helptextVmList } from 'app/helptext/vm/vm-list';
+import { ApiCallParams } from 'app/interfaces/api/api-call-directory.interface';
+import {
+  VirtualizationDetails,
+  VirtualMachine,
+  VmDisplayWebUriParams,
+  VmDisplayWebUriParamsOptions,
+} from 'app/interfaces/virtual-machine.interface';
+import { VmDisplayDevice } from 'app/interfaces/vm-device.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { StopVmDialogComponent, StopVmDialogData } from 'app/pages/vm/vm-list/stop-vm-dialog/stop-vm-dialog.component';
+import { DownloadService } from 'app/services/download.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+
+const wildcardBindAddresses = ['0.0.0.0', '::'];
+
+@Injectable({ providedIn: 'root' })
+export class VmService {
+  private api = inject(ApiService);
+  private loader = inject(LoaderService);
+  private dialogService = inject(DialogService);
+  private translate = inject(TranslateService);
+  private errorHandler = inject(ErrorHandlerService);
+  private download = inject(DownloadService);
+  private snackbar = inject(SnackbarService);
+  private tnDialog = inject(TnDialog);
+  private window = inject<Window>(WINDOW);
+  private destroyRef = inject(DestroyRef);
+
+  hasVirtualizationSupport$ = new BehaviorSubject<boolean>(true);
+  private checkMemory$ = new Subject<void>();
+
+  private wsMethods = {
+    start: 'vm.start',
+    restart: 'vm.restart',
+    poweroff: 'vm.poweroff',
+    reset: 'vm.reset',
+    resume: 'vm.resume',
+  } as const;
+
+  constructor() {
+    this.getVirtualizationDetails().pipe(take(1)).subscribe((details) => {
+      this.hasVirtualizationSupport$.next(details.supported);
+    });
+  }
+
+  getVirtualizationDetails(): Observable<VirtualizationDetails> {
+    return this.api.call('vm.virtualization_details');
+  }
+
+  getAvailableMemory(): Observable<number> {
+    return this.api.call('vm.get_available_memory').pipe(
+      repeat({ delay: () => this.checkMemory$ }),
+    );
+  }
+
+  checkMemory(): void {
+    this.checkMemory$.next();
+  }
+
+  /**
+   * start or resume a stopped, suspended, or shutoff VM.
+   * @param vm the vm to start or resume
+   * @param overcommit whether to allow memory overcommitment when starting the VM.
+   *        only applicable when the VM is shutoff - does not apply to suspended VMs.
+   * @returns success status (true or false)
+   */
+  doStartResume(vm: VirtualMachine, overcommit = false): Observable<boolean> {
+    const shouldDoResume = vm.status.state === VmState.Suspended;
+
+    // build the params for the request - `overcommit` is only applicable to `vm.start`.
+    const params = overcommit && !shouldDoResume ? [vm.id, { overcommit: true }] : [vm.id];
+
+    // call `vm.resume` if the VM is suspended, otherwise call `vm.start`
+    const method = shouldDoResume ? this.wsMethods.resume : this.wsMethods.start;
+
+    type StartResumeParams = ApiCallParams<typeof this.wsMethods.start> | ApiCallParams<typeof this.wsMethods.resume>;
+
+    return this.api.call(method, params as StartResumeParams)
+      .pipe(
+        this.loader.withLoader(),
+        take(1),
+        switchMap(() => {
+          this.checkMemory();
+          return of(true);
+        }),
+        catchError((error: unknown) => {
+          const apiError = extractApiErrorDetails(error);
+          if (apiError?.errname === ApiErrorName.NoMemory) {
+            this.onMemoryError(vm);
+            return of(false);
+          }
+          this.errorHandler.showErrorModal(error);
+          return of(false);
+        }),
+      );
+  }
+
+  doStop(vm: VirtualMachine): Observable<boolean> {
+    return this.tnDialog.open<StopVmDialogComponent, unknown, StopVmDialogData>(StopVmDialogComponent, { data: vm })
+      .closed
+      .pipe(
+        take(1),
+        switchMap((data) => {
+          if (data) {
+            this.doStopJob(vm, data.forceAfterTimeout);
+            return of(true);
+          }
+          return of(false);
+        }),
+        catchError((error: unknown) => {
+          this.errorHandler.showErrorModal(error);
+          return of(false);
+        }),
+      );
+  }
+
+  doRestart(vm: VirtualMachine): Observable<number> {
+    return this.api.startJob(this.wsMethods.restart, [vm.id]).pipe(this.loader.withLoader());
+  }
+
+  doPowerOff(vm: VirtualMachine): void {
+    this.doAction(vm, this.wsMethods.poweroff, [vm.id]);
+  }
+
+  /**
+   * Hard-resets the VM, equivalent to pressing the reset button on a physical machine.
+   * The guest OS is not shut down cleanly, so confirmation is required first.
+   */
+  doReset(vm: VirtualMachine): Observable<boolean> {
+    return this.dialogService.confirm({
+      title: this.translate.instant(helptextVmList.resetDialog.title),
+      message: this.translate.instant(helptextVmList.resetDialog.message, {
+        vmName: vm.name,
+        warning: this.translate.instant(helptextVmList.hardResetWarning),
+      }),
+      buttonText: this.translate.instant(helptextVmList.resetDialog.buttonMessage),
+      buttonColor: 'warn',
+    })
+      .pipe(
+        take(1),
+        switchMap((confirmed) => {
+          if (!confirmed) {
+            return of(false);
+          }
+
+          return this.api.call(this.wsMethods.reset, [vm.id]).pipe(
+            this.loader.withLoader(),
+            take(1),
+            tap(() => this.snackbar.success(
+              this.translate.instant(helptextVmList.resetDialog.successMessage, { vmName: vm.name }),
+            )),
+            map(() => true),
+            catchError((error: unknown) => {
+              this.errorHandler.showErrorModal(error);
+              return of(false);
+            }),
+          );
+        }),
+      );
+  }
+
+  downloadLogs(vm: VirtualMachine): Observable<Blob> {
+    const filename = `${vm.id}_${vm.name}.log`;
+    return this.api.call('core.download', ['vm.log_file_download', [vm.id], filename]).pipe(
+      switchMap(([, url]) => this.download.downloadUrl(url, filename, 'text/plain')),
+    );
+  }
+
+  openDisplay(vm: VirtualMachine): void {
+    this.api.call('vm.get_display_devices', [vm.id])
+      .pipe(this.loader.withLoader(), take(1))
+      .subscribe({
+        next: (devices: VmDisplayDevice[]) => {
+          const spiceDevice = devices.find((device) => device.attributes.type === VmDisplayType.Spice);
+          const vncDevices = devices.filter((device) => device.attributes.type === VmDisplayType.Vnc);
+
+          if (spiceDevice?.attributes.web) {
+            this.openDisplayWebUri(vm.id);
+          } else if (vncDevices.length > 0) {
+            const vncConnections = vncDevices
+              .map((device) => `${this.getReachableAddress(device.attributes.bind)}:${device.attributes.port}`)
+              .join(', ');
+            this.dialogService.info(
+              this.translate.instant('VNC Display Available'),
+              this.translate.instant('Connect using a VNC client to: {connections}', { connections: vncConnections }),
+              true,
+            );
+          } else if (spiceDevice && !spiceDevice.attributes.web) {
+            this.dialogService.info(
+              this.translate.instant('SPICE Display Available'),
+              this.translate.instant(
+                'Web access is disabled. Connect using a SPICE client to: {connection}',
+                {
+                  connection: `${this.getReachableAddress(spiceDevice.attributes.bind)}:${spiceDevice.attributes.port}`,
+                },
+              ),
+              true,
+            );
+          } else {
+            this.dialogService.warn(
+              this.translate.instant('No Display Available'),
+              this.translate.instant('No display devices are configured for this VM.'),
+            );
+          }
+        },
+        error: (error: unknown) => this.errorHandler.showErrorModal(error),
+      });
+  }
+
+  toggleVmAutostart(vm: VirtualMachine): Observable<boolean> {
+    return this.api.call('vm.update', [vm.id, { autostart: !vm.autostart }])
+      .pipe(
+        this.loader.withLoader(),
+        take(1),
+        switchMap(() => {
+          this.checkMemory();
+          return of(true);
+        }),
+        catchError((error: unknown) => {
+          this.errorHandler.showErrorModal(error);
+          return of(false);
+        }),
+      );
+  }
+
+  private doAction<T extends 'vm.start' | 'vm.update' | 'vm.poweroff'>(
+    vm: VirtualMachine,
+    method: T,
+    params: ApiCallParams<T> = [vm.id],
+  ): void {
+    this.api.call(method, params)
+      .pipe(this.loader.withLoader(), take(1))
+      .subscribe({
+        next: () => {
+          this.checkMemory();
+        },
+        error: (error: unknown) => {
+          const apiError = extractApiErrorDetails(error);
+          if (method === this.wsMethods.start
+            && apiError?.errname === ApiErrorName.NoMemory) {
+            this.onMemoryError(vm);
+            return;
+          }
+          this.errorHandler.showErrorModal(error);
+        },
+      });
+  }
+
+  /**
+   * Display devices are normally bound to a wildcard address, which is useless to show to a user:
+   * they cannot point a VNC or SPICE client at 0.0.0.0. Fall back to the host the UI is being
+   * served from, which is reachable by definition.
+   */
+  private getReachableAddress(bind: string): string {
+    const hostname = this.window.location.hostname?.replace(/^\[|\]$/g, '');
+    const isWildcard = !bind || wildcardBindAddresses.includes(bind);
+    const address = isWildcard && hostname ? hostname : bind;
+
+    return ipRegex.v6({ exact: true }).test(address) ? `[${address}]` : address;
+  }
+
+  private openDisplayWebUri(vmId: number): void {
+    const displayOptions = {
+      protocol: this.window.location.protocol.replace(':', '').toUpperCase(),
+    } as VmDisplayWebUriParamsOptions;
+
+    const requestParams: VmDisplayWebUriParams = [
+      vmId,
+      this.window.location.host,
+      displayOptions,
+    ];
+
+    this.api.call('vm.get_display_web_uri', requestParams)
+      .pipe(this.loader.withLoader(), take(1))
+      .subscribe({
+        next: (webUri) => {
+          if (webUri.error) {
+            this.dialogService.warn(this.translate.instant('Error'), webUri.error);
+            return;
+          }
+          this.window.open(webUri.uri, '_blank');
+        },
+        error: (error: unknown) => {
+          this.errorHandler.showErrorModal(error);
+        },
+      });
+  }
+
+  private doStopJob(vm: VirtualMachine, forceAfterTimeout: boolean): void {
+    this.dialogService.jobDialog(
+      this.api.job('vm.stop', [vm.id, {
+        force: false,
+        force_after_timeout: forceAfterTimeout,
+      }]),
+      {
+        title: this.translate.instant('Stopping {rowName}', { rowName: vm.name }),
+      },
+    )
+      .afterClosed()
+      .pipe(
+        this.errorHandler.withErrorHandler(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.checkMemory();
+        this.dialogService.info(
+          this.translate.instant('Finished'),
+          this.translate.instant(helptextVmList.stop_dialog.successMessage, { vmName: vm.name }),
+          true,
+        );
+      });
+  }
+
+  private onMemoryError(vm: VirtualMachine): void {
+    this.dialogService.confirm({
+      title: this.translate.instant(helptextVmList.memory_dialog.title),
+      message: this.translate.instant(helptextVmList.memory_dialog.message),
+      confirmationCheckboxText: this.translate.instant(helptextVmList.memory_dialog.secondaryCheckboxMessage),
+      buttonText: this.translate.instant(helptextVmList.memory_dialog.buttonMessage),
+    })
+      .pipe(
+        filter(Boolean),
+        take(1),
+        switchMap(() => this.doStartResume(vm, true)),
+      )
+      .subscribe();
+  }
+}

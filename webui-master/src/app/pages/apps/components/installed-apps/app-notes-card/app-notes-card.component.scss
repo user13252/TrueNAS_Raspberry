@@ -1,0 +1,30 @@
+@import 'mixins/markdown';
+@import 'mixins/cards';
+
+@include tn-detail-card();
+
+.card {
+  margin: 0;
+}
+
+.card-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.notes {
+  h4 {
+    margin-bottom: 8px;
+  }
+}
+
+.notes-list {
+  background-color: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 12px;
+  word-wrap: break-word;
+
+  @include markdown-notes();
+}

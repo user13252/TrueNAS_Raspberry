@@ -1,0 +1,13 @@
+@import 'mixins/tn-card';
+
+.table-container {
+  margin: 0.3333rem;
+}
+
+.card-title-link {
+  @include tn-card-projected-title-link;
+}
+
+.card-title {
+  @include tn-card-projected-title;
+}

@@ -1,0 +1,33 @@
+<tn-icon-button
+  class="topbar-button-right"
+  name="power"
+  library="mdi"
+  size="lg"
+  testId="power-menu"
+  [dense]="true"
+  [tooltip]="tooltips.power | translate"
+  [ariaLabel]="tooltips.power | translate"
+  [tnMenuTriggerFor]="powerMenu"
+  [ixUiSearch]="searchableElements.elements.powerMenu"
+></tn-icon-button>
+<tn-menu #powerMenu>
+  <tn-menu-item
+    *ixRequiresRoles="requiredRoles"
+    icon="refresh"
+    iconLibrary="mdi"
+    [testId]="'restart'"
+    [label]="'Restart' | translate"
+    [ixUiSearch]="searchableElements.elements.restart"
+    (itemClick)="onReboot()"
+  ></tn-menu-item>
+
+  <tn-menu-item
+    *ixRequiresRoles="requiredRoles"
+    icon="power"
+    iconLibrary="mdi"
+    [testId]="'shut-down'"
+    [label]="'Shut Down' | translate"
+    [ixUiSearch]="searchableElements.elements.shutDown"
+    (itemClick)="onShutdown()"
+  ></tn-menu-item>
+</tn-menu>

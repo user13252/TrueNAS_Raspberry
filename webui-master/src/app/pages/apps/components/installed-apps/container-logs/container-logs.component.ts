@@ -1,0 +1,138 @@
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, OnInit, signal, Signal, viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { TranslateModule } from '@ngx-translate/core';
+import {
+  TnButtonComponent, TnCheckboxComponent, TnDialog, TnFormFieldComponent, TnSliderComponent,
+  TnSliderThumbDirective, TnSpinnerComponent,
+} from '@truenas/ui-components';
+import {
+  combineLatest, filter, map, Subscription, switchMap, tap,
+} from 'rxjs';
+import { AppContainerLog } from 'app/interfaces/app.interface';
+import { LoaderService } from 'app/modules/loader/loader.service';
+import { PageHeaderComponent } from 'app/modules/page-header/page-title-header/page-header.component';
+import { ApiService } from 'app/modules/websocket/api.service';
+import { LogsDetailsDialog } from 'app/pages/apps/components/logs-details-dialog/logs-details-dialog.component';
+import { DownloadService } from 'app/services/download.service';
+import { ErrorHandlerService } from 'app/services/errors/error-handler.service';
+import { ShellService } from 'app/services/shell.service';
+
+@Component({
+  selector: 'ix-container-logs',
+  templateUrl: './container-logs.component.html',
+  styleUrls: ['./container-logs.component.scss'],
+  providers: [ShellService],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    PageHeaderComponent,
+    TnButtonComponent,
+    TnCheckboxComponent,
+    TnFormFieldComponent,
+    TnSliderComponent,
+    TnSliderThumbDirective,
+    ReactiveFormsModule,
+    TranslateModule,
+    TnSpinnerComponent,
+  ],
+})
+export class ContainerLogsComponent implements OnInit {
+  private api = inject(ApiService);
+  protected aroute = inject(ActivatedRoute);
+  protected loader = inject(LoaderService);
+  protected download = inject(DownloadService);
+  private errorHandler = inject(ErrorHandlerService);
+  private tnDialog = inject(TnDialog);
+  private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
+
+  private logContainer: Signal<ElementRef<HTMLElement>> = viewChild.required('logContainer', { read: ElementRef });
+
+  protected readonly minFontSize = 10;
+  protected readonly maxFontSize = 20;
+  protected isLoading = signal(false);
+  protected autoScrollControl = new FormControl<boolean>(true);
+  protected fontSizeControl = new FormControl(14, { nonNullable: true });
+  protected fontSize = toSignal(this.fontSizeControl.valueChanges, { initialValue: this.fontSizeControl.value });
+
+  protected train: string;
+  protected appName: string;
+  protected containerId: string;
+  protected logs = signal<AppContainerLog[]>([]);
+
+  private defaultTailLines = 500;
+  private logsChangedListener: Subscription;
+
+  ngOnInit(): void {
+    if (!this.aroute.parent) {
+      throw new Error('Parent route is not found');
+    }
+
+    combineLatest([this.aroute.params, this.aroute.parent.params]).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(([params, parentParams]) => {
+      this.appName = parentParams.appId as string;
+      this.train = parentParams.train as string;
+      this.containerId = params.containerId as string;
+
+      this.reconnect();
+    });
+  }
+
+  // subscribe pod log for selected app, pod and container.
+  reconnect(): void {
+    if (this.logsChangedListener && !this.logsChangedListener.closed) {
+      this.logsChangedListener.unsubscribe();
+    }
+
+    this.logsChangedListener = this.tnDialog.open(LogsDetailsDialog, { width: '400px' }).closed.pipe(
+      tap((value: LogsDetailsDialog['form']['value'] | undefined) => {
+        if (!value) {
+          this.router.navigate(['/apps/installed/', this.train, this.appName]);
+        }
+      }),
+      filter(Boolean),
+      tap(() => {
+        this.logs.set([]);
+        this.isLoading.set(true);
+      }),
+      switchMap((details: LogsDetailsDialog['form']['value']) => {
+        return this.api.subscribe(`app.container_log_follow: ${JSON.stringify({
+          app_name: this.appName,
+          container_id: this.containerId,
+          tail_lines: details.tail_lines || this.defaultTailLines,
+        })}`);
+      }),
+      map((apiEvent) => apiEvent.fields),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: (log: AppContainerLog) => {
+        this.isLoading.set(false);
+
+        if (log && log.msg !== 'nosub') {
+          this.logs.set([...this.logs(), log]);
+          this.scrollToBottom();
+        }
+      },
+      error: (error: unknown) => {
+        this.isLoading.set(false);
+        this.errorHandler.showErrorModal(error);
+      },
+    });
+  }
+
+  scrollToBottom(): void {
+    if (!this.autoScrollControl.value) {
+      return;
+    }
+
+    try {
+      this.logContainer().nativeElement.scrollTop = this.logContainer().nativeElement.scrollHeight;
+    } catch {
+      // Ignore error
+    }
+  }
+}

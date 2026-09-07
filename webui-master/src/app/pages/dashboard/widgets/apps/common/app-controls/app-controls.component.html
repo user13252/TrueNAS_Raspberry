@@ -1,0 +1,51 @@
+<ng-container *ixWithLoadingState="app() as app">
+  @if (mainPortal(); as mainPortal) {
+    <div class="portal-button-wrapper">
+      <tn-icon-button
+        name="web"
+        library="mdi"
+        testId="apps-web-portal"
+        tooltipPosition="above"
+        [ariaLabel]="mainPortal.label"
+        [tooltip]="mainPortal.label"
+        (onClick)="openPortal(mainPortal.url)"
+      ></tn-icon-button>
+
+      @if (otherPortals().length > 0) {
+        <tn-icon-button
+          name="menu-down"
+          library="mdi"
+          testId="apps-web-portal-dropdown"
+          tooltipPosition="above"
+          iconClass="dropdown-icon"
+          [ariaLabel]="'Other Portals' | translate"
+          [tooltip]="'Other Portals' | translate"
+          [tnMenuTriggerFor]="portalMenu"
+        ></tn-icon-button>
+
+        <tn-menu #portalMenu [items]="portalMenuItems()"></tn-menu>
+      }
+    </div>
+  }
+
+  <tn-icon-button
+    name="restart"
+    library="mdi"
+    testId="apps-restart"
+    tooltipPosition="above"
+    [ariaLabel]="'Restart App' | translate"
+    [tooltip]="'Restart App' | translate"
+    [disabled]="app.state === appState.Deploying"
+    (onClick)="onRestartApp(app)"
+  ></tn-icon-button>
+
+  <tn-icon-button
+    name="cog"
+    library="mdi"
+    testId="apps-details"
+    tooltipPosition="above"
+    [ariaLabel]="'Check App Details' | translate"
+    [tooltip]="'Check App Details' | translate"
+    (onClick)="openAppDetails(app)"
+  ></tn-icon-button>
+</ng-container>

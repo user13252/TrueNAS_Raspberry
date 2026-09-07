@@ -1,0 +1,78 @@
+<tn-card [padContent]="false">
+  <h3 tnCardHeader class="tn-card__title">{{ 'Shares' | translate }}</h3>
+
+  <ng-template tnCardHeaderActions>
+    <div class="actions">
+      <ix-basic-search [query]="searchQuery()" (queryChange)="onListFiltered($event)"></ix-basic-search>
+
+      <ix-table-column-picker
+        [columns]="columns()"
+        [columnPreferencesKey]="'smbShareList'"
+        (columnsChange)="onColumnsChange($event)"
+      ></ix-table-column-picker>
+
+      <tn-button
+        color="primary"
+        [testId]="'refresh-data'"
+        [label]="'Refresh' | translate"
+        (onClick)="loadData()"
+      ></tn-button>
+    </div>
+  </ng-template>
+
+  <tn-table
+    class="table"
+    [testId]="'table-table'"
+    [dataSource]="rows()"
+    [displayedColumns]="displayedColumns()"
+    [trackBy]="trackByShare"
+    [loading]="isLoading()"
+    [emptyMessage]="emptyService.titleForType(emptyType())"
+    [emptyDescription]="emptyService.descriptionForType(emptyType())"
+    [emptyIcon]="emptyService.iconForType(emptyType())"
+    (sortChange)="onSortChange($event)"
+  >
+    <ng-container [tnColumnDef]="'service'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Service' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Service' | translate), uniqueRowTag(row), 'row-text']">{{ row.service }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'session_id'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Session ID' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Session ID' | translate), uniqueRowTag(row), 'row-text']">{{ row.session_id }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'machine'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Machine' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Machine' | translate), uniqueRowTag(row), 'row-text']">{{ row.machine }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'connected_at'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Connected at' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Connected at' | translate), uniqueRowTag(row), 'row-text']">{{ row.connected_at }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'encryption'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Encryption' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Encryption' | translate), uniqueRowTag(row), 'row-text']">{{ row.encryption.cipher }}</span>
+      </ng-template>
+    </ng-container>
+
+    <ng-container [tnColumnDef]="'signing'" [sortable]="true">
+      <ng-template tnHeaderCellDef>{{ 'Signing' | translate }}</ng-template>
+      <ng-template let-row tnCellDef>
+        <span tnTestIdType="text" [tnTestId]="[('Signing' | translate), uniqueRowTag(row), 'row-text']">{{ row.signing.cipher }}</span>
+      </ng-template>
+    </ng-container>
+  </tn-table>
+  <tn-table-pager [dataProvider]="dataProvider"></tn-table-pager>
+</tn-card>

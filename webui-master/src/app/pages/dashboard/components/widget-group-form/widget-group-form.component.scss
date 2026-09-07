@@ -1,0 +1,36 @@
+.editor-container {
+  align-items: center;
+  background-color: var(--bg1);
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 5px;
+  margin-left: -20px;
+  margin-right: -20px;
+  padding: 15px 10px;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+
+  .layout-control {
+    flex: 1 1 50%;
+    max-width: 50%;
+  }
+}
+
+.layout-control {
+  margin-bottom: 4px;
+  margin-top: 6px;
+
+  .layout-label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+}
+
+.widget-options-container {
+  padding: 16px 0;
+}
+

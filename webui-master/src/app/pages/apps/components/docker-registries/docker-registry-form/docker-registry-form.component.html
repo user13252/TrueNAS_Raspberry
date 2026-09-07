@@ -1,0 +1,54 @@
+<form class="ix-form-container" [formGroup]="form" (submit)="onSubmit()">
+  <tn-form-section>
+    @if (!loggedInToDockerHub && !existingDockerRegistry) {
+      <tn-form-field [label]="'URI' | translate">
+        <tn-select
+          testId="registry"
+          formControlName="registry"
+          [options]="(registriesOptions$ | async) ?? []"
+        ></tn-select>
+      </tn-form-field>
+    }
+
+    @if (existingDockerRegistry || loggedInToDockerHub || !form.controls.registry.value) {
+      <tn-form-field [label]="'URI' | translate" [required]="true">
+        <tn-input
+          name="uri"
+          testId="uri"
+          formControlName="uri"
+          [required]="true"
+          [placeholder]="dockerHubRegistry"
+        ></tn-input>
+      </tn-form-field>
+
+      <tn-form-field [label]="'Name' | translate" [required]="true">
+        <tn-input
+          name="name"
+          testId="name"
+          formControlName="name"
+          [required]="true"
+        ></tn-input>
+      </tn-form-field>
+    }
+
+    <tn-form-field [label]="'Username' | translate" [required]="true">
+      <tn-input
+        name="username"
+        testId="username"
+        formControlName="username"
+        [required]="true"
+      ></tn-input>
+    </tn-form-field>
+
+    <tn-form-field [label]="'Password' | translate" [required]="true">
+      <tn-input
+        name="password"
+        testId="password"
+        formControlName="password"
+        [inputType]="InputType.Password"
+        [required]="true"
+        [showPasswordToggle]="true"
+      ></tn-input>
+    </tn-form-field>
+  </tn-form-section>
+</form>

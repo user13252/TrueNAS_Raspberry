@@ -1,0 +1,59 @@
+<tn-card class="card" padding="small" [title]="'Associated Hosts' | translate">
+  <ng-template tnCardFooterActions>
+    <ix-add-host-menu
+      [hosts]="subsystem().hosts"
+      [showAllowAnyHost]="!subsystem().allow_any_host"
+      [ixUiSearch]="searchableElements.elements.addHost"
+      (hostSelected)="hostAdded($event)"
+      (allowAllHostsSelected)="allowAllHostsSelected()"
+    ></ix-add-host-menu>
+  </ng-template>
+
+  @if (subsystem().allow_any_host && !subsystem().hosts.length) {
+    {{ 'All hosts are allowed.' | translate }}
+  } @else if (!subsystem().hosts?.length) {
+    <tn-banner
+      type="warning"
+      [heading]="helptext.noHostsWarningHeading | translate"
+      [message]="helptext.noHostsWarning | translate"
+    ></tn-banner>
+  } @else {
+    <ul class="host-list">
+      @for (host of subsystem().hosts; track host.id) {
+        <li>
+          <span class="host">
+            <span class="host-description">
+              @if (host.description) {
+                <strong>{{ host.description }}</strong> - {{ host.hostnqn }}
+              } @else {
+                {{ host.hostnqn }}
+              }
+
+              @if (host.dhchap_key) {
+                <tn-icon
+                  name="key"
+                  library="mdi"
+                  class="key-icon"
+                  [tnTooltip]="helptext.hasHostAuthentication | translate"
+                ></tn-icon>
+              }
+            </span>
+
+            <span class="host-actions">
+              <tn-icon-button
+                *ixRequiresRoles="requiredRoles"
+                name="link-variant-off"
+                library="mdi"
+                iconClass="icon"
+                [ariaLabel]="'Remove host from the subsystem' | translate"
+                [tooltip]="'Remove host from the subsystem' | translate"
+                [testId]="['remove-host-association', hostTestIdSlug(host)]"
+                (onClick)="removeAssociation(host)"
+              ></tn-icon-button>
+            </span>
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</tn-card>

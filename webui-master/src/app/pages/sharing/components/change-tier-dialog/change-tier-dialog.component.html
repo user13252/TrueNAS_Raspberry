@@ -1,0 +1,99 @@
+<tn-dialog-shell testId="change-tier" [title]="'Change Storage Tier' | translate">
+<div>
+  <div class="dataset-name">
+    <strong>{{ 'Dataset' | translate }}:</strong> {{ data.datasetName }}
+  </div>
+
+  @if (hasAnyShares()) {
+    <div class="share-usage">
+      {{ 'This dataset is used by the following shares:' | translate }}
+      <ul class="services">
+        @if (shareUsage().smb.length) {
+          <li>
+            <span class="service-name">{{ 'SMB Share' | translate }}:</span>
+            <ul class="service-shares">
+              @for (name of shareUsage().smb; track name) {
+                <li>{{ name }}</li>
+              }
+            </ul>
+          </li>
+        }
+        @if (shareUsage().nfs) {
+          <li>
+            <span class="service-name">{{ 'NFS Share' | translate }}:</span>
+            <ul class="service-shares">
+              <li>
+                {{ '{count, plural, =1 {1 share} other {# shares}}' | translate: { count: shareUsage().nfs } }}
+              </li>
+            </ul>
+          </li>
+        }
+        @if (shareUsage().webshare.length) {
+          <li>
+            <span class="service-name">{{ 'WebShare' | translate }}:</span>
+            <ul class="service-shares">
+              @for (name of shareUsage().webshare; track name) {
+                <li>{{ name }}</li>
+              }
+            </ul>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+
+  <div class="tier-change">
+    <div class="tier-column">
+      <span class="tier-chip current">{{ currentTierLabel | translate }}</span>
+      @if (currentTierSpace(); as space) {
+        <span class="tier-space">{{ space }} {{ 'available' | translate }}</span>
+      }
+    </div>
+    <span aria-hidden="true" class="arrow">&rarr;</span>
+    <div class="tier-column">
+      <span class="tier-chip new">{{ newTierLabel | translate }}</span>
+      @if (newTierSpace(); as space) {
+        <span class="tier-space">{{ space }} {{ 'available' | translate }}</span>
+      }
+    </div>
+  </div>
+
+  <form [formGroup]="form">
+    <tn-form-field [tooltip]="'When checked, existing data will be migrated to the new storage tier. This may take some time depending on the amount of data.' | translate">
+      <tn-checkbox
+        testId="move-existing-data"
+        formControlName="moveExistingData"
+        [label]="'Move existing data' | translate"
+      ></tn-checkbox>
+    </tn-form-field>
+
+    @if (form.value.moveExistingData) {
+      @if (estimatedRewriteSize(); as size) {
+        <div class="rewrite-size">
+          {{ 'Estimated rewrite size: up to {size}' | translate: { size } }}
+        </div>
+      }
+
+      @if (hasSnapshots()) {
+        <div class="snapshot-note">
+          {{ 'This dataset has snapshots and they are not rewritten automatically.' | translate }}
+        </div>
+      }
+    }
+  </form>
+
+  <tn-banner
+    class="tier-warning"
+    type="warning"
+    [heading]="'Changing the tier takes effect immediately' | translate"
+    [message]="form.value.moveExistingData
+      ? ('Data migration can be cancelled while it runs, but cancelling does not undo the tier change: the dataset stays on the new tier.' | translate)
+      : ''"
+  ></tn-banner>
+</div>
+
+<div tnDialogAction align="end">
+  <tn-button variant="outline" testId="cancel" [label]="'Cancel' | translate" (onClick)="dialogRef.close(false)"></tn-button>
+  <tn-button color="primary" testId="apply" [label]="'Apply' | translate" [disabled]="isSubmitting() || loadFailed()" (onClick)="onApply()"></tn-button>
+</div>
+</tn-dialog-shell>

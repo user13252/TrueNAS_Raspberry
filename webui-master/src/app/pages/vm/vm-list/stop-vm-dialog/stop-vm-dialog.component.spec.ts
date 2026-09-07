@@ -1,0 +1,49 @@
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ReactiveFormsModule } from '@angular/forms';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { TnButtonHarness, TnCheckboxHarness } from '@truenas/ui-components';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { VirtualMachine } from 'app/interfaces/virtual-machine.interface';
+import { DialogService } from 'app/modules/dialog/dialog.service';
+import { StopVmDialogComponent } from 'app/pages/vm/vm-list/stop-vm-dialog/stop-vm-dialog.component';
+
+describe('StopVmDialogComponent', () => {
+  let spectator: Spectator<StopVmDialogComponent>;
+  let loader: HarnessLoader;
+
+  const createComponent = createComponentFactory({
+    component: StopVmDialogComponent,
+    imports: [
+      ReactiveFormsModule,
+    ],
+    providers: [
+      mockAuth(),
+      mockProvider(DialogService),
+      mockProvider(DialogRef),
+      {
+        provide: DIALOG_DATA,
+        useValue: {
+          id: 1,
+          name: 'test',
+        } as VirtualMachine,
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  it('stops a VM when dialog is submitted', async () => {
+    const forceCheckbox = await loader.getHarness(TnCheckboxHarness.with({ label: 'Force Stop After Timeout' }));
+    await forceCheckbox.check();
+
+    const stopButton = await loader.getHarness(TnButtonHarness.with({ label: 'Stop' }));
+    await stopButton.click();
+
+    expect(spectator.inject(DialogRef).close).toHaveBeenCalledWith({ forceAfterTimeout: true });
+  });
+});

@@ -1,0 +1,53 @@
+<ix-form
+  [formGroup]="form"
+  [isEditMode]="!isNew"
+  [requiredRoles]="requiredRoles"
+  [submitHandler]="handleSubmit"
+  (closed)="closed.emit($event)"
+>
+  <tn-form-section>
+    <ix-explorer
+      formControlName="path"
+      [label]="helptext.webshare_path_label | translate"
+      [tooltip]="helptext.webshare_path_tooltip | translate"
+      [required]="true"
+      [nodeProvider]="treeNodeProvider"
+    >
+      <ix-explorer-create-dataset></ix-explorer-create-dataset>
+    </ix-explorer>
+
+    <tn-form-field
+      [label]="helptext.webshare_name_label | translate"
+      [tooltip]="helptext.webshare_name_tooltip | translate"
+      [required]="true"
+    >
+      <tn-input
+        formControlName="name"
+        [placeholder]="helptext.webshare_name_placeholder | translate"
+      ></tn-input>
+    </tn-form-field>
+
+    <!--
+      The tooltip explaining why the home-share checkbox is disabled has to hang off a
+      wrapper: a disabled control emits no pointer events of its own, so the directive would
+      never see a hover if it sat on the checkbox.
+    -->
+    <div
+      class="home-share-checkbox-wrapper"
+      [tnTooltip]="disabledHomeShareTooltip()"
+      [tnTooltipDisabled]="!existingHomeShare()"
+    >
+      <tn-form-field [tooltip]="helptext.webshare_is_home_base_tooltip | translate">
+        <tn-checkbox
+          formControlName="is_home_base"
+          [label]="helptext.webshare_is_home_base_label | translate"
+        ></tn-checkbox>
+      </tn-form-field>
+    </div>
+
+    <tn-banner
+      [type]="'info'"
+      [heading]="helptext.webshare_warning | translate"
+    ></tn-banner>
+  </tn-form-section>
+</ix-form>

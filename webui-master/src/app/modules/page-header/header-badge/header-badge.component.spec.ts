@@ -1,0 +1,54 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import { TnButtonHarness, TnDialog } from '@truenas/ui-components';
+import { IfNightlyDirective } from 'app/directives/if-nightly/if-nightly.directive';
+import { SystemInfo } from 'app/interfaces/system-info.interface';
+import { FeedbackDialog } from 'app/modules/feedback/components/feedback-dialog/feedback-dialog.component';
+import { HeaderBadgeComponent } from 'app/modules/page-header/header-badge/header-badge.component';
+import { selectSystemInfo } from 'app/store/system-info/system-info.selectors';
+
+describe('HeaderBadgeComponent', () => {
+  let spectator: Spectator<HeaderBadgeComponent>;
+  let loader: HarnessLoader;
+  const createComponent = createComponentFactory({
+    component: HeaderBadgeComponent,
+    imports: [
+      IfNightlyDirective,
+    ],
+    providers: [
+      mockProvider(TnDialog),
+      provideMockStore({
+        selectors: [
+          {
+            selector: selectSystemInfo,
+            value: {
+              version: 'MASTER',
+            } as SystemInfo,
+          },
+        ],
+      }),
+    ],
+  });
+
+  beforeEach(() => {
+    spectator = createComponent();
+    loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+  });
+
+  describe('shows new indicator', () => {
+    it('shows new indicator and leave feedback text', async () => {
+      expect(spectator.query('span')).toHaveText('NEW');
+
+      const button = await loader.getHarness(TnButtonHarness.with({ label: 'Leave Feedback' }));
+      expect(button).toBeTruthy();
+    });
+
+    it('shows leave feedback modal once feedback text pressed', async () => {
+      const button = await loader.getHarness(TnButtonHarness.with({ label: 'Leave Feedback' }));
+      await button.click();
+      expect(spectator.inject(TnDialog).open).toHaveBeenCalledWith(FeedbackDialog);
+    });
+  });
+});

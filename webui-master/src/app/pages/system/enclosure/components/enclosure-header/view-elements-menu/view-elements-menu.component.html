@@ -1,0 +1,18 @@
+@if (views().length > 1) {
+  <tn-button
+    icon="mdi-menu-down"
+    iconPosition="right"
+    [testId]="'elements-menu'"
+    [label]="'Elements' | translate"
+    [tnMenuTriggerFor]="elementsMenu"
+  ></tn-button>
+  <tn-menu #elementsMenu>
+    @for (view of views(); track view.label) {
+      <tn-menu-item
+        [testId]="view.testId"
+        [label]="view.label | translate"
+        (itemClick)="changeView(view)"
+      ></tn-menu-item>
+    }
+  </tn-menu>
+}

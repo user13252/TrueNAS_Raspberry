@@ -1,0 +1,97 @@
+<tn-dialog-shell testId="jobs-panel" [title]="'Running Jobs' | translate">
+
+  <div class="jobs-header">
+    <div class="badges">
+      <div
+        class="job-badge running"
+        [tnTooltip]="'Active' | translate"
+      >
+        <span class="job-badge-count">{{ runningJobsCount$ | async }}</span>
+        <tn-icon name="sync" library="mdi" class="job-icon-running"></tn-icon>
+      </div>
+      <div
+        class="job-badge waiting"
+        [tnTooltip]="JobState.Waiting | jobStateDisplay"
+      >
+        <span class="job-badge-count">{{ waitingJobsCount$ | async }}</span>
+        <tn-icon name="clock-outline" library="mdi" class="job-icon-waiting"></tn-icon>
+      </div>
+      <div
+        class="job-badge success"
+        [tnTooltip]="JobState.Success | jobStateDisplay"
+      >
+        <span class="job-badge-count">{{ successJobsCount$ | async }}</span>
+        <tn-icon name="check-circle" library="mdi" class="job-icon-success"></tn-icon>
+      </div>
+      <div
+        class="job-badge failed"
+        [tnTooltip]="JobState.Failed | jobStateDisplay"
+      >
+        <span class="job-badge-count">{{ failedJobsCount$ | async }}</span>
+        <tn-icon name="close-circle" library="mdi" class="job-icon-failed"></tn-icon>
+      </div>
+    </div>
+  </div>
+
+  @if (isLoading$ | async) {
+    <div>
+      <tn-progress-bar
+        class="loading-indicator"
+        mode="indeterminate"
+      ></tn-progress-bar>
+    </div>
+  } @else {
+    @let jobs = ongoingJobs$ | async;
+    @if (jobs?.length) {
+      <div class="jobs-list">
+        @for (job of jobs; track job.id) {
+          <ix-job-item
+            [job]="job"
+            [clickable]="true"
+            (aborted)="onAbort(job)"
+            (opened)="openJobDialog(job)"
+          ></ix-job-item>
+        }
+      </div>
+    } @else {
+      <div class="no-jobs">
+        <tn-icon name="information" library="mdi"></tn-icon>
+        <h4 class="message">{{ 'No jobs running.' | translate }}</h4>
+      </div>
+    }
+    <tn-divider class="list-divider"></tn-divider>
+    <div class="recent-header">{{'Recently Completed Jobs' | translate}}</div>
+    <div class="finished-jobs-list">
+      @let finishedJobs = finishedJobs$ | async;
+      @for (job of finishedJobs; track job.id) {
+        <ix-job-item
+          [job]="job"
+          [clickable]="true"
+          (aborted)="onAbort(job)"
+          (opened)="openJobDialog(job)"
+        ></ix-job-item>
+      }
+    </div>
+  }
+
+  @if (error$ | async; as error) {
+    <div class="error">
+      <tn-icon name="close-circle" library="mdi" class="icon" color="accent"></tn-icon>
+      <h4 class="message">
+        <span class="error-word">{{ 'Error' | translate }}:</span>
+        {{ error }}
+      </h4>
+    </div>
+  }
+
+
+
+<div tnDialogAction>
+  <tn-button
+    variant="outline"
+    testId="history"
+    [label]="'View All Jobs' | translate"
+    (onClick)="goToJobs()"
+  ></tn-button>
+</div>
+</tn-dialog-shell>

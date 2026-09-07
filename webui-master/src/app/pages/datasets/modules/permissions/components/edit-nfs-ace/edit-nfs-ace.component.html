@@ -1,0 +1,145 @@
+<form [formGroup]="form">
+  <tn-form-section
+    class="general-fields"
+    [heading]="'Access Control Entry' | translate"
+  >
+    <tn-form-field
+      [label]="'Who' | translate"
+      [tooltip]="tooltips.tag | translate"
+      [required]="true"
+    >
+      <tn-select
+        formControlName="tag"
+        [ariaLabel]="'Who' | translate"
+        [options]="tags"
+      ></tn-select>
+    </tn-form-field>
+
+    @if (isUserTag) {
+      <ix-user-combobox
+        formControlName="user"
+        [label]="'User' | translate"
+        [tooltip]="tooltips.user | translate"
+        [required]="true"
+      ></ix-user-combobox>
+    }
+
+    @if (isGroupTag) {
+      <ix-group-combobox
+        formControlName="group"
+        [label]="'Group' | translate"
+        [tooltip]="tooltips.group | translate"
+        [required]="true"
+      ></ix-group-combobox>
+    }
+
+    <tn-form-field
+      [label]="'ACL Type' | translate"
+      [tooltip]="tooltips.type | translate"
+      [required]="true"
+    >
+      <tn-radio-group
+        formControlName="type"
+        [options]="aclTypes"
+        [inline]="true"
+      ></tn-radio-group>
+    </tn-form-field>
+  </tn-form-section>
+
+  <div class="permissions-and-flags">
+    <tn-form-section [heading]="'Permissions' | translate">
+      <tn-form-field
+        [label]="'Permissions Type' | translate"
+        [tooltip]="tooltips.permissionType | translate"
+        [required]="true"
+      >
+        <tn-radio-group
+          formControlName="permissionType"
+          [options]="permissionTypes"
+          [inline]="true"
+        ></tn-radio-group>
+      </tn-form-field>
+      @if (arePermissionsBasic) {
+        <tn-form-field
+          [label]="'Permissions' | translate"
+          [tooltip]="tooltips.basicPermission | translate"
+          [required]="true"
+        >
+          <tn-select
+            formControlName="basicPermission"
+            [ariaLabel]="'Permissions' | translate"
+            [options]="basicPermissions"
+          ></tn-select>
+        </tn-form-field>
+      }
+      @if (!arePermissionsBasic) {
+        <tn-form-field
+          [label]="'Permissions' | translate"
+          [tooltip]="tooltips.advancedPermissions | translate"
+        >
+          <div
+            class="checkbox-list"
+            role="group"
+            formGroupName="advancedPermissions"
+            [attr.aria-label]="'Permissions' | translate"
+          >
+            @for (option of advancedPermissionOptions; track option.value) {
+              <tn-checkbox
+                [formControlName]="option.value"
+                [label]="option.label"
+                [testId]="['advanced-permissions', option.label]"
+              ></tn-checkbox>
+            }
+          </div>
+        </tn-form-field>
+      }
+    </tn-form-section>
+    <tn-form-section [heading]="'Flags' | translate">
+      <tn-form-field
+        [label]="'Flags Type' | translate"
+        [tooltip]="tooltips.flagsType | translate"
+        [required]="true"
+      >
+        <tn-radio-group
+          formControlName="flagsType"
+          [options]="flagTypes"
+          [inline]="true"
+        ></tn-radio-group>
+      </tn-form-field>
+      @if (areFlagsBasic) {
+        <tn-form-field
+          [label]="'Flags' | translate"
+          [tooltip]="tooltips.basicFlag | translate"
+          [required]="true"
+        >
+          <tn-radio-group
+            formControlName="basicFlag"
+            [options]="basicFlags"
+            [inline]="true"
+          ></tn-radio-group>
+        </tn-form-field>
+      }
+      @if (!areFlagsBasic) {
+        <tn-form-field
+          [label]="'Flags' | translate"
+          [tooltip]="tooltips.advancedFlags | translate"
+        >
+          <div
+            class="checkbox-list"
+            role="group"
+            formGroupName="advancedFlags"
+            [attr.aria-label]="'Flags' | translate"
+          >
+            @for (option of advancedFlagOptions; track option.value) {
+              <tn-checkbox
+                [formControlName]="option.value"
+                [label]="option.label"
+                [testId]="['advanced-flags', option.label]"
+              ></tn-checkbox>
+            }
+          </div>
+        </tn-form-field>
+      }
+    </tn-form-section>
+  </div>
+</form>

@@ -1,0 +1,38 @@
+<div class="actions">
+  @if (hasLogs()) {
+    <a
+      role="button"
+      tnTestIdType="link"
+      [attr.tabindex]="0"
+      [tnTestId]="[uniqueRowTag(), 'row-view-logs']"
+      (click)="$event.stopPropagation(); navigateToAuditLogs()"
+      (keydown.enter)="$event.stopPropagation(); navigateToAuditLogs()"
+      (keydown.space)="$event.preventDefault(); $event.stopPropagation(); navigateToAuditLogs()"
+    >
+      {{ 'View Logs' | translate }}
+    </a>
+  }
+
+  @if (hasSessions()) {
+    <a
+      role="button"
+      tnTestIdType="link"
+      [attr.tabindex]="0"
+      [tnTestId]="[uniqueRowTag(), 'view-sessions']"
+      (click)="$event.stopPropagation(); navigateToSessions()"
+      (keydown.enter)="$event.stopPropagation(); navigateToSessions()"
+      (keydown.space)="$event.preventDefault(); $event.stopPropagation(); navigateToSessions()"
+    >
+      {{ 'View Sessions' | translate }}
+    </a>
+  }
+
+  <tn-icon-button
+    *ixRequiresRoles="requiredRoles()"
+    name="pencil"
+    library="mdi"
+    [testId]="[uniqueRowTag(), 'edit-service']"
+    [ariaLabel]="'Edit Service' | translate"
+    (onClick)="$event.stopPropagation(); configureService()"
+  ></tn-icon-button>
+</div>

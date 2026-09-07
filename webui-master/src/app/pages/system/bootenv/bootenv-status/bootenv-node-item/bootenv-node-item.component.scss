@@ -1,0 +1,58 @@
+@import 'scss-imports/variables';
+
+:host {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  font-weight: 500;
+  min-height: 48px;
+}
+
+.tree-node-grid {
+  align-items: center;
+  display: grid;
+  grid-gap: 8px;
+  grid-template-columns: auto 100px 100px 100px 100px 100px 70px;
+  width: 100%;
+
+  @media (max-width: $breakpoint-tablet) {
+    grid-template-columns: auto 0 0 0 0 0 30px;
+  }
+}
+
+.cell {
+  align-items: center;
+  display: inline-flex;
+  min-height: 48px;
+
+  @media (max-width: $breakpoint-tablet) {
+    display: none;
+  }
+
+  &:first-child,
+  &:last-child {
+    @media (max-width: $breakpoint-tablet) {
+      display: inline-flex;
+    }
+  }
+
+  &:last-child {
+    justify-content: flex-end;
+  }
+}
+
+.cell-name .name {
+  font-weight: bold;
+}
+
+.cell-status {
+  gap: 8px;
+
+  .tn-icon {
+    display: flex;
+    font-size: 20px;
+    height: 20px;
+    margin: 0;
+    width: 20px;
+  }
+}

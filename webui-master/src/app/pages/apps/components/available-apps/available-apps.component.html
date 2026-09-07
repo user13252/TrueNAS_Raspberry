@@ -1,0 +1,81 @@
+<ix-page-header [pageTitle]="'Discover' | translate">
+  <ix-custom-app-button></ix-custom-app-button>
+</ix-page-header>
+
+<ix-available-apps-header></ix-available-apps-header>
+
+<div class="available-apps-list" [ixUiSearch]="searchableElements.elements.available">
+  @if ((isLoading$ | async) || (isFiltering$ | async)) {
+    <ix-fake-progress-bar
+      class="loader-bar"
+      [loading]="true"
+    ></ix-fake-progress-bar>
+  }
+
+  @if (appsFilterStore.searchQuery$ | async; as searchQuery) {
+    <h3 class="section-title">
+      {{ 'Search Results for «{query}»' | translate: { query: searchQuery } }}
+    </h3>
+  }
+
+  @if (isLoading$ | async) {
+    <ngx-skeleton-loader
+      class="fake-apps"
+      [count]="6"
+      [animation]="false"
+    ></ngx-skeleton-loader>
+  }
+
+  @if (!(isLoading$ | async)) {
+    @if (!(isFilterOrSearch$ | async)) {
+      @for (appSection of (appsFilterStore.appsByCategories$ | async); track appSection.title) {
+        <ng-container
+          [ngTemplateOutlet]="apps"
+          [ngTemplateOutletContext]="{ $implicit: appSection }"
+        ></ng-container>
+      }
+    }
+
+    @if (isFilterOrSearch$ | async) {
+      <div>
+        @for (appSection of (appsFilterStore.searchedApps$ | async); track appSection.title) {
+          <ng-container
+            [ngTemplateOutlet]="apps"
+            [ngTemplateOutletContext]="{ $implicit: appSection }"
+          ></ng-container>
+        }
+      </div>
+    }
+  }
+</div>
+
+<ng-template #apps let-appSection>
+  @if (appSection.apps; as apps) {
+    <section>
+      @if (apps.length) {
+        <h3 class="section-title">{{ appSection.title | translate }}</h3>
+        <div class="apps">
+          @for (app of apps; track trackByAppId($index, app)) {
+            <a
+              tnTestIdType="link"
+              [routerLink]="['/apps', 'available', app.train, app.name]"
+              [tnTestId]="['open', app.train, app.name]"
+            >
+              <ix-app-card [app]="app"></ix-app-card>
+            </a>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  @if ((appSection.totalApps > appsFilterStore.appsPerCategory) && (showViewMoreButton$ | async)) {
+    <div class="view-all">
+      <tn-button
+        [testId]="[appSection.title, 'view-all']"
+        [label]="('View All' | translate) + ' ' + (appSection.title | translate)"
+        [routerLink]="['/apps', 'available', appSection.category]"
+      ></tn-button>
+    </div>
+  }
+</ng-template>

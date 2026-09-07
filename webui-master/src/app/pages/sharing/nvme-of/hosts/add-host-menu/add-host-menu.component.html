@@ -1,0 +1,60 @@
+@if (noHostsExist() && !showAllowAnyHost()) {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    [testId]="'add-host'"
+    [label]="'Add' | translate"
+    (onClick)="openHostForm()"
+  ></tn-button>
+}
+@else {
+  <tn-button
+    *ixRequiresRoles="requiredRoles"
+    iconPosition="right"
+    [icon]="menuDownIcon"
+    [testId]="'add-host'"
+    [label]="'Add' | translate"
+    [tnMenuTriggerFor]="addMenu"
+  ></tn-button>
+
+  <tn-menu #addMenu>
+    @for (host of unusedHosts(); track host.id) {
+      <tn-menu-item
+        [testId]="['add-host', hostTestIdSlug(host)]"
+        (itemClick)="selectHost(host)"
+      >
+        @if (host.description) {
+          <div class="host-item">
+            <div class="description">{{ host.description }}</div>
+            <div class="hostnqn">{{ host.hostnqn }}</div>
+          </div>
+        } @else {
+          {{ host.hostnqn }}
+        }
+      </tn-menu-item>
+    }
+
+    @if (unusedHosts().length) {
+      <tn-divider></tn-divider>
+    }
+
+    <tn-menu-item
+      [testId]="'create-new-host'"
+      [label]="'Create New' | translate"
+      (itemClick)="openHostForm()"
+    ></tn-menu-item>
+
+    <tn-menu-item
+      [testId]="'manage-hosts'"
+      [label]="'Manage Hosts' | translate"
+      (itemClick)="manageHosts()"
+    ></tn-menu-item>
+
+    @if (showAllowAnyHost()) {
+      <tn-menu-item
+        [testId]="'allow-all-hosts'"
+        [label]="'Allow all hosts' | translate"
+        (itemClick)="allowAllHosts()"
+      ></tn-menu-item>
+    }
+  </tn-menu>
+}

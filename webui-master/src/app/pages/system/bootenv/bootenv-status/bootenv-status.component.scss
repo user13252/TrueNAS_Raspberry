@@ -1,0 +1,97 @@
+@import 'scss-imports/variables';
+
+:host {
+  display: block;
+}
+
+.tree-wrapper {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin-bottom: 1.5rem;
+  overflow: auto;
+}
+
+.tree-inner {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: fit-content;
+
+  @media (max-width: $breakpoint-tablet) {
+    min-height: fit-content;
+    min-width: unset;
+    overflow-x: auto;
+  }
+}
+
+.loader-bar {
+  height: 2px;
+  position: absolute;
+  top: 0;
+  z-index: 3;
+}
+
+// Visual separation between the scrub panel and the tree table below it.
+tn-expansion-panel {
+  margin-bottom: 16px;
+}
+
+// No border-bottom: the tn-tree box directly below draws its own top border.
+.tree-header {
+  align-items: center;
+  color: var(--fg2);
+  display: grid;
+  grid-gap: 8px;
+  grid-template-columns: auto 100px 100px 100px 100px 100px 70px;
+  min-height: 48px;
+  // Match the row grid's horizontal insets so the fixed-width columns line up:
+  // left = tree border (1) + row padding (8) + toggle/spacer (24) + gap (8);
+  // right = tree border (1) + row padding (8).
+  padding-left: 41px;
+  padding-right: 9px;
+
+  > div {
+    font-weight: bold;
+
+    @media (max-width: $breakpoint-tablet) {
+      display: none;
+
+      &:first-child {
+        display: block;
+      }
+    }
+  }
+}
+
+.tree {
+  // TEMP: the library's .tn-tree sets width: 100% + border without border-box,
+  // so the right border clips inside a fitted container. Remove once the library
+  // adds box-sizing to .tn-tree.
+  box-sizing: border-box;
+
+  // Bridge the library's --tn-* design tokens onto webui's theme variables so the
+  // tree's borders/hover/focus render correctly in both themes (the global token
+  // bridge is not wired yet; mirrors dataset-management). Rows sit transparent on
+  // the page background.
+  --tn-lines: var(--lines);
+  --tn-alt-bg1: var(--hover-bg);
+  --tn-alt-bg2: var(--hover-bg);
+  --tn-bg3: var(--hover-bg);
+  --tn-fg1: var(--fg1);
+  --tn-fg2: var(--fg2);
+  --tn-primary: var(--primary);
+  --tn-bg1: transparent;
+}
+
+// The boot-pool tree is a table-like grid: every row's columns must align with
+// the .tree-header regardless of depth (depth is conveyed by the toggle/spacer,
+// matching the previous ix-tree rendering, which had no per-level indent).
+// TEMP: until @truenas/ui-components exposes a children-indent input on
+// tn-nested-tree-node, zero the library's built-in 40px per-level indent.
+// The .tree ancestor out-specifies the library's own rule (a bare
+// div.tn-nested-tree-node-container selector only ties with it, and loses or
+// wins on style-tag order).
+:host ::ng-deep .tree div.tn-nested-tree-node-container {
+  padding-left: 0;
+}

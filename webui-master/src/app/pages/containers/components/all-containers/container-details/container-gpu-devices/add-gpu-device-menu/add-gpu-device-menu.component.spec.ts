@@ -1,0 +1,144 @@
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { signal } from '@angular/core';
+import { byText } from '@ngneat/spectator';
+import { createComponentFactory, mockProvider, Spectator } from '@ngneat/spectator/jest';
+import { provideMockStore } from '@ngrx/store/testing';
+import { TnButtonHarness, TnMenuHarness, TnMenuTesting } from '@truenas/ui-components';
+import { mockApi, mockCall } from 'app/core/testing/utils/mock-api.utils';
+import { mockAuth } from 'app/core/testing/utils/mock-auth.utils';
+import { ContainerDeviceType, containerGpuType, ContainerType } from 'app/enums/container.enum';
+import { ContainerDevice } from 'app/interfaces/container.interface';
+import { SnackbarService } from 'app/modules/snackbar/services/snackbar.service';
+import { ApiService } from 'app/modules/websocket/api.service';
+import {
+  AddGpuDeviceMenuComponent,
+} from 'app/pages/containers/components/all-containers/container-details/container-gpu-devices/add-gpu-device-menu/add-gpu-device-menu.component';
+import { ContainerDevicesStore } from 'app/pages/containers/stores/container-devices.store';
+import { ContainersStore } from 'app/pages/containers/stores/containers.store';
+import { selectAdvancedConfig } from 'app/store/system-config/system-config.selectors';
+
+describe('AddGpuDeviceMenuComponent', () => {
+  const selectedContainer = signal({
+    id: 123,
+    type: ContainerType.Container,
+  });
+
+  describe('with available devices', () => {
+    let spectator: Spectator<AddGpuDeviceMenuComponent>;
+    let loader: HarnessLoader;
+    const gpuChoices = {
+      '0000:19:00.0': containerGpuType.Nvidia,
+      '0000:1a:00.0': containerGpuType.Amd,
+    };
+    const createComponent = createComponentFactory({
+      component: AddGpuDeviceMenuComponent,
+      providers: [
+        mockAuth(),
+        mockApi([
+          mockCall('container.device.create'),
+        ]),
+        provideMockStore({
+          selectors: [
+            {
+              selector: selectAdvancedConfig,
+              value: {
+                nvidia: true,
+              },
+            },
+          ],
+        }),
+        mockProvider(ContainersStore, {
+          selectedContainer,
+        }),
+        mockProvider(ContainerDevicesStore, {
+          devices: () => [
+            {
+              dtype: ContainerDeviceType.Gpu,
+              gpu_type: containerGpuType.Nvidia,
+              pci_address: '0000:19:00.0',
+            } as ContainerDevice,
+          ] as ContainerDevice[],
+          gpuChoices: () => gpuChoices,
+          isLoadingGpuChoices: () => false,
+          reload: jest.fn(),
+          isLoading: () => false,
+        }),
+        mockProvider(SnackbarService),
+      ],
+    });
+
+    beforeEach(() => {
+      spectator = createComponent();
+      loader = TestbedHarnessEnvironment.loader(spectator.fixture);
+    });
+
+    it('shows available GPU devices that have not been already added to this container', async () => {
+      const trigger = await loader.getHarness(TnButtonHarness.with({ label: 'Add' }));
+      await trigger.click();
+
+      const menu = await TnMenuTesting.rootLoader(spectator.fixture).getHarness(TnMenuHarness);
+      const itemLabels = await menu.getItemLabels();
+      expect(itemLabels).toHaveLength(1);
+      expect(itemLabels[0]).toContain('AMD (0000:1a:00.0)');
+    });
+
+    it('adds a GPU device when it is selected', async () => {
+      const trigger = await loader.getHarness(TnButtonHarness.with({ label: 'Add' }));
+      await trigger.click();
+
+      const menu = await TnMenuTesting.rootLoader(spectator.fixture).getHarness(TnMenuHarness);
+      await menu.clickItem({ label: 'AMD (0000:1a:00.0)' });
+
+      expect(spectator.inject(ApiService).call).toHaveBeenCalledWith('container.device.create', [{
+        container: 123,
+        attributes: {
+          dtype: ContainerDeviceType.Gpu,
+          gpu_type: 'AMD',
+          pci_address: '0000:1a:00.0',
+        } as ContainerDevice,
+      }]);
+      expect(spectator.inject(ContainerDevicesStore).reload).toHaveBeenCalled();
+      expect(spectator.inject(SnackbarService).success).toHaveBeenCalledWith('GPU Device was added');
+    });
+  });
+
+  describe('with no available devices', () => {
+    let spectator: Spectator<AddGpuDeviceMenuComponent>;
+    const createComponent = createComponentFactory({
+      component: AddGpuDeviceMenuComponent,
+      providers: [
+        mockAuth(),
+        mockApi([]),
+        provideMockStore({
+          selectors: [
+            {
+              selector: selectAdvancedConfig,
+              value: {
+                nvidia: true,
+              },
+            },
+          ],
+        }),
+        mockProvider(ContainersStore, {
+          selectedContainer,
+        }),
+        mockProvider(ContainerDevicesStore, {
+          devices: () => [] as ContainerDevice[],
+          gpuChoices: () => ({}),
+          isLoadingGpuChoices: () => false,
+          isLoading: () => false,
+        }),
+        mockProvider(SnackbarService),
+      ],
+    });
+
+    beforeEach(() => {
+      spectator = createComponent();
+    });
+
+    it('shows "No GPU devices available" when there are no devices to add', () => {
+      expect(spectator.query(byText('No GPU devices available'))).toExist();
+    });
+  });
+});

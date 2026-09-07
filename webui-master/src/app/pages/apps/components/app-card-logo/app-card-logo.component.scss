@@ -1,0 +1,24 @@
+.logo-container {
+  height: 80px;
+  margin: auto;
+  padding: 5px;
+  position: relative;
+  width: 110px;
+
+  &.logo-loaded {
+    .logo {
+      opacity: 1;
+    }
+  }
+
+  .logo {
+    height: 100%;
+    left: 0;
+    object-fit: contain;
+    opacity: 0.75;
+    position: absolute;
+    top: 0;
+    transition: opacity 250ms;
+    width: 100%;
+  }
+}

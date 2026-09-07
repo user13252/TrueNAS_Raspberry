@@ -1,0 +1,42 @@
+<div class="tooltip">
+  <popper-content #popperTooltip class="fn-theme-tooltip">
+    <div class="tooltip-header">
+      <div class="title-wrapper">
+        <div [ixTest]="['tooltip', 'title']">
+          <h5 class="tooltip-title">
+            {{ 'Help' | translate }}{{ header() ? ': ' : '' }}
+            <i>{{ header() ? (header() | translate) : '' }}</i>
+          </h5>
+        </div>
+      </div>
+      <div>
+        <tn-icon
+          class="close-icon"
+          name="close"
+          library="mdi"
+          size="sm"
+          testId="tooltip-close"
+          (click)="popperTooltip.hide()"
+        ></tn-icon>
+      </div>
+    </div>
+    <div
+      class="tooltip-message"
+      ixTest="tooltip-message"
+      [innerHTML]="message() | translate"
+    ></div>
+  </popper-content>
+
+  <tn-icon
+    class="tooltip-icon"
+    name="help-circle-outline"
+    library="mdi"
+    size="sm"
+    popperAppendTo="body"
+    [testId]="['tooltip', header()]"
+    [popperTrigger]="clickTrigger"
+    [popper]="popperTooltip"
+    [popperShowOnStart]="false"
+    [popperPlacement]="placement()"
+  ></tn-icon>
+</div>
