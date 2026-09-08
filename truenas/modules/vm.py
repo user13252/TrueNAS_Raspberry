@@ -106,6 +106,19 @@ class VmModule:
             "status": "DISABLED" if arch not in ("x86_64", "aarch64") else "LOADED",
         }
 
+    async def get_available_memory(self, context: dict = None):
+        try:
+            with open("/proc/meminfo", "r", errors="replace") as f:
+                meminfo = {}
+                for line in f:
+                    parts = line.split()
+                    if parts:
+                        meminfo[parts[0].rstrip(":")] = parts[1]
+            avail_kb = int(meminfo.get("MemAvailable", "0"))
+            return avail_kb // 1024
+        except Exception:
+            return 0
+
     async def vnc_port_wizard(self, context: dict = None):
         return {"port": 5900}
 

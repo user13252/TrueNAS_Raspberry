@@ -9,6 +9,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import websockets
 from websockets.server import WebSocketServerProtocol
@@ -141,14 +142,14 @@ class TrueNasApp:
 
         core_methods = [
             "set_options", "get_jobs", "subscribe", "unsubscribe",
-            "job_abort", "download", "resize_shell", "bulk",
+            "job_abort", "download", "resize_shell", "bulk", "ping",
         ]
 
         system_api = {
             "info": "info",
             "product_type": "product_type",
             "hostname": "hostname",
-            "reboot_info": "reboot_info",
+            "reboot.info": "reboot_info",
             "reboot": "reboot",
             "shutdown": "shutdown",
             "config_reset": "config_reset",
@@ -159,8 +160,12 @@ class TrueNasApp:
             "is_ix_hardware": "is_ix_hardware",
             "general.config": "general_config",
             "general.update": "general_update",
+            "general.kbdmap_choices": "general_kbdmap_choices",
+            "advanced.sed_global_password_is_set": "advanced_sed_global_password_is_set",
+            "security.info.fips_available": "security_info_fips_available",
             "advanced.config": "advanced_config",
             "advanced.update": "advanced_update",
+            "advanced.login_banner": "advanced_login_banner",
             "security.config": "security_config",
             "security.update": "security_update",
             "ntpserver.query": "ntp_server_query",
@@ -229,6 +234,7 @@ class TrueNasApp:
             "display_web_uri": "display_web_uri", "port_wizard": "port_wizard",
             "virtualization_details": "virtualization_details",
             "vnc_port_wizard": "vnc_port_wizard",
+            "get_available_memory": "get_available_memory",
         }
 
         failover_api = {
@@ -246,6 +252,15 @@ class TrueNasApp:
 
         self.rpc_handler.register_module("core", core, include=core_methods)
         self.rpc_handler.register_module("system", system, mapping=system_api)
+        self.rpc_handler.register_module("tunable", system)
+        self.rpc_handler.register_module("initshutdownscript", system)
+        self.rpc_handler.register_module("update", system, mapping={
+            "config": "update_config",
+            "status": "update_status",
+            "profile_choices": "update_profile_choices",
+            "check": "update_check",
+            "update": "update_update",
+        })
         self.rpc_handler.register_module("pool", storage)
         self.rpc_handler.register_module("pool.dataset", storage)
         self.rpc_handler.register_module("pool.snapshot", storage)
@@ -256,6 +271,17 @@ class TrueNasApp:
         self.rpc_handler.register_module("zpool", storage, mapping={"query": "pool_query"})
         self.rpc_handler.register_module("boot", storage)
         self.rpc_handler.register_module("systemdataset", storage)
+        self.rpc_handler.register_module("nvmet", storage, mapping={
+            "global.config": "nvmet_global_config",
+            "subsys.query": "nvmet_subsys_query",
+            "namespace.query": "nvmet_namespace_query",
+            "host.query": "nvmet_host_query",
+            "port.query": "nvmet_port_query",
+        })
+        self.rpc_handler.register_module("zfs.tier", storage, mapping={
+            "config": "tier_config",
+            "update": "tier_update",
+        })
         self.rpc_handler.register_module("interface", network)
         self.rpc_handler.register_module("network.configuration", network)
         self.rpc_handler.register_module("staticroute", network)
@@ -265,6 +291,10 @@ class TrueNasApp:
         self.rpc_handler.register_module("sharing.nfs", sharing)
         self.rpc_handler.register_module("sharing.s3", sharing)
         self.rpc_handler.register_module("sharing.webdav", sharing)
+        self.rpc_handler.register_module("sharing.webshare", sharing, mapping={
+            "config": "webshare_config",
+            "query": "webshare_query",
+        })
         self.rpc_handler.register_module("smb", sharing)
         self.rpc_handler.register_module("nfs", sharing)
         self.rpc_handler.register_module("s3", sharing)
@@ -290,7 +320,10 @@ class TrueNasApp:
         self.rpc_handler.register_module("vm", vm, mapping=vm_api)
         self.rpc_handler.register_module("vm.device", vm)
         self.rpc_handler.register_module("vmware", vm)
-        self.rpc_handler.register_module("replication", dataprotection)
+        self.rpc_handler.register_module("replication", dataprotection, mapping={
+            "config.config": "config_config",
+        })
+        self.rpc_handler.register_module("cronjob", dataprotection)
         self.rpc_handler.register_module("cloudsync", dataprotection)
         self.rpc_handler.register_module("cloud_backup", dataprotection)
         self.rpc_handler.register_module("rsynctask", dataprotection)
@@ -304,7 +337,9 @@ class TrueNasApp:
         self.rpc_handler.register_module("api_key", misc)
         self.rpc_handler.register_module("keychaincredential", misc)
         self.rpc_handler.register_module("failover", misc, mapping=failover_api)
-        self.rpc_handler.register_module("truenas", misc)
+        self.rpc_handler.register_module("truenas", misc, mapping={
+                "license.info": "truenas_license_info",
+            })
         self.rpc_handler.register_module("truecommand", misc)
         self.rpc_handler.register_module("audit", misc)
         self.rpc_handler.register_module("kmip", misc)
@@ -320,7 +355,14 @@ class TrueNasApp:
         self.rpc_handler.register_module("certificate.certificateauthority", misc,
                                          mapping={"query": "certificate_ca_query"})
         self.rpc_handler.register_module("tn_connect", misc,
-                                         mapping={"config": "truecommand_config"})
+                                         mapping={
+                                             "config": "truecommand_config",
+                                             "ips_with_hostnames": "tn_connect_ips_with_hostnames",
+                                         })
+        self.rpc_handler.register_module("fc", misc, mapping={"capable": "fc_capable"})
+        self.rpc_handler.register_module("webui", misc, mapping={
+            "main.dashboard.sys_info": "dashboard_sys_info",
+        })
 
         self.rpc_handler.register("auth.login_ex", self._handle_login_ex)
         self.rpc_handler.register("auth.login_ex_continue", self._handle_login_ex_continue)
@@ -340,6 +382,9 @@ class TrueNasApp:
             skip_auth = {
                 "auth.login_ex", "auth.login_ex_continue",
                 "core.set_options",
+                "system.advanced.login_banner",
+                "user.has_local_administrator_set_up",
+                "truenas.managed_by_truecommand",
             }
             if method in skip_auth:
                 return True
@@ -366,9 +411,62 @@ class TrueNasApp:
 
     # ── Auth Handlers ─────────────────────────────────────
 
-    async def _handle_login_ex(self, mechanisms: list = None, context: dict = None):
+    _ROLE_TO_UI_ROLES = {
+        "FULL_ADMIN": ["FULL_ADMIN"],
+        "SHARING_ADMIN": ["SHARING_ADMIN"],
+        "STORAGE_ADMIN": ["POOL_WRITE", "DATASET_WRITE", "SNAPSHOT_WRITE"],
+        "NETWORK_ADMIN": ["NETWORK_INTERFACE_WRITE", "NETWORK_GENERAL_WRITE"],
+        "VM_ADMIN": ["VM_WRITE", "VM_READ"],
+        "READ_ONLY": ["READONLY_ADMIN"],
+    }
+
+    def _build_user_info(self, session):
+        users = self.auth_manager._users
+        user_data = users.get(session.user, {})
+        ui_roles = []
+        for role in session.roles:
+            for mapped in self._ROLE_TO_UI_ROLES.get(role, [role]):
+                if mapped not in ui_roles:
+                    ui_roles.append(mapped)
+        account_attributes = ["LOCAL"]
+        if "FULL_ADMIN" in session.roles:
+            account_attributes.append("SYS_ADMIN")
+        return {
+            "pw_dir": user_data.get("home", "/root"),
+            "pw_gecos": user_data.get("full_name", session.user),
+            "pw_gid": user_data.get("groupid", 1000),
+            "pw_name": session.user,
+            "pw_shell": user_data.get("shell", "/bin/bash"),
+            "pw_uid": user_data.get("uid", 1000),
+            "attributes": {
+                "preferences": {},
+                "dashState": [],
+                "appsAgreement": False,
+            },
+            "privilege": {
+                "roles": {"$set": ui_roles},
+                "web_shell": True,
+                "webui_access": True,
+            },
+            "account_attributes": account_attributes,
+            "two_factor_config": {
+                "provisioning_uri": "",
+                "secret_configured": False,
+                "interval": 30,
+                "otp_digits": 6,
+            },
+            "username": session.user,
+            "roles": ui_roles,
+        }
+
+    async def _handle_login_ex(self, mechanisms=None, context: dict = None):
         if not mechanisms:
             return {"auth_result": "DENIED", "response_type": "DENIED"}
+
+        if isinstance(mechanisms, dict):
+            mechanisms = [mechanisms]
+        elif isinstance(mechanisms, str):
+            mechanisms = [{"mechanism": mechanisms}]
 
         for mech in mechanisms:
             mech_type = mech.get("mechanism", "")
@@ -380,15 +478,7 @@ class TrueNasApp:
                     return {
                         "auth_result": "SUCCESS",
                         "response_type": "SUCCESS",
-                        "user_info": {
-                            "username": session.user,
-                            "privilege": {
-                                "web_shell": True,
-                                "webui_access": True,
-                                "roles": session.roles,
-                            },
-                            "roles": session.roles,
-                        },
+                        "user_info": self._build_user_info(session),
                         "reconnect_token": session.reconnect_token,
                     }
                 return {"auth_result": "DENIED", "response_type": "DENIED"}
@@ -400,23 +490,15 @@ class TrueNasApp:
                     return {
                         "auth_result": "SUCCESS",
                         "response_type": "SUCCESS",
-                        "user_info": {
-                            "username": session.user,
-                            "privilege": {
-                                "web_shell": True,
-                                "webui_access": True,
-                                "roles": session.roles,
-                            },
-                            "roles": session.roles,
-                        },
+                        "user_info": self._build_user_info(session),
                         "reconnect_token": session.reconnect_token,
                     }
                 return {"auth_result": "DENIED", "response_type": "DENIED"}
 
         return {"auth_result": "DENIED", "response_type": "DENIED"}
 
-    async def _handle_login_ex_continue(self, **kwargs):
-        return {"auth_result": "SUCCESS"}
+    async def _handle_login_ex_continue(self, mechanism=None, context: dict = None):
+        return {"auth_result": "SUCCESS", "response_type": "SUCCESS"}
 
     async def _handle_logout(self, context: dict = None):
         token = context.get("auth_token", "")
@@ -427,12 +509,8 @@ class TrueNasApp:
     async def _handle_auth_me(self, context: dict = None):
         session = context.get("session")
         if session:
-            return {
-                "username": session.user,
-                "privilege": {"web_shell": True},
-                "roles": session.roles,
-            }
-        return {"username": "", "privilege": {"web_shell": False}, "roles": []}
+            return self._build_user_info(session)
+        return None
 
     async def _handle_generate_token(self, data: dict = None, context: dict = None):
         session = context.get("session")
@@ -566,8 +644,6 @@ class TrueNasApp:
     def _origin_allowed(self, request) -> bool:
         """Mesmo-origin: o cabeçalho Origin (browser) deve bater com o Host do request.
         Requests sem Origin (não-browser) são recusados: só a Web UI fala com as APIs."""
-        from urllib.parse import urlsplit
-
         origin = request.headers.get("Origin")
         if not origin:
             return False
@@ -586,6 +662,36 @@ class TrueNasApp:
         if req_port is None:
             req_port = 443 if request.secure else 80
         return origin_host == req_host and origin_port == req_port
+
+    def _origin_allowed_http(self, request) -> bool:
+        """Permite GET simples same-origin sem o cabeçalho Origin.
+
+        Navegadores omitem ``Origin`` em requisições GET simples (fetch/img).
+        Aceita-se apenas quando o ``Referer`` aponta para o mesmo host:port;
+        cruzado e não-browser continuam bloqueados (WS continua estrito)."""
+        if self._origin_allowed(request):
+            return True
+        if request.headers.get("Origin"):
+            return False
+        if request.method != "GET":
+            return False
+        referer = request.headers.get("Referer", "")
+        if not referer:
+            return False
+        try:
+            ref_parts = urlsplit(referer)
+        except Exception:
+            return False
+        if ref_parts.scheme not in ("http", "https") or not ref_parts.hostname:
+            return False
+        ref_host = ref_parts.hostname.lower()
+        ref_port = ref_parts.port
+        if ref_port is None:
+            ref_port = 443 if ref_parts.scheme == "https" else 80
+        req_host, req_port = self._split_host_port(request.host)
+        if req_port is None:
+            req_port = 443 if request.secure else 80
+        return ref_host == req_host and ref_port == req_port
 
     def _find_ui_dir(self) -> str:
         """Localiza o diretório com o index.html real (dist/, dist/browser/, ...)."""
@@ -611,6 +717,7 @@ class TrueNasApp:
         app.router.add_get("/websocket/shell/", self._handle_shell_ws)
         app.router.add_get("/api/boot_id", self._handle_boot_id_http)
         app.router.add_get("/api/docs", self._handle_api_docs)
+        app.router.add_get("/favicon.ico", self._handle_favicon)
         app.router.add_get("/{path:.*}", self._handle_static)
 
         ui_dir = self._find_ui_dir()
@@ -643,6 +750,16 @@ class TrueNasApp:
         if candidate == root or candidate.startswith(root + os.sep):
             return candidate
         return None
+
+    async def _handle_favicon(self, request):
+        from aiohttp import web
+
+        ui_dir = self._find_ui_dir()
+        if ui_dir:
+            favicon = os.path.join(ui_dir, "favicon.ico")
+            if os.path.isfile(favicon):
+                return web.FileResponse(favicon)
+        return web.Response(status=204)
 
     async def _handle_static(self, request):
         from aiohttp import web
@@ -702,14 +819,14 @@ class TrueNasApp:
 
     async def _handle_boot_id_http(self, request):
         from aiohttp import web
-        if not self._origin_allowed(request):
+        if not self._origin_allowed_http(request):
             return web.Response(status=403, text=FORBIDDEN_TEXT, content_type="text/html")
         boot_id = await self._handle_boot_id()
         return web.json_response({"boot_id": boot_id})
 
     async def _handle_api_docs(self, request):
         from aiohttp import web
-        if not self._origin_allowed(request):
+        if not self._origin_allowed_http(request):
             return web.Response(status=403, text=FORBIDDEN_TEXT, content_type="text/html")
         return web.json_response({
             "openapi": "3.0.0",

@@ -156,7 +156,7 @@ class UserGroupModule:
                     self.app.auth_manager._save_users()
         return None
 
-    async def user_has_local_administrator_set(self, context: dict = None):
+    async def user_has_local_administrator_set_up(self, context: dict = None):
         for data in self.app.auth_manager._users.values():
             if data.get("builtin") and data.get("roles"):
                 return True

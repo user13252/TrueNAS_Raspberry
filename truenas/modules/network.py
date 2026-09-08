@@ -116,6 +116,20 @@ class NetworkModule:
     async def interface_defaults(self, context: dict = None):
         return {"ipv4": {"netmask": 24}}
 
+    async def interface_websocket_local_ip(self, context: dict = None):
+        ws = (context or {}).get("websocket")
+        try:
+            addr = getattr(ws, "local_address", None)
+            if addr:
+                return str(addr[0])
+        except Exception:
+            pass
+        try:
+            import socket
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+
     def _netmask_to_prefix(self, netmask: str) -> int:
         if "." in netmask:
             return sum(bin(int(x)).count("1") for x in netmask.split("."))

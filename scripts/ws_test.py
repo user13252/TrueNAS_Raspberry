@@ -21,7 +21,7 @@ async def main(host: str = "127.0.0.1", port: int = 80):
     async with websockets.connect(
         url,
         max_size=2**20,
-        extra_headers={"Origin": f"http://{host}:{port}"},
+        additional_headers={"Origin": f"http://{host}:{port}"},
     ) as ws:
         async def call(method, params, expect=None):
             await ws.send(json.dumps({

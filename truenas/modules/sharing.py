@@ -445,3 +445,11 @@ class SharingModule:
 
     async def iscsi_sessions_query(self, context: dict = None):
         return []
+
+    # ── WebShare ──────────────────────────────────────────
+
+    async def webshare_config(self, context: dict = None):
+        return {"enabled": False, "path": "", "public": False}
+
+    async def webshare_query(self, filters: list = None, options: dict = None, context: dict = None):
+        return []

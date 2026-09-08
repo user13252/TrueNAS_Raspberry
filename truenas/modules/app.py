@@ -59,6 +59,9 @@ class AppModule:
     async def app_categories(self, context: dict = None):
         return self.app.config_store.get("app_categories", [])
 
+    async def app_latest(self, context: dict = None):
+        return await self.app_available()
+
     # ── Catalog ───────────────────────────────────────────
 
     async def catalog_query(self, context: dict = None):
@@ -135,6 +138,13 @@ class AppModule:
         from ..backends.linux import run_cmd
         code, stdout, _ = await run_cmd("systemctl is-active docker 2>/dev/null || docker info >/dev/null 2>&1 && echo active || echo inactive")
         return stdout.strip().lower()
+
+    async def docker_status(self, context: dict = None):
+        from ..backends.linux import run_cmd
+        code, stdout, _ = await run_cmd("docker info >/dev/null 2>&1 && echo running || echo stopped")
+        if code == 0 and stdout.strip() == "running":
+            return {"status": "RUNNING"}
+        return {"status": "UNCONFIGURED"}
 
     # ── Container ─────────────────────────────────────────
 

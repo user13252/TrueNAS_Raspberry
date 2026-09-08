@@ -256,12 +256,21 @@ class AuthManager:
             if username and session.user != username:
                 continue
             result.append({
+                "id": token,
                 "token": token,
                 "user": session.user,
+                "username": session.user,
                 "roles": session.roles,
-                "created_at": session.created_at,
-                "last_activity": session.last_activity,
+                "created_at": {"$date": int(session.created_at)},
+                "last_activity": {"$date": int(session.last_activity)},
                 "attributes": session.attributes,
+                "origin": "",
+                "current": False,
+                "internal": False,
+                "credentials_data": {
+                    "username": session.user,
+                    "parent": None,
+                },
             })
         return result
 

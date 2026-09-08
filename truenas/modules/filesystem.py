@@ -234,14 +234,24 @@ class FilesystemModule:
 
     # ── Device ────────────────────────────────────────────
 
-    async def device_get_info(self, dtype: str = "", context: dict = None) -> dict:
+    async def device_get_info(self, dtype: str = "", context: dict = None) -> list:
         from ..backends.linux import run_cmd
+        devices = []
         if dtype == "GPU":
-            code, stdout, _ = await run_cmd("lspci | grep -i vga 2>/dev/null")
-            gpus = []
+            code, stdout, _ = await run_cmd("lspci | grep -i 'vga\\|3d controller' 2>/dev/null || true")
             if code == 0:
                 for line in stdout.strip().split("\n"):
                     if line:
-                        gpus.append({"description": line.strip(), "drivers": [], "vendor": ""})
-            return {"devices": gpus}
-        return {"devices": []}
+                        devices.append({
+                            "addr": {
+                                "domain": "0000",
+                                "bus": "00",
+                                "slot": "00",
+                                "pci_slot": "0000:00:00.0",
+                            },
+                            "available_to_host": False,
+                            "description": line.strip(),
+                            "devices": [],
+                            "vendor": "",
+                        })
+        return devices

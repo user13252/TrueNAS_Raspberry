@@ -14,6 +14,18 @@ class ReplicationModule:
 
     # ── Replication Tasks ─────────────────────────────────
 
+    async def config_config(self, context: dict = None):
+        return {}
+
+    async def cronjob_query(self, filters: list = None, options: dict = None, context: dict = None):
+        from ..query import apply_filters, apply_options
+        jobs = self.app.config_store.get("cron_jobs", [])
+        if filters:
+            jobs = apply_filters(jobs, filters)
+        if options:
+            jobs = apply_options(jobs, options)
+        return jobs
+
     async def replication_query(self, filters: list = None, options: dict = None, context: dict = None):
         from ..query import apply_filters, apply_options
         tasks = self.app.config_store.get("replication_tasks", [])

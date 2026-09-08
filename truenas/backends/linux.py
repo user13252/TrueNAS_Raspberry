@@ -66,21 +66,28 @@ def get_system_info() -> dict:
 
     try:
         with open("/proc/loadavg") as f:
-            loadavg = f.read().split()[:3]
+            loadavg = [float(x) for x in f.read().split()[:3]]
     except Exception:
-        loadavg = ["0", "0", "0"]
+        loadavg = [0.0, 0.0, 0.0]
 
+    now = datetime.now().timestamp()
     return {
         "hostname": get_hostname(),
         "system_product": model,
         "system_product_version": "",
         "system_serial": "",
+        "platform": "trueNAS",
+        "model": model,
+        "system_manufacturer": "Raspberry Pi",
         "system_time": {
-            "system_time": datetime.now().timestamp(),
-            "boot_time": datetime.now().timestamp(),
+            "system_time": now,
+            "boot_time": now,
         },
         "version": "RPi-24.10.0",
         "build": "truenas-rpi",
+        "buildtime": now,
+        "datetime": now,
+        "boottime": now,
         "type": "SCALE",
         "status": {"status": "LOADED"},
         "license": {"license": "Unlicensed", "expired": False},
@@ -91,8 +98,12 @@ def get_system_info() -> dict:
         "cores": os.cpu_count() or 1,
         "physical_cores": os.cpu_count() or 1,
         "physical_memory": total_mem,
+        "physmem": total_mem,
+        "ecc_memory": False,
         "loadavg": loadavg,
         "uptime": _get_uptime(),
+        "uptime_seconds": _get_uptime(),
+        "remote_info": None,
         "system_product": model,
     }
 

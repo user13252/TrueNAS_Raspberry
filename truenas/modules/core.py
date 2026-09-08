@@ -10,6 +10,9 @@ class CoreModule:
     def __init__(self, app):
         self.app = app
 
+    async def ping(self, context: dict = None):
+        return "pong"
+
     async def set_options(self, options: dict = None, context: dict = None):
         if options:
             ctx = context or {}

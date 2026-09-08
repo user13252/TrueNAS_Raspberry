@@ -563,6 +563,9 @@ class StorageModule:
     async def disk_temperature_agg(self, filters: list = None, options: dict = None, context: dict = None):
         return {}
 
+    async def disk_details(self, filters: list = None, options: dict = None, context: dict = None):
+        return {"used": [], "unused": []}
+
     async def disk_update(self, name: str = None, data: dict = None, context: dict = None):
         return {}
 
@@ -631,3 +634,52 @@ class StorageModule:
         if data:
             await self.app.config_store.set("systemdataset", data)
         return await self.systemdataset_config()
+
+    # ── Dataset details (UI tree) ─────────────────────────
+
+    async def dataset_details(self, filters: list = None, options: dict = None, context: dict = None):
+        return []
+
+    # ── Disk temperature alerts ─────────────────────────
+
+    async def disk_temperature_alerts(self, disks: list = None, context: dict = None):
+        return []
+
+    # ── ZFS Tier ─────────────────────────────────────────
+
+    async def tier_config(self, context: dict = None):
+        return self.app.config_store.get("zfs_tier", {
+            "enabled": False,
+            "max_concurrent_jobs": 0,
+            "max_used_percentage": 0,
+            "special_class_metadata_reserve_pct": 50,
+        })
+
+    async def tier_update(self, data: dict = None, context: dict = None):
+        if data:
+            await self.app.config_store.set("zfs_tier", data)
+        return await self.tier_config()
+
+    # ── NVMe-oF (nvmet) ──────────────────────────────────
+
+    async def nvmet_global_config(self, context: dict = None):
+        return {
+            "id": 1,
+            "basenqn": "nqn.2009-01.com.ixsystems:truenas-rpi",
+            "kernel": False,
+            "ana": False,
+            "rdma": False,
+            "xport_referral": False,
+        }
+
+    async def nvmet_subsys_query(self, filters: list = None, options: dict = None, context: dict = None):
+        return []
+
+    async def nvmet_namespace_query(self, filters: list = None, options: dict = None, context: dict = None):
+        return []
+
+    async def nvmet_host_query(self, filters: list = None, options: dict = None, context: dict = None):
+        return []
+
+    async def nvmet_port_query(self, filters: list = None, options: dict = None, context: dict = None):
+        return []

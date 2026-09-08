@@ -5,6 +5,7 @@ import logging
 import os
 import platform
 import time
+import uuid
 from typing import Any, Optional
 
 log = logging.getLogger("truenas.system")
@@ -15,11 +16,16 @@ class SystemModule:
         self.app = app
         self._config_store = app.config_store
         self._general_defaults = {
-            "ui_address": "0.0.0.0",
+            "ui_address": ["0.0.0.0"],
+            "ui_v6address": [],
             "ui_port": 80,
             "ui_httpsport": 443,
             "ui_httpsredirect": False,
-            "ui_httpprotocols": False,
+            "ui_httpsprotocols": ["HTTP", "HTTPS"],
+            "ui_consolemsg": True,
+            "ui_certificate": None,
+            "ui_certificate_name": None,
+            "ui_allowlist": [],
             "timezone": "UTC",
             "language": "en",
             "kbmap": "us",
@@ -40,7 +46,6 @@ class SystemModule:
             "debug": False,
             "traceback": False,
             "syslog_tls_certificate": None,
-            "ui_certificate": None,
             "hci": False,
         }
         self._advanced_defaults = {
@@ -73,7 +78,7 @@ class SystemModule:
         return info
 
     async def product_type(self, context: dict = None):
-        return "SCALE"
+        return "COMMUNITY_EDITION"
 
     async def hostname(self, context: dict = None):
         import socket
@@ -83,7 +88,24 @@ class SystemModule:
         stored = self._config_store.get("system_general", {})
         config = dict(self._general_defaults)
         config.update(stored)
+        for key in ("ui_address", "ui_v6address", "ui_httpsprotocols"):
+            value = config.get(key)
+            if isinstance(value, str):
+                config[key] = [value]
         return config
+
+    async def general_kbdmap_choices(self, context: dict = None):
+        return {
+            "us": "English (US)",
+            "uk": "English (UK)",
+            "de": "German",
+            "fr": "French",
+            "es": "Spanish",
+            "it": "Italian",
+            "pt": "Portuguese",
+            "br-abnt2": "Portuguese (Brazil)",
+            "jp": "Japanese",
+        }
 
     async def general_update(self, data: dict = None, context: dict = None):
         if data:
@@ -101,6 +123,10 @@ class SystemModule:
             await self._config_store.set("system_advanced", data)
         return await self.advanced_config()
 
+    async def advanced_login_banner(self, context: dict = None):
+        stored = self._config_store.get("system_advanced", {})
+        return stored.get("login_banner", "")
+
     async def security_config(self, context: dict = None):
         return {
             "enable_fips": False,
@@ -109,10 +135,16 @@ class SystemModule:
     async def security_update(self, data: dict = None, context: dict = None):
         return await self.security_config()
 
+    async def security_info_fips_available(self, context: dict = None):
+        return False
+
+    async def advanced_sed_global_password_is_set(self, context: dict = None):
+        return False
+
     async def reboot_info(self, context: dict = None):
         return {
-            "delay": 0,
-            "reason": "REBOOT_NONE",
+            "boot_id": str(uuid.uuid4()),
+            "reboot_required_reasons": [],
         }
 
     async def reboot(self, delay: int = 0, context: dict = None):
@@ -161,6 +193,33 @@ class SystemModule:
 
     async def update_update(self, train: str = "", context: dict = None):
         return await self.update_check()
+
+    async def update_config(self, context: dict = None):
+        return self._config_store.get("update_config", {
+            "id": 1,
+            "autocheck": False,
+            "profile": "RPi-24.10.0",
+        })
+
+    async def update_status(self, context: dict = None):
+        return {
+            "code": "NORMAL",
+            "status": {
+                "current_version": {
+                    "train": "STABLE",
+                    "profile": "RPi-24.10.0",
+                    "matches_profile": True,
+                },
+                "new_version": None,
+            },
+            "error": None,
+            "update_download_progress": None,
+        }
+
+    async def update_profile_choices(self, context: dict = None):
+        return {
+
+        }
 
     async def ntp_server_query(self, context: dict = None):
         return self._config_store.get("ntp_servers", [

@@ -12,6 +12,26 @@ class MiscModule:
     def __init__(self, app):
         self.app = app
 
+    # ── WebUI ────────────────────────────────────────────
+
+    async def dashboard_sys_info(self, context: dict = None):
+        from ..backends.linux import run_cmd
+        version = "RPi-24.10.0"
+        uptime = 0
+        try:
+            with open("/proc/uptime", "r", errors="replace") as f:
+                uptime = int(float(f.readline().split()[0]))
+        except Exception:
+            pass
+        code, stdout, _ = await run_cmd("cat /etc/truenas/version 2>/dev/null || echo")
+        if code == 0 and stdout.strip():
+            version = stdout.strip()
+        return {
+            "version": version,
+            "uptime_seconds": uptime,
+            "license": None,
+        }
+
     # ── Mail ──────────────────────────────────────────────
 
     async def mail_config(self, context: dict = None):
@@ -288,13 +308,16 @@ class MiscModule:
     # ── Failover ──────────────────────────────────────────
 
     async def failover_config(self, context: dict = None):
-        return {"id": 1, "disabled": True, "reasons": ["NO_FAILOVER物理硬件"]}
+        return {"id": 1, "disabled": True, "reasons": []}
 
     async def failover_status(self, context: dict = None):
-        return {"status": "SINGLE", "disabled_reasons": ["NO_FAILOVER物理硬件"]}
+        return {"status": "SINGLE", "disabled_reasons": []}
 
     async def failover_disabled_reasons(self, context: dict = None):
-        return ["NO_FAILOVER物理硬件"]
+        return []
+
+    async def failover_licensed(self, context: dict = None):
+        return False
 
     async def failover_reboot_info(self, context: dict = None):
         return {"status": "SINGLE"}
@@ -310,8 +333,23 @@ class MiscModule:
     async def truenas_is_production(self, context: dict = None):
         return True
 
+    async def truenas_managed_by_truecommand(self, context: dict = None):
+        return False
+
+    async def truenas_is_ix_hardware(self, context: dict = None):
+        return False
+
+    async def truenas_license_info(self, context: dict = None):
+        return None
+
     async def truecommand_config(self, context: dict = None):
         return {"enabled": False, "status": "DISABLED"}
+
+    async def tn_connect_ips_with_hostnames(self, context: dict = None):
+        return {}
+
+    async def fc_capable(self, context: dict = None):
+        return False
 
     # ── Audit ─────────────────────────────────────────────
 
